@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login | OneOrigin Hub</title>
+    <style>
+        :root {
+            --primary-blue: #00d2ff;
+            --portal-glow: rgba(0, 210, 255, 0.3);
+            --border-color: rgba(0, 210, 255, 0.4);
+        }
+
+        /* STRICT REQUIREMENT: ALL TEXT BOLD */
+        * { font-weight: 700 !important; box-sizing: border-box; }
+
+        body, html {
+            margin: 0; padding: 0;
+            width: 100%; height: 100%;
+            background-color: #020617; 
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* --- VISIBLE BACKGROUND ANIMATIONS --- */
+        #bg-canvas {
+            position: absolute;
+            top: 0; left: 0;
+            z-index: 1;
+        }
+
+        .nebula {
+            position: absolute;
+            width: 100%; height: 100%;
+            background: radial-gradient(circle at 50% 50%, rgba(0, 210, 255, 0.12) 0%, transparent 70%);
+            z-index: 2;
+            animation: breathe 10s ease-in-out infinite;
+        }
+
+        @keyframes breathe {
+            0%, 100% { opacity: 0.4; transform: scale(1); }
+            50% { opacity: 0.8; transform: scale(1.1); }
+        }
+
+        /* --- CENTERED LOGIN PORTAL --- */
+        .login-portal {
+            position: relative;
+            width: 100%;
+            max-width: 500px;
+            padding: 50px 40px;
+            background: rgba(10, 20, 35, 0.85);
+            backdrop-filter: blur(15px);
+            border: 2px solid var(--border-color);
+            border-radius: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 0 30px var(--portal-glow), inset 0 0 15px var(--portal-glow);
+            z-index: 10;
+        }
+
+        .login-portal::before, .login-portal::after {
+            content: '';
+            position: absolute;
+            width: 40px; height: 40px;
+            border: 4px solid var(--primary-blue);
+        }
+        
+        .login-portal::before { top: -5px; left: -5px; border-right: none; border-bottom: none; }
+        .login-portal::after { bottom: -5px; right: -5px; border-left: none; border-top: none; }
+
+        img.logo { 
+            height: 70px; 
+            margin-bottom: 40px; 
+            filter: drop-shadow(0 0 10px rgba(255,255,255,0.5));
+        }
+
+        .btn-google {
+            background: #ffffff;
+            color: #0d1117;
+            border: 1px solid var(--primary-blue);
+            padding: 16px 30px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            font-size: 16px;
+            width: 100%;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-google:hover { 
+            transform: translateY(-3px);
+            box-shadow: 0 10px 20px var(--portal-glow);
+        }
+    </style>
+</head>
+<body>
+
+<canvas id="bg-canvas"></canvas>
+<div class="nebula"></div>
+
+<div class="login-portal">
+    <img src="oo new semi arch white blue (4).png" alt="OneOrigin Logo" class="logo">
+    <button class="btn-google" id="googleLoginBtn">
+        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/action/google.svg" alt="" style="height:20px;">
+        Sign in with Google
+    </button>
+</div>
+
+<script>
+    /* UPDATED STAR/NODE VISIBILITY WITH MOUSE INTERACTIVITY */
+    const canvas = document.getElementById('bg-canvas');
+    const ctx = canvas.getContext('2d');
+    let nodes = [];
+    
+    // Mouse position tracking
+    let mouse = { x: null, y: null };
+    window.addEventListener('mousemove', (e) => {
+        mouse.x = e.x;
+        mouse.y = e.y;
+    });
+
+    function init() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        nodes = [];
+        for (let i = 0; i < 120; i++) {
+            nodes.push({
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height,
+                vx: (Math.random() - 0.5) * 0.8,
+                vy: (Math.random() - 0.5) * 0.8,
+                radius: Math.random() * 2 + 1 
+            });
+        }
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        nodes.forEach((node, i) => {
+            node.x += node.vx;
+            node.y += node.vy;
+
+            if (node.x < 0 || node.x > canvas.width) node.vx *= -1;
+            if (node.y < 0 || node.y > canvas.height) node.vy *= -1;
+
+            ctx.beginPath();
+            ctx.fillStyle = 'rgba(0, 210, 255, 0.8)'; 
+            ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Interactivity: Draw lines to mouse position
+            if (mouse.x !== null) {
+                const dxMouse = node.x - mouse.x;
+                const dyMouse = node.y - mouse.y;
+                const distMouse = Math.sqrt(dxMouse * dxMouse + dyMouse * dyMouse);
+                if (distMouse < 200) {
+                    ctx.strokeStyle = `rgba(0, 210, 255, ${0.4 - distMouse / 500})`; 
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(node.x, node.y);
+                    ctx.lineTo(mouse.x, mouse.y);
+                    ctx.stroke();
+                }
+            }
+
+            for (let j = i + 1; j < nodes.length; j++) {
+                const dx = node.x - nodes[j].x;
+                const dy = node.y - nodes[j].y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < 180) {
+                    ctx.strokeStyle = `rgba(0, 210, 255, ${0.2 - dist / 900})`; 
+                    ctx.lineWidth = 0.8;
+                    ctx.beginPath();
+                    ctx.moveTo(node.x, node.y);
+                    ctx.lineTo(nodes[j].x, nodes[j].y);
+                    ctx.stroke();
+                }
+            }
+        });
+        requestAnimationFrame(draw);
+    }
+
+    window.addEventListener('resize', init);
+    init();
+    draw();
+</script>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getAuth, signInWithPopup, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyDnfIJQxO6mi2_NEGqXRGH5EAxeaNcb7qc",
+        authDomain: "oneorigin-learning-hub.firebaseapp.com",
+        projectId: "oneorigin-learning-hub",
+        storageBucket: "oneorigin-learning-hub.firebasestorage.app",
+        messagingSenderId: "4168147692",
+        appId: "1:4168147692:web:43a1205a0af9770f633bc9"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const provider = new GoogleAuthProvider();
+
+    document.getElementById('googleLoginBtn').onclick = () => {
+        signInWithPopup(auth, provider)
+            .then(() => { window.location.href = "dashboard.html"; })
+            .catch((error) => { console.error("Login failed:", error); });
+    };
+</script>
+</body>
+</html>

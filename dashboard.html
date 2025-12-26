@@ -1,0 +1,2160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard | OneOrigin Hub</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        :root {
+    --sidebar-collapsed: 75px;
+    --sidebar-expanded: 240px;
+    /* Official Google Gemini Primary Blue */
+    --primary-blue: #4285F4; 
+    /* Gemini Dark Mode Background (Material Grey) */
+    --bg-dark: #131314; 
+    --card-bg: #1e1f20;
+    --border-color: #30363d;
+    --header-height: 100px;
+    /* High-emphasis text for Dark Mode (87% opacity white) */
+    --text-main: #e3e3e3; 
+    /* Medium-emphasis text for Dark Mode (60% opacity white) */
+    --text-secondary: #b4b4b4; 
+    --transition-speed: 0.5s;
+/* Card size management */
+#assignedCourseGrid .course-card {
+    max-height: 450px; /* Limits the overall height of the card */
+    overflow: hidden;
+}
+
+.definition-scroll-container {
+    max-height: 120px; /* Height of about 5-6 lines */
+    overflow-y: auto;
+    padding-right: 10px;
+    margin-bottom: 15px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--primary-blue) transparent;
+}
+
+/* Custom scrollbar for Chrome/Safari */
+.definition-scroll-container::-webkit-scrollbar {
+    width: 4px;
+}
+.definition-scroll-container::-webkit-scrollbar-thumb {
+    background-color: var(--primary-blue);
+    border-radius: 10px;
+}
+
+	/* Fix for My Assigned Courses Layout */
+.loader {
+    border: 4px solid var(--border-color);
+    border-top: 4px solid var(--primary-blue);
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto;
+}
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+/* Professional Row Layout for My Assigned Courses */
+#assignedCourseGrid .course-card {
+    display: flex;
+    flex-direction: row;
+    align-items: center; /* Vertically centers the 25% thumbnail */
+    padding: 30px;
+    gap: 35px;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-left: 5px solid var(--primary-blue);
+    margin-bottom: 25px;
+    transition: transform 0.2s ease;
+}
+
+#assignedCourseGrid .course-card:hover {
+    border-color: var(--primary-blue);
+}
+
+/* Thumbnail Constraint (25%) */
+#assignedCourseGrid .thumbnail-wrapper {
+    width: 25%;
+    flex-shrink: 0;
+}
+
+#assignedCourseGrid .video-thumb-container {
+    width: 100%;
+    aspect-ratio: 16/9;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+    position: relative;
+}
+
+/* Typography & Content Block */
+#assignedCourseGrid .course-info {
+    flex: 1;
+}
+
+#assignedCourseGrid .course-info h3 {
+    font-size: 26px !important;
+    margin: 0 0 20px 0;
+    color: var(--primary-blue);
+}
+
+.definition-block {
+    margin-bottom: 20px;
+}
+
+.definition-label {
+    font-size: 12px !important;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: var(--primary-blue);
+    font-weight: 800 !important;
+    display: block;
+    margin-bottom: 8px;
+    opacity: 0.9;
+}
+
+.definition-content {
+    font-size: 16px !important;
+    line-height: 1.7; /* Better readability for long text */
+    color: var(--text-main);
+    margin: 0;
+    font-weight: 400 !important; /* Lighter weight for the body text */
+}
+
+#assignedCourseGrid .btn-primary {
+    width: fit-content !important;
+    margin: 15px 0 0 0 !important;
+    padding: 12px 30px !important;
+    font-size: 16px !important;
+}
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+    #assignedCourseGrid .course-card {
+        flex-direction: column;
+    }
+    #assignedCourseGrid .thumbnail-wrapper {
+        width: 100%;
+    }
+}
+    /* Courses listing: three stacked type sections, each with its own grid */
+#dynamicCourseGrid {
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+    width: 100%;
+}
+
+.course-section h3 { margin: 20px 0 10px 0; color: var(--primary-blue); font-size: 18px; }
+#beginner-courses, #intermediate-courses, #advanced-courses {
+    border: 1px solid var(--border-color);
+    padding: 20px 24px;
+    margin-bottom: 30px;
+    border-radius: 10px;
+    box-sizing: border-box;
+}
+.course-type-section { background: transparent; border: 0; padding: 6px 0; }
+.course-type-section h3 { margin: 0 0 12px 0; color: var(--primary-blue); font-size: 18px; }
+/* Thin divider between course type sections */
+.course-type-section + .course-type-section { border-top: 1px solid var(--border-color); padding-top: 18px; margin-top: 12px; }
+.type-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; padding: 8px 4px; box-sizing: border-box; }
+.type-grid .course-card { border: 1px solid var(--border-color); padding: 10px; transition: transform 0.3s ease, box-shadow 0.3s ease; cursor: pointer; height: 100%; width: 100%; box-sizing: border-box; }
+.type-grid .course-card:hover { transform: translateY(-8px); box-shadow: 0 10px 18px rgba(0,0,0,0.18); border-color: var(--primary-blue); }
+
+/* In-app player overlay */
+.course-player-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.75);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    padding: 20px;
+    backdrop-filter: blur(4px);
+}
+
+.course-player-content {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 16px;
+    width: 75vw;
+    max-width: 1400px;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.35);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.course-player-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: var(--text-main);
+    font-weight: 600;
+}
+
+.course-player-close {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 20px;
+    cursor: pointer;
+    transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.course-player-close:hover { color: #f85149; transform: scale(1.1); }
+
+.course-player-frame {
+    position: relative;
+    height: 75vh;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #000;
+    border: 1px solid var(--border-color);
+}
+
+.course-player-frame iframe {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    border: 0;
+}
+
+.course-player-play {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0,0,0,0.65);
+    color: #fff;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    width: 68px; height: 68px;
+    font-size: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+    z-index: 2;
+}
+
+.course-player-play:hover {
+    transform: translate(-50%, -50%) scale(1.07);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.35);
+    background: rgba(0,0,0,0.8);
+}
+
+/* Measure & Master Styles */
+.quiz-option {
+    background: var(--card-bg);
+    border: 2px solid var(--border-color);
+    padding: 15px;
+    margin: 10px 0;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    color: var(--text-main);
+}
+
+.quiz-option:hover {
+    border-color: var(--primary-blue);
+    background: rgba(66, 133, 244, 0.1);
+}
+
+.quiz-option.selected {
+    border-color: var(--primary-blue);
+    background: rgba(66, 133, 244, 0.2);
+}
+
+.assigned-course-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 15px;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    position: relative;
+}
+
+.assigned-course-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+}
+
+.course-thumbnail-wrapper {
+    position: relative;
+    margin-bottom: 15px;
+}
+
+.course-thumbnail-wrapper img {
+    width: 100%;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.course-definition {
+    background: rgba(66, 133, 244, 0.05);
+    padding: 12px;
+    border-radius: 6px;
+    margin-top: 10px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+.course-uses {
+    margin-top: 8px;
+    padding: 10px;
+    background: rgba(76, 175, 80, 0.05);
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+@media (max-width: 1200px) {
+    .type-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 600px) {
+    .type-grid { grid-template-columns: 1fr; }
+}
+	.admin-table th:last-child, .admin-table td:last-child { text-align: center; width: 80px; }
+	.btn-delete { background: none; border: none; cursor: pointer; font-size: 18px; color: #f85149; transition: transform 0.2s, opacity 0.2s; display: inline-block; line-height: 1; }
+	.btn-delete:hover { transform: scale(1.2); opacity: 0.8; }
+	#timeGreeting { font-size: 22px !important; font-style: italic; color: var(--primary-blue); margin: 0; font-weight: 500; }
+	#admin-view, #course-mgmt-view, #log-view { display: flex; flex-direction: column; align-items: flex-start !important; text-align: left !important; width: 100%; }
+	#leaderboard-view { display: flex; flex-direction: column; align-items: flex-start !important; text-align: left !important; width: 100%; padding: 0; }
+	#course-mgmt-view, #admin-view, #log-view { display: flex; flex-direction: column; align-items: flex-start !important; text-align: left !important; }
+	#settings-view { display: flex; flex-direction: column; align-items: flex-start; text-align: left; width: 100%; }
+	#news-container, #announcements-container { max-height: 350px; overflow-y: auto; padding-right: 12px; scrollbar-width: thin; }
+	.news-item, .announcement-item {font-size: 14px; margin-bottom: 15px; padding: 10px; border-radius: 8px; border-bottom: 1px solid var(--border-color); transition: background 0.2s; }
+	.news-item:hover, .announcement-item:hover {background: rgba(66, 133, 244, 0.05); /* Subtle blue glow on hover */}
+
+/* Player View Specifics */
+#player-view { max-width: 1000px; margin: 0 auto; }
+.video-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+#playerTitle { color: var(--primary-blue); margin: 0; }
+.video-container { position: relative; background: #000; border-radius: 12px; overflow: hidden; border: 1px solid var(--border-color); }
+.video-placeholder { padding-bottom: 56.25%; position: relative; }
+#playerContainer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+
+#startOverlay {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.8); z-index: 10;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
+
+	/* Layout for Home View Blocks */
+.home-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+    margin-top: 25px;
+}
+
+.home-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 20px;
+    min-height: 350px;
+}
+
+.home-card h2 {
+    color: var(--primary-blue);
+    font-size: 20px;
+    margin-top: 0;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.news-item, .announcement-item {
+    font-size: 14px;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.item-date {
+    font-size: 11px;
+    color: var(--text-secondary);
+    display: block;
+}
+}
+
+body.light-theme { --bg-dark: #f0f4f9; --card-bg: #ffffff; --border-color: #dee1e5; --text-main: #1f1f1f; --text-secondary: #444746; --primary-blue: #0b57d0; --sidebar-active-bg: #f1f3f4; }
+        * { font-weight: 700 !important; }
+        body { font-family: 'Calibri', 'Candara', 'Segoe UI', 'Optima', Arial, sans-serif; background-color: var(--bg-dark); color: var(--text-main); margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; transition: all 0.3s; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+        .dashboard-header { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 0 32px; height: var(--header-height); background-color: var(--card-bg); border-bottom: 1px solid var(--border-color); z-index: 2000; flex-shrink: 0; }
+        .header-left img { height: 65px; width: auto; object-fit: contain; }
+	.hub-title { font-size: 36px !important; color: var(--primary-blue); display: flex; gap: 2px; font-family: 'Calibri', sans-serif; font-weight: 800; letter-spacing: -0.5px; margin: 0; }
+	.hub-subtitle { color: var(--text-secondary); font-size: 14px; font-family: 'Calibri', sans-serif; font-weight: 400; opacity: 0.8; margin-top: -2px; text-align: center; }
+	.hub-title span { display: inline-block; transform: none !important; }
+	@keyframes gentleBounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+        .header-right { display: flex; align-items: center; justify-content: flex-end; gap: 15px; }
+        .user-badge {background: #21262d; padding: 8px 18px; border-radius: 20px; border: 1px solid var(--border-color); font-size: 14px;color: var(--text-main) !important; /* Forces light text in dark mode */display: flex;align-items: center; justify-content: center;}
+/* Override for Light Theme */
+body.light-theme .user-badge { 
+    background: #ebf2ff; 
+    border: 1px solid #d0d7de; 
+    color: #24292f !important; /* Forces dark text in light mode */
+}
+        .btn-primary, .btn-logout, .btn-add { background: transparent !important; color: #4285F4 !important; border: 1px solid #4285F4 !important; padding: 10px 20px; border-radius: 8px; font-weight: 700 !important; cursor: pointer; transition: all 0.3s ease; box-shadow: none !important; text-shadow: none !important; display: flex; align-items: center; justify-content: center; }
+        .btn-primary { width: calc(25% - 40px); margin: 25px auto 0 auto; display: block; padding: 15px; font-size: 16px; background: transparent !important; color: #4285F4 !important; border: 1px solid #4285F4 !important; border-radius: 8px; box-shadow: none !important; cursor: pointer; text-align: center; }
+        .btn-logout { background: transparent !important; color: #4285F4 !important; border: 1px solid #4285F4 !important; padding: 8px 16px; border-radius: 8px; box-shadow: none !important; }
+        .app-body { display: flex; flex: 1; overflow: hidden; }
+        .sidebar { width: var(--sidebar-collapsed); background-color: var(--card-bg); border-right: 1px solid var(--border-color); transition: width var(--transition-speed) cubic-bezier(0.68, -0.55, 0.265, 1.55); display: flex; flex-direction: column; box-shadow: none !important; }
+        .sidebar.expanded { width: var(--sidebar-expanded); }
+        .toggle-container { padding: 20px; text-align: center; }
+        .toggle-btn { cursor: pointer; color: var(--primary-blue); font-size: 22px; background: rgba(88, 166, 255, 0.1); border: 1px solid var(--border-color); border-radius: 50%; width: 40px; height: 40px; }
+        .sidebar.expanded .toggle-btn { transform: rotate(180deg); }
+        .sidebar-nav { flex: 1; display: flex; flex-direction: column; padding: 10px; gap: 8px; }
+        .sidebar-footer { border-top: 1px solid var(--border-color); padding: 15px 10px; display: flex; flex-direction: column; gap: 8px; }
+        .sidebar-item { display: flex; align-items: center; padding: 12px 15px; color: var(--text-secondary); text-decoration: none; cursor: pointer; border-radius: 8px; transition: all 0.3s ease; white-space: nowrap; border: 1px solid transparent; box-shadow: none !important; }
+        .sidebar-item:hover { background: rgba(255, 255, 255, 0.04) !important; color: #4285F4 !important; transform: translateX(5px); box-shadow: none !important; }
+	.sidebar-item.active { background: #1e1f20 !important; color: #4285F4 !important; border: 1px solid #4285F4 !important; box-shadow: none !important; border-radius: 8px; }
+	body.light-theme .sidebar-item.active { background: #f1f3f4 !important; color: #0b57d0 !important; border: 1px solid #0b57d0 !important; }
+        .sidebar-text { margin-left: 15px; opacity: 0; transition: opacity 0.3s ease-in-out; }
+        .sidebar.expanded .sidebar-text { opacity: 1; }
+        .main-content { flex: 1; padding: 40px; overflow-y: auto; }
+        .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 25px; width: 100%; }
+        .course-card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; margin-bottom: 15px; padding-bottom: 15px; height: 100%; }
+        .course-card h3 { font-size: 18px; margin: 15px 15px 5px 15px; text-align: left; color: var(--primary-blue); }
+        .topic-summary { padding: 0 20px; font-size: 14px; line-height: 1.6; color: var(--text-secondary); flex-grow: 1; }
+        .topic-summary b { color: var(--text-main); display: block; margin-top: 12px; font-size: 13px; text-transform: uppercase; border-bottom: 1px solid var(--border-color); padding-bottom: 5px; margin-bottom: 8px; }
+        .caution-box { margin-top: 15px; padding: 10px; border-radius: 6px; background: rgba(248, 81, 73, 0.1); border-left: 3px solid #f85149; font-size: 13px; color: #f85149; }
+        .assessment-wrapper { background: var(--card-bg); border: 1px solid var(--border-color); padding: 30px; border-radius: 12px; max-width: 900px; margin: 0 auto; }
+        .admin-table { width: 100%; border-collapse: collapse; margin-top: 20px; background: var(--card-bg); }
+        .admin-table th, .admin-table td { text-align: left; padding: 15px; border-bottom: 1px solid var(--border-color); }
+        .video-player-container { background: var(--card-bg); padding: 20px; border-radius: 12px; border: 1px solid var(--border-color); position: relative; box-sizing: border-box; max-width: 1100px; margin: 0 auto; }
+        .video-wrapper { position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 8px; }
+        #playerContainer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0; }
+
+        /* ====== Added: Similar Videos UI (keeps same font sizes & theme) ====== */
+        .similar-section {
+            margin-top: 14px;
+            border-top: 1px solid var(--border-color);
+            padding-top: 12px;
+        }
+        .similar-title {
+            font-size: 13px;
+            color: var(--text-main);
+            text-transform: uppercase;
+            margin-bottom: 10px;
+            letter-spacing: 0.3px;
+        }
+        .similar-list {
+            max-height: 220px;
+            overflow-y: auto;
+            padding-right: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .similar-item {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 10px;
+            background: rgba(255,255,255,0.02);
+        }
+        .similar-thumb {
+            width: 110px;
+            height: 62px;
+            border-radius: 8px;
+            overflow: hidden;
+            flex-shrink: 0;
+            background: #000;
+        }
+        .similar-thumb img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .similar-meta {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            min-width: 0;
+            flex: 1;
+        }
+        .similar-meta .t {
+            font-size: 13px;
+            color: var(--text-main);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .similar-meta .s {
+            font-size: 12px;
+            color: var(--text-secondary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .btn-secondary {
+            background: transparent;
+            color: var(--primary-blue);
+            border: 1px solid var(--border-color);
+            padding: 8px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        /* ====== End Added ====== */
+    </style>
+</head>
+
+<body>
+<header class="dashboard-header">
+    <div class="header-left"><img src="oo new semi arch white blue (4).png" id="mainLogo"></div>
+    <div class="header-center" style="display: flex; flex-direction: column; align-items: center;">
+        <div class="hub-title" id="bouncingTitle"></div>
+        <div class="hub-subtitle">Empowering your technical growth through AI-driven learning</div>
+    </div>
+    <div class="header-right"><div class="user-badge" id="userName">User</div><button class="btn-logout" onclick="logout()">Log out</button></div>
+</header>
+
+<div class="app-body">
+    <aside class="sidebar" id="sidebar">
+        <div class="toggle-container"><button class="toggle-btn" onclick="toggleSidebar()">▶</button></div>
+        <div class="sidebar-nav">
+            <div class="sidebar-item active" onclick="switchTab('home-view', this)">🏠 <span class="sidebar-text">Home</span></div>
+            <div class="sidebar-item" onclick="switchTab('courses-view', this)">📚 <span class="sidebar-text">Courses</span></div>
+            <div class="sidebar-item" onclick="switchTab('measure-master-view', this)">📊 <span class="sidebar-text">Measure & Master</span></div>
+            <div class="sidebar-item" onclick="switchTab('hub-bot-view', this)">🤖 <span class="sidebar-text">Hub Bot</span></div>
+        </div>
+        <div class="sidebar-footer">
+            <div class="sidebar-item" onclick="switchTab('course-mgmt-view', this)">📖 <span class="sidebar-text">Course Mgmt</span></div>
+            <div class="sidebar-item" id="roleMgmtSidebarItem" onclick="switchTab('role-mgmt-view', this)">👥 <span class="sidebar-text">Role Mgmt</span></div>
+            <div class="sidebar-item" onclick="switchTab('settings-view', this)">⚙️ <span class="sidebar-text">Settings</span></div>
+        </div>
+    </aside>
+
+    <main class="main-content">
+        <section id="home-view">
+            <h1 id="timeGreeting"></h1>
+            <div class="home-grid">
+                <div class="home-card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <h2>📰 Daily AI News</h2>
+                        <button id="adminRefreshNewsBtn" onclick="forceRefreshNews()" style="display:none; background:#f85149; color:white; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:bold;">🔄 Refresh News</button>
+                    </div>
+                    <div id="news-container"></div>
+                </div>
+                <div class="home-card">
+                    <h2>📢 Announcements</h2>
+                    <div id="announcements-container">
+                        <!-- Announcements will be populated dynamically -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Hub Bot Page -->
+        <section id="hub-bot-view" style="display: none;">
+            <h2 style="color: var(--primary-blue);">Hub Bot</h2>
+            <div id="hubBotPage" style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px; padding: 16px; max-width: 900px; margin: 0 auto;">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <div style="width:28px; height:28px; border-radius:50%; background: var(--primary-blue); display:flex; align-items:center; justify-content:center; color:white; font-weight:700;">🤖</div>
+                        <div style="color:var(--text-main); font-weight:700;">Hub Bot</div>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <div style="color:var(--text-secondary); font-size:12px;">Powered by Gemini</div>
+                        <button onclick="clearHubBotChat()" style="background: transparent; color: var(--text-secondary); border:1px solid var(--border-color); padding:6px 10px; border-radius:6px; cursor:pointer;">🗑 Clear Chat</button>
+                    </div>
+                </div>
+                <div id="hubBotPageMessages" style="background: var(--bg-dark); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; min-height: 320px; max-height: 520px; overflow-y: auto;">
+                    <!-- Messages render here -->
+                </div>
+                <div style="display:flex; gap:8px; margin-top:10px;">
+                    <input id="hubBotPageInput" type="text" placeholder="Ask about courses or any tech topic..." style="flex:1; padding:10px; background: var(--bg-dark); border:1px solid var(--border-color); border-radius:6px; color: var(--text-main);">
+                    <button onclick="sendHubBotMessage('page')" style="background: var(--primary-blue); color: white; border: none; padding: 10px 16px; border-radius: 6px; cursor: pointer;">Send</button>
+                </div>
+            </div>
+        </section>
+        <!-- User Management Section -->
+        <section id="user-mgmt-view" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 20px;">
+                <h2 style="color: var(--primary-blue); margin: 0;">User Management</h2>
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <button style="background: var(--primary-blue); color: white; border: none; padding: 10px 16px; border-radius: 6px; cursor: pointer; font-weight: bold;" onclick="openAddUserModal()">+ Add User</button>
+                    <label style="font-size:12px; color:var(--text-secondary)">Bulk Upload CSV</label>
+                    <input type="file" accept=".csv" onchange="handleCSVUpload(event)" style="background: var(--card-bg); color: var(--text-main); border: 1px solid var(--border-color); padding:8px; border-radius:6px;">
+                </div>
+            </div>
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>Employee ID</th>
+                        <th>Employee name</th>
+                        <th>Email ID</th>
+                        <th>Role</th>
+                        <th>Last active date&time</th>
+                    </tr>
+                </thead>
+                <tbody id="userMgmtTableBody">
+                    <!-- User rows will be rendered here -->
+                </tbody>
+            </table>
+        </section>
+
+        <!-- Role Management Section -->
+        <section id="role-mgmt-view" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 20px; gap:12px; flex-wrap:wrap;">
+                <div>
+                    <h2 style="color: var(--primary-blue); margin: 0;">Role Management</h2>
+                    <p style="margin:6px 0 0 0; color: var(--text-secondary); font-size:12px;">Manage user roles. Admin-only.</p>
+                </div>
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <button style="background: var(--primary-blue); color: white; border: none; padding: 10px 16px; border-radius: 6px; cursor: pointer; font-weight: bold;" onclick="openAddUserModal()">+ Add User</button>
+                    <button style="background: #f85149; color: white; border: none; padding: 10px 16px; border-radius: 6px; cursor: pointer; font-weight: bold;" onclick="deleteSelectedRoles()">🗑 Delete Selected</button>
+                    <label style="font-size:12px; color:var(--text-secondary)">Bulk Upload CSV</label>
+                    <input type="file" accept=".csv" onchange="handleRoleCSVUpload(event)" style="background: var(--card-bg); color: var(--text-main); border: 1px solid var(--border-color); padding:8px; border-radius:6px;">
+                </div>
+            </div>
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th style="width:40px; text-align:center;"><input type="checkbox" id="roleSelectAll" onclick="toggleSelectAllRoles(this)"></th>
+                        <th>Employee ID</th>
+                        <th>Employee name</th>
+                        <th>Email ID</th>
+                        <th>Role</th>
+                        <th>Last active date&time</th>
+                        <th>Delete</th>
+                    </tr>
+                </thead>
+                <tbody id="roleMgmtTableBody">
+                    <!-- Roles will render here -->
+                </tbody>
+            </table>
+        </section>
+        <section id="courses-view" style="display: none;">
+            <h2 style="color: var(--primary-blue);">Courses</h2>
+            <div style="margin: 10px 0 20px; width: 100%;">
+                <input id="courseSearchInput" type="search" placeholder="Search courses..." 
+                    style="width: 100%; padding: 12px 14px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--card-bg); color: var(--text-main);">
+            </div>
+            <div id="beginner-courses" class="course-section">
+                <h3>Beginner</h3>
+                <div class="type-grid">
+                    <!-- Beginner courses -->
+                </div>
+            </div>
+            <div id="intermediate-courses" class="course-section">
+                <h3>Intermediate</h3>
+                <div class="type-grid">
+                    <!-- Intermediate courses -->
+                </div>
+            </div>
+            <div id="advanced-courses" class="course-section">
+                <h3>Advanced</h3>
+                <div class="type-grid">
+                    <!-- Advanced courses -->
+                </div>
+            </div>
+        </section>
+
+        <section id="course-mgmt-view" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 20px;">
+                <h2 style="color: var(--primary-blue); margin: 0;">Course Management</h2>
+                <button style="background: var(--primary-blue); color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold;" onclick="openAddCourseModal()">+ Add Course</button>
+            </div>
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>Sl No.</th>
+                        <th>Course name</th>
+                        <th>Course Type</th>
+                        <th>Video ID</th>
+                        <th>Upload date</th>
+                        <th>Delete</th>
+                    </tr>
+                </thead>
+                <tbody id="courseMgmtTableBody">
+                    <!-- Rows will be populated here -->
+                </tbody>
+            </table>
+        </section>
+
+        <section id="measure-master-view" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="color: var(--primary-blue); margin: 0;">Measure & Master</h2>
+                <button onclick="resetAllAssessments()" style="background: #f85149; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold;">🔄 Reset All</button>
+            </div>
+            
+            <!-- Initial Assessment Button -->
+            <div id="initialAssessmentContainer" style="text-align:center; padding:40px; background: var(--card-bg); border: 2px solid var(--border-color); border-radius: 10px; margin-bottom: 30px;">
+                <p style="color:var(--text-secondary); margin-bottom:20px;">Test your knowledge across Web Development, LLMs, Transformers, OCR, AI and more!</p>
+                <button onclick="startInitialAssessment()" style="background:var(--primary-blue); color:white; border:none; padding:15px 30px; border-radius:8px; cursor:pointer; font-size:16px; font-weight:bold;">Start Assessment</button>
+            </div>
+
+            <!-- Assessment Quiz Container -->
+            <div id="assessmentQuizContainer" style="display:none; max-width:800px; margin:0 auto;">
+                <div id="quizProgress" style="color:var(--text-secondary); margin-bottom:15px;"></div>
+                <div id="quizQuestion" style="background:var(--card-bg); padding:20px; border:1px solid var(--border-color); border-radius:8px; margin-bottom:20px;">
+                    <h3 id="questionText" style="color:var(--text-main); margin-bottom:15px;"></h3>
+                    <div id="optionsContainer"></div>
+                </div>
+                <button id="nextQuestionBtn" onclick="nextQuestion()" style="background:var(--primary-blue); color:white; border:none; padding:12px 24px; border-radius:6px; cursor:pointer; font-weight:bold;">Next Question</button>
+                <button id="submitAssessmentBtn" onclick="submitAssessment()" style="display:none; background:#4CAF50; color:white; border:none; padding:12px 24px; border-radius:6px; cursor:pointer; font-weight:bold;">Submit Assessment</button>
+            </div>
+
+            <!-- Results Container -->
+            <div id="assessmentResults" style="display:none; max-width:800px; margin:20px auto; background:var(--card-bg); padding:30px; border:1px solid var(--border-color); border-radius:8px; text-align:center;">
+                <h3 style="color:var(--primary-blue); margin-bottom:15px;">Assessment Complete!</h3>
+                <div id="scoreDisplay" style="font-size:48px; font-weight:bold; color:var(--text-main); margin:20px 0;"></div>
+                <div id="levelDisplay" style="font-size:24px; margin-bottom:20px;"></div>
+                <div id="videoSuggestionContainer" style="margin-top:30px;">
+                    <p style="color:var(--text-secondary); margin-bottom:15px;">Fetching personalized course recommendation...</p>
+                </div>
+            </div>
+
+            <!-- My Assigned Courses Section -->
+            <div id="assignedCoursesSection" style="margin-top:40px; background: var(--card-bg); border: 2px solid var(--border-color); border-radius: 10px; padding: 20px;">
+                <h3 style="color:var(--primary-blue); margin-bottom:20px;">My Assigned Courses (In Progress)</h3>
+                <div id="assignedCoursesGrid" style="display:grid; grid-template-columns:repeat(2, 1fr); gap:20px;">
+                    <!-- Assigned courses will be rendered here -->
+                </div>
+            </div>
+
+            <!-- Passed Courses Section -->
+            <div id="passedCoursesSection" style="margin-top:30px; background: var(--card-bg); border: 2px solid var(--border-color); border-radius: 10px; padding: 20px;">
+                <h3 style="color:#4CAF50; margin-bottom:20px;">✓ Passed Courses (Available Anytime)</h3>
+                <div id="passedCoursesGrid" style="display:grid; grid-template-columns:repeat(2, 1fr); gap:20px;">
+                    <!-- Passed courses will be rendered here -->
+                </div>
+            </div>
+        </section>
+
+        <section id="settings-view" style="display: none;">
+            <h2 style="color: var(--primary-blue);">Settings</h2>
+            <div style="padding: 20px; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; max-width: 400px;">
+                <label style="display: block; margin-bottom: 10px; color: var(--text-main);">Interface Theme</label>
+                <select id="themeToggle" onchange="toggleTheme(this.value)" style="width: 100%; padding: 10px; background: var(--bg-dark); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 6px;">
+                    <option value="dark">Dark Theme</option>
+                    <option value="light">Light Theme</option>
+                </select>
+            </div>
+        </section>
+    </main>
+</div>
+
+<!-- Floating Hub Bot Widget -->
+<button id="hubBotFloatBtn" onclick="toggleHubBotWidget()" style="position:fixed; bottom:20px; right:20px; z-index:3500; background: var(--primary-blue); color: white; border: none; padding: 12px 16px; border-radius: 999px; box-shadow: 0 8px 24px rgba(0,0,0,0.3); cursor: pointer; font-weight: 700; display:flex; align-items:center; gap:8px;">
+    🤖 Hub Bot
+</button>
+
+<div id="hubBotWidget" style="display:none; position:fixed; bottom:80px; right:20px; width:340px; max-height:520px; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px; box-shadow: 0 12px 32px rgba(0,0,0,0.45); z-index:4000; overflow:hidden;">
+    <div style="display:flex; align-items:center; justify-content:space-between; padding:10px 12px; border-bottom:1px solid var(--border-color);">
+        <div style="display:flex; align-items:center; gap:8px;">
+            <div style="width:24px; height:24px; border-radius:50%; background: var(--primary-blue); display:flex; align-items:center; justify-content:center; color:white; font-weight:700;">🤖</div>
+            <div style="color:var(--text-main); font-weight:700;">Hub Bot</div>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+            <button onclick="clearHubBotChat()" title="Clear chat" style="background: transparent; color: var(--text-secondary); border:1px solid var(--border-color); padding:4px 8px; border-radius:6px; cursor:pointer;">🗑</button>
+            <button onclick="toggleHubBotWidget()" style="background: transparent; color: var(--text-secondary); border:none; cursor:pointer; font-size:18px;">✕</button>
+        </div>
+    </div>
+    <div id="hubBotMessages" style="padding:10px; max-height:380px; overflow-y:auto;">
+        <!-- Messages render here -->
+    </div>
+    <div style="display:flex; gap:6px; padding:10px; border-top:1px solid var(--border-color);">
+        <input id="hubBotInput" type="text" placeholder="Ask anything..." style="flex:1; padding:10px; background: var(--bg-dark); border:1px solid var(--border-color); border-radius:6px; color: var(--text-main);">
+        <button onclick="sendHubBotMessage('widget')" style="background: var(--primary-blue); color: white; border: none; padding: 10px 12px; border-radius: 6px; cursor: pointer;">Send</button>
+    </div>
+</div>
+<!-- Add User Modal -->
+<div id="addUserModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:3000; align-items:center; justify-content:center; animation: bounceIn 0.5s ease-out;">
+    <div style="background:var(--card-bg); padding:30px; border-radius:12px; border:1px solid var(--border-color); width:420px; position:relative; animation: modalBounce 0.6s ease-out;">
+        <h2 style="color:var(--primary-blue); margin-top:0;">Add User</h2>
+        <div style="margin-bottom:12px;">
+            <label style="display:block; margin-bottom:5px; font-size:14px; color:var(--text-main);">Employee ID</label>
+            <input type="text" id="newEmpId" style="width:100%; padding:10px; background:var(--bg-dark); border:1px solid var(--border-color); border-radius:6px; color:var(--text-main);">
+        </div>
+        <div style="margin-bottom:12px;">
+            <label style="display:block; margin-bottom:5px; font-size:14px; color:var(--text-main);">Employee name</label>
+            <input type="text" id="newEmpName" style="width:100%; padding:10px; background:var(--bg-dark); border:1px solid var(--border-color); border-radius:6px; color:var(--text-main);">
+        </div>
+        <div style="margin-bottom:12px;">
+            <label style="display:block; margin-bottom:5px; font-size:14px; color:var(--text-main);">Email ID</label>
+            <input type="email" id="newEmpEmail" style="width:100%; padding:10px; background:var(--bg-dark); border:1px solid var(--border-color); border-radius:6px; color:var(--text-main);">
+        </div>
+        <div style="margin-bottom:12px;">
+            <label style="display:block; margin-bottom:5px; font-size:14px; color:var(--text-main);">Role</label>
+            <select id="newEmpRole" style="width:100%; padding:10px; background:var(--bg-dark); border:1px solid var(--border-color); border-radius:6px; color:var(--text-main);">
+                <option value="Employee">Employee</option>
+                <option value="Admin">Admin</option>
+            </select>
+        </div>
+        <div style="display:flex; gap:10px;">
+            <button style="background:var(--primary-blue); color:white; border:none; padding:10px 20px; border-radius:6px; cursor:pointer; flex:1;" onclick="saveNewUser()">Save User</button>
+            <button style="background:var(--bg-dark); color:var(--text-main); border:1px solid var(--border-color); padding:10px 20px; border-radius:6px; cursor:pointer; flex:1;" onclick="closeAddUserModal()">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<!-- Add Role Modal -->
+<div id="addRoleModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:3000; align-items:center; justify-content:center; animation: bounceIn 0.5s ease-out;">
+    <div style="background:var(--card-bg); padding:30px; border-radius:12px; border:1px solid var(--border-color); width:420px; position:relative; animation: modalBounce 0.6s ease-out;">
+        <h2 style="color:var(--primary-blue); margin-top:0;">Add Role</h2>
+        <div style="margin-bottom:12px;">
+            <label style="display:block; margin-bottom:5px; font-size:14px; color:var(--text-main);">Role name</label>
+            <input type="text" id="newRoleName" style="width:100%; padding:10px; background:var(--bg-dark); border:1px solid var(--border-color); border-radius:6px; color:var(--text-main);">
+        </div>
+        <div style="margin-bottom:16px;">
+            <label style="display:block; margin-bottom:5px; font-size:14px; color:var(--text-main);">Course (from Course Mgmt)</label>
+            <select id="newRoleCourse" style="width:100%; padding:10px; background:var(--bg-dark); border:1px solid var(--border-color); border-radius:6px; color:var(--text-main);"></select>
+            <small style="color:var(--text-secondary);">Courses listed here come from the Course Management tab.</small>
+        </div>
+        <div style="display:flex; gap:10px;">
+            <button style="background:var(--primary-blue); color:white; border:none; padding:10px 20px; border-radius:6px; cursor:pointer; flex:1;" onclick="saveNewRole()">Save Role</button>
+            <button style="background:var(--bg-dark); color:var(--text-main); border:1px solid var(--border-color); padding:10px 20px; border-radius:6px; cursor:pointer; flex:1;" onclick="closeAddRoleModal()">Cancel</button>
+        </div>
+    </div>
+</div>
+
+
+<script>
+
+function displayNews(newsArray) {
+    const newsContainer = document.getElementById('news-container');
+    newsContainer.innerHTML = newsArray.map(item => `
+        <div class="news-item">
+            <span class="item-date" style="color: var(--primary-blue); font-size: 11px;">${item.date}</span>
+            <div style="font-weight: 700; margin: 4px 0; color: var(--text-main);">${item.headline}</div>
+            <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.4; margin-bottom: 8px;">
+                ${item.summary}
+            </div>
+            <a href="${item.url}" target="_blank" style="color: var(--primary-blue); font-size: 12px; text-decoration: underline;">Click here to read full article</a>
+        </div>
+    `).join('');
+}
+
+async function fetchAINews() {
+    const CACHE_KEY = 'aiNews';
+    const TIMESTAMP_KEY = 'aiNewsTimestamp';
+    const CACHE_DURATION = 6 * 60 * 60 * 1000; // 6 hours in milliseconds
+    const now = Date.now();
+    const newsContainer = document.getElementById('news-container');
+
+    // Check cache
+    const cachedTimestamp = localStorage.getItem(TIMESTAMP_KEY);
+    if (cachedTimestamp && (now - parseInt(cachedTimestamp)) < CACHE_DURATION) {
+        const cachedNews = localStorage.getItem(CACHE_KEY);
+        if (cachedNews) {
+            try {
+                const newsArray = JSON.parse(cachedNews);
+                displayNews(newsArray);
+                return;
+            } catch (e) {
+                // Invalid cache, proceed to fetch
+            }
+        }
+    }
+
+    // Fetch new news
+    newsContainer.innerHTML = '<div class="news-item">Fetching real-time AI news...</div>';
+
+    try {
+        const API_KEY = "AIzaSyCt7e-k-rc26DhPs8XvZQgRVr2bwaSn2cM";
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${API_KEY}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{
+                    parts: [{ text: "Current date is December 26, 2025. Provide a list of the top 5 most recent and significant AI news headlines from the last 7 days (December 19-26, 2025). Focus on new tool/model launches, partnerships, and acquisitions. For each item, return a JSON object with: 'date', 'headline', 'summary' (brief explanation), and 'url' (the actual article link). Return a JSON array in this exact format: [{\"date\": \"...\", \"headline\": \"...\", \"summary\": \"...\", \"url\": \"...\"}, ...]" }]
+                }]
+            })
+        });
+
+        const data = await response.json();
+        if (data.error) throw new Error(data.error.message);
+
+        let textResponse = data.candidates[0].content.parts[0].text;
+        const cleanJson = textResponse.replace(/```json|```/g, "").trim();
+        const newsArray = JSON.parse(cleanJson);
+
+        // Cache the news
+        localStorage.setItem(CACHE_KEY, JSON.stringify(newsArray));
+        localStorage.setItem(TIMESTAMP_KEY, now.toString());
+
+        displayNews(newsArray);
+
+    } catch (error) {
+        console.error("Gemini Error:", error);
+        // Try to show cached news if available
+        const cachedNews = localStorage.getItem(CACHE_KEY);
+        if (cachedNews) {
+            try {
+                const newsArray = JSON.parse(cachedNews);
+                displayNews(newsArray);
+                newsContainer.innerHTML += '<div class="news-item" style="color:#f85149; font-size:12px;">Showing cached news due to API error.</div>';
+            } catch (e) {
+                newsContainer.innerHTML = `<div class="news-item" style="color:#f85149;">Status: ${error.message}</div>`;
+            }
+        } else {
+            newsContainer.innerHTML = `<div class="news-item" style="color:#f85149;">Status: ${error.message}</div>`;
+        }
+    }
+}
+
+function updateAnnouncements() {
+    const container = document.getElementById('announcements-container');
+    if (!container) return;
+
+    const announcements = JSON.parse(localStorage.getItem('announcements') || '[]');
+    const hasStartedTechAssessment = localStorage.getItem('initialAssessmentStarted') === 'true';
+
+    const items = [];
+    if (!hasStartedTechAssessment) {
+        items.push({ date: 'Urgent', message: 'New Technical Gateway Assessment is now live.', type: 'system' });
+    }
+    announcements.forEach(a => items.push({ date: a.date || '', message: a.message, type: a.type || 'general' }));
+
+    if (items.length === 0) {
+        container.innerHTML = '<div class="announcement-item" style="color:var(--text-secondary);">No announcements.</div>';
+        return;
+    }
+
+    container.innerHTML = items.map(item => `
+        <div class="announcement-item">
+            ${item.date ? `<span class="item-date" style="color: var(--primary-blue); font-size: 11px; margin-right:6px;">${item.date}</span>` : ''}
+            <span style="color:var(--text-main)">${item.message}</span>
+        </div>
+    `).join('');
+}
+
+function updateGreeting() {
+    const hour = new Date().getHours();
+    const greetingElement = document.getElementById('timeGreeting');
+    let timeMsg = "";
+
+    if (hour < 12) timeMsg = "Good Morning, ";
+    else if (hour < 18) timeMsg = "Good Afternoon, ";
+    else timeMsg = "Good Evening, ";
+
+    if (greetingElement) {
+        greetingElement.innerText = timeMsg + "Welcome to the Hub.";
+    }
+}
+
+function switchTab(viewId, element) {
+    // Hide all sections
+    document.querySelectorAll('main > section').forEach(section => {
+        section.style.display = 'none';
+    });
+    // Show the selected section
+    document.getElementById(viewId).style.display = 'block';
+    // Update active sidebar item
+    document.querySelectorAll('.sidebar-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    element.classList.add('active');
+    // Load content if needed
+    if (viewId === 'courses-view') {
+        loadCoursesView();
+    } else if (viewId === 'role-mgmt-view') {
+        loadRoles();
+    }
+}
+
+function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const mainContent = document.querySelector('.main-content');
+    
+    if (sidebar.classList.contains('expanded')) {
+        sidebar.classList.remove('expanded');
+        if (mainContent) mainContent.style.marginLeft = '';
+    } else {
+        sidebar.classList.add('expanded');
+        if (mainContent) mainContent.style.marginLeft = '';
+    }
+}
+
+function toggleTheme(theme) {
+    if (theme === 'light') {
+        document.body.classList.add('light-theme');
+    } else {
+        document.body.classList.remove('light-theme');
+    }
+    localStorage.setItem('hubTheme', theme);
+    // Update logo if needed
+    const logo = document.getElementById('mainLogo');
+    if (logo) {
+        logo.src = theme === 'light' ? 'new oneorigin semi arch (1) 1 (5).png' : 'oo new semi arch white blue (4).png';
+    }
+}
+
+function deriveNameFromEmail(email) {
+    if (!email) return '';
+    const local = email.split('@')[0] || '';
+    const parts = local.split(/[._]/).filter(Boolean);
+    if (parts.length === 0) return '';
+    return parts.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+}
+
+function setUserBadge() {
+    const badge = document.getElementById('userName');
+    if (!badge) return;
+    const email = localStorage.getItem('userEmail') || '';
+    const stored = localStorage.getItem('userName') || '';
+    const derived = deriveNameFromEmail(email);
+    badge.textContent = derived || stored || 'User';
+}
+
+window.onload = () => {
+    // Generate Static Title
+    const titleText = "OneOrigin Learning Hub";
+    const titleContainer = document.getElementById('bouncingTitle');
+    if (titleContainer) {
+        titleContainer.innerHTML = "";
+        titleText.split("").forEach((char) => {
+            const span = document.createElement('span');
+            if (char === " ") {
+                span.className = "space";
+                span.style.width = "10px";
+            } else {
+                span.innerText = char;
+            }
+            titleContainer.appendChild(span);
+        });
+    }
+
+    // Update Dynamic Time-Based Greeting
+    updateGreeting();
+
+    // Fetch AI News
+    fetchAINews();
+
+    // Load saved theme
+    const savedTheme = localStorage.getItem('hubTheme') || 'dark';
+    toggleTheme(savedTheme);
+    document.getElementById('themeToggle').value = savedTheme;
+
+    // Update badge using email-derived full name when available
+    setUserBadge();
+
+    // Show Home view
+    const homeView = document.getElementById('home-view');
+    if (homeView) homeView.style.display = 'block';
+};
+
+</script>
+
+<!-- In-app course player overlay -->
+<div id="coursePlayerOverlay" class="course-player-overlay" onclick="overlayBackdropClick(event)">
+    <div class="course-player-content">
+        <div class="course-player-header">
+            <span id="coursePlayerTitle">Now Playing</span>
+            <button class="course-player-close" onclick="closeCoursePlayer()">✕</button>
+        </div>
+        <div class="course-player-frame">
+            <iframe id="coursePlayerFrame" src="" allowfullscreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"></iframe>
+            <button id="coursePlayerPlay" class="course-player-play" onclick="startCoursePlayer()">▶</button>
+        </div>
+    </div>
+</div>
+
+<div id="addCourseModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:3000; align-items:center; justify-content:center; animation: bounceIn 0.5s ease-out;">
+    <div style="background:var(--card-bg); padding:30px; border-radius:12px; border:1px solid var(--border-color); width:400px; position:relative; animation: modalBounce 0.6s ease-out;">
+        <h2 style="color:var(--primary-blue); margin-top:0;">Add New Course</h2>
+        
+        <div style="margin-bottom:15px;">
+            <label style="display:block; margin-bottom:5px; font-size:14px; color:var(--text-main);">Course Name</label>
+            <input type="text" id="newCourseName" style="width:100%; padding:10px; background:var(--bg-dark); border:1px solid var(--border-color); border-radius:6px; color:var(--text-main);">
+        </div>
+
+        <div style="margin-bottom:15px;">
+            <label style="display:block; margin-bottom:5px; font-size:14px; color:var(--text-main);">Course Type</label>
+            <select id="newCourseType" style="width:100%; padding:10px; background:var(--bg-dark); border:1px solid var(--border-color); border-radius:6px; color:var(--text-main);">
+                <option value="beginner">Beginner</option>
+                <option value="intermediate">Intermediate</option>
+                <option value="advanced">Advanced</option>
+            </select>
+        </div>
+
+        <div style="margin-bottom:20px;">
+            <label style="display:block; margin-bottom:5px; font-size:14px; color:var(--text-main);">YouTube Video ID</label>
+            <input type="text" id="newVideoId" placeholder="e.g., aircAruvnKk" style="width:100%; padding:10px; background:var(--bg-dark); border:1px solid var(--border-color); border-radius:6px; color:var(--text-main);">
+        </div>
+
+        <div style="display:flex; gap:10px;">
+            <button style="background:var(--primary-blue); color:white; border:none; padding:10px 20px; border-radius:6px; cursor:pointer; flex:1;" onclick="saveNewCourse()">Save Course</button>
+            <button style="background:var(--bg-dark); color:var(--text-main); border:1px solid var(--border-color); padding:10px 20px; border-radius:6px; cursor:pointer; flex:1;" onclick="closeAddCourseModal()">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<style>
+@keyframes bounceIn {
+    0% { opacity: 0; transform: scale(0.3); }
+    50% { opacity: 1; transform: scale(1.05); }
+    70% { transform: scale(0.9); }
+    100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes modalBounce {
+    0% { transform: scale(0.7) rotate(-5deg); }
+    50% { transform: scale(1.1) rotate(2deg); }
+    100% { transform: scale(1) rotate(0deg); }
+}
+</style>
+
+<script>
+function openAddCourseModal() {
+    document.getElementById('addCourseModal').style.display = 'flex';
+}
+
+function closeAddCourseModal() {
+    document.getElementById('addCourseModal').style.display = 'none';
+}
+
+function saveNewCourse() {
+    const name = document.getElementById('newCourseName').value.trim();
+    const type = document.getElementById('newCourseType').value;
+    const videoId = document.getElementById('newVideoId').value.trim();
+
+    if (!name || !videoId) {
+        alert('Please fill in all required fields.');
+        return;
+    }
+
+    const courses = JSON.parse(localStorage.getItem('courses') || '[]');
+    const uploadDate = new Date().toLocaleDateString();
+    const id = Date.now();
+    courses.push({ id, name, type, videoId, uploadDate });
+    localStorage.setItem('courses', JSON.stringify(courses));
+
+    // Announce the new course
+    const announcements = JSON.parse(localStorage.getItem('announcements') || '[]');
+    announcements.unshift({
+        message: `New course added: ${name} (${type})`,
+        date: new Date().toLocaleString(),
+        type: 'course'
+    });
+    localStorage.setItem('announcements', JSON.stringify(announcements));
+
+    loadCourses();
+    loadCoursesView();
+    loadRoles();
+    if (typeof updateAnnouncements === 'function') updateAnnouncements();
+
+    // Clear the form
+    document.getElementById('newCourseName').value = '';
+    document.getElementById('newVideoId').value = '';
+
+    closeAddCourseModal();
+}
+
+function deleteCourse(id) {
+    const courses = JSON.parse(localStorage.getItem('courses') || '[]');
+    const index = courses.findIndex(c => c.id === id);
+    if (index > -1) {
+        courses.splice(index, 1);
+        localStorage.setItem('courses', JSON.stringify(courses));
+        loadCourses();
+        loadCoursesView();
+        loadRoles();
+    }
+}
+
+function loadCourses() {
+    const courses = JSON.parse(localStorage.getItem('courses') || '[]');
+    const tbody = document.getElementById('courseMgmtTableBody');
+    tbody.innerHTML = '';
+    courses.forEach((course, index) => {
+        const row = tbody.insertRow();
+        row.insertCell(0).innerText = index + 1;
+        row.insertCell(1).innerText = course.name;
+        row.insertCell(2).innerText = course.type;
+        row.insertCell(3).innerText = course.videoId;
+        row.insertCell(4).innerText = course.uploadDate;
+        const deleteCell = row.insertCell(5);
+        deleteCell.innerHTML = '<button style="background:#f85149; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;" onclick="deleteCourse(' + course.id + ')">Delete</button>';
+    });
+    loadRoles();
+}
+
+let currentCourseVideoId = '';
+
+function openCoursePlayer(videoId, title) {
+    const overlay = document.getElementById('coursePlayerOverlay');
+    const frame = document.getElementById('coursePlayerFrame');
+    const titleEl = document.getElementById('coursePlayerTitle');
+    const playBtn = document.getElementById('coursePlayerPlay');
+    currentCourseVideoId = videoId;
+    if (overlay && frame && titleEl) {
+        titleEl.textContent = title || 'Now Playing';
+        overlay.style.display = 'flex';
+        if (playBtn) playBtn.style.display = 'flex';
+        // Do not autoplay; wait for explicit play click
+        frame.src = '';
+    }
+}
+
+// ===== User Management JS =====
+function openAddUserModal() {
+    const modal = document.getElementById('addUserModal');
+    if (modal) modal.style.display = 'flex';
+}
+function closeAddUserModal() {
+    const modal = document.getElementById('addUserModal');
+    if (modal) modal.style.display = 'none';
+}
+
+function loadUsers() {
+    const tbody = document.getElementById('userMgmtTableBody');
+    if (!tbody) return;
+    const users = JSON.parse(localStorage.getItem('users') || '[]');
+    tbody.innerHTML = '';
+    users.forEach((u, idx) => {
+        const row = tbody.insertRow();
+        row.insertCell(0).innerText = u.employeeId || '';
+        row.insertCell(1).innerText = u.name || '';
+        row.insertCell(2).innerText = u.email || '';
+        const roleCell = row.insertCell(3);
+        roleCell.innerHTML = `<select onchange="handleRoleChange(${idx}, this.value)" style="padding:6px; background:var(--bg-dark); color:var(--text-main); border:1px solid var(--border-color); border-radius:6px;">
+            <option value="Employee" ${u.role === 'Employee' ? 'selected' : ''}>Employee</option>
+            <option value="Admin" ${u.role === 'Admin' ? 'selected' : ''}>Admin</option>
+        </select>`;
+        row.insertCell(4).innerText = u.lastActive || '';
+    });
+}
+
+function saveNewUser() {
+    const employeeId = document.getElementById('newEmpId').value.trim();
+    const name = document.getElementById('newEmpName').value.trim();
+    const email = document.getElementById('newEmpEmail').value.trim();
+    const role = document.getElementById('newEmpRole').value;
+    if (!employeeId || !name || !email) {
+        alert('Please fill in Employee ID, Name, and Email');
+        return;
+    }
+    const users = JSON.parse(localStorage.getItem('users') || '[]');
+    users.push({ employeeId, name, email, role, lastActive: '' });
+    localStorage.setItem('users', JSON.stringify(users));
+    closeAddUserModal();
+    loadUsers();
+    // In case the added user is the current session user, sync the role
+    syncCurrentUserRole();
+    checkAdminStatus();
+}
+
+function handleRoleChange(index, value) {
+    const users = JSON.parse(localStorage.getItem('users') || '[]');
+    if (!users[index]) return;
+    users[index].role = value;
+    localStorage.setItem('users', JSON.stringify(users));
+    // If the changed user is the current session user, sync session role
+    syncCurrentUserRole();
+    checkAdminStatus();
+}
+
+// ===== Role Management JS =====
+function openAddRoleModal() {
+    const modal = document.getElementById('addRoleModal');
+    const select = document.getElementById('newRoleCourse');
+    populateCourseOptions(select);
+    if (modal) modal.style.display = 'flex';
+}
+
+function closeAddRoleModal() {
+    const modal = document.getElementById('addRoleModal');
+    if (modal) modal.style.display = 'none';
+}
+
+function populateCourseOptions(selectEl, selectedId = '') {
+    if (!selectEl) return;
+    const courses = JSON.parse(localStorage.getItem('courses') || '[]');
+    selectEl.innerHTML = '';
+    if (courses.length === 0) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = 'No courses available';
+        selectEl.appendChild(opt);
+        selectEl.disabled = true;
+        return;
+    }
+    selectEl.disabled = false;
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = 'Select a course';
+    selectEl.appendChild(placeholder);
+    let matched = false;
+    courses.forEach(course => {
+        const opt = document.createElement('option');
+        opt.value = String(course.id);
+        opt.textContent = `${course.name} (${course.type})`;
+        if (String(course.id) === String(selectedId)) {
+            opt.selected = true;
+            matched = true;
+        }
+        selectEl.appendChild(opt);
+    });
+    if (selectedId && !matched) {
+        const missing = document.createElement('option');
+        missing.value = String(selectedId);
+        missing.textContent = `Missing course (ID: ${selectedId})`;
+        missing.selected = true;
+        selectEl.appendChild(missing);
+    }
+}
+
+function loadRoles() {
+    const tbody = document.getElementById('roleMgmtTableBody');
+    if (!tbody) return;
+    const users = JSON.parse(localStorage.getItem('users') || '[]');
+    tbody.innerHTML = '';
+    if (users.length === 0) {
+        const row = tbody.insertRow();
+        const cell = row.insertCell(0);
+        cell.colSpan = 7;
+        cell.style.color = 'var(--text-secondary)';
+        cell.innerText = 'No users found. Add one to manage roles.';
+        return;
+    }
+    users.forEach((u, idx) => {
+        const row = tbody.insertRow();
+        const selectCell = row.insertCell(0);
+        selectCell.style.textAlign = 'center';
+        selectCell.innerHTML = `<input type="checkbox" class="role-row-check" data-uidx="${idx}">`;
+        row.insertCell(1).innerText = u.employeeId || '';
+        row.insertCell(2).innerText = u.name || '';
+        row.insertCell(3).innerText = u.email || '';
+        const roleCell = row.insertCell(4);
+        roleCell.innerHTML = `<select onchange="handleRoleChange(${idx}, this.value)" style="padding:6px; background:var(--bg-dark); color:var(--text-main); border:1px solid var(--border-color); border-radius:6px;">
+            <option value="Employee" ${u.role === 'Employee' ? 'selected' : ''}>Employee</option>
+            <option value="Admin" ${u.role === 'Admin' ? 'selected' : ''}>Admin</option>
+        </select>`;
+        row.insertCell(5).innerText = u.lastActive || '';
+        const deleteCell = row.insertCell(6);
+        deleteCell.innerHTML = '<button style="background:#f85149; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;" onclick="deleteRole(' + idx + ')">Delete</button>';
+    });
+}
+
+function saveNewRole() {
+    // Repurpose: add user via existing Add User modal
+    openAddUserModal();
+}
+
+function deleteRole(userIndex) {
+    const users = JSON.parse(localStorage.getItem('users') || '[]');
+    if (!users[userIndex]) return;
+    if (!confirm('Delete this user?')) return;
+    users.splice(userIndex, 1);
+    localStorage.setItem('users', JSON.stringify(users));
+    loadUsers();
+    loadRoles();
+    checkAdminStatus();
+}
+
+function deleteSelectedRoles() {
+    const checks = Array.from(document.querySelectorAll('.role-row-check'));
+    const selectedIdx = checks.filter(c => c.checked).map(c => Number(c.dataset.uidx));
+    if (selectedIdx.length === 0) {
+        alert('Select at least one entry to delete.');
+        return;
+    }
+    if (!confirm(`Delete ${selectedIdx.length} user(s)?`)) return;
+    const users = JSON.parse(localStorage.getItem('users') || '[]');
+    const remaining = users.filter((_, idx) => !selectedIdx.includes(idx));
+    localStorage.setItem('users', JSON.stringify(remaining));
+    const selectAll = document.getElementById('roleSelectAll');
+    if (selectAll) selectAll.checked = false;
+    loadUsers();
+    loadRoles();
+    checkAdminStatus();
+}
+
+function toggleSelectAllRoles(master) {
+    const checks = document.querySelectorAll('.role-row-check');
+    checks.forEach(c => c.checked = master.checked);
+}
+
+function handleRoleCSVUpload(event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+        try {
+            const text = String(reader.result || '').trim();
+            const lines = text.split(/\r?\n/).filter(l => l.trim().length);
+            if (lines.length < 2) throw new Error('CSV has no data');
+            // Support comma or tab separated headers
+            const splitRow = (row) => row.split(/[\t,]/).map(h => h.trim());
+            const header = splitRow(lines[0]);
+            const expected = ['Employee ID','Employee name','Email ID','Role'];
+            const matches = expected.every((h, i) => (header[i] || '').toLowerCase() === h.toLowerCase());
+            if (!matches) throw new Error('Invalid CSV header. Expected: ' + expected.join(', '));
+
+            const users = JSON.parse(localStorage.getItem('users') || '[]');
+            for (let i = 1; i < lines.length; i++) {
+                const cols = splitRow(lines[i]).map(c => c.replace(/^\"|\"$/g, ''));
+                if (cols.length < 4) continue;
+                const [employeeId, name, email, role] = cols;
+                users.push({ employeeId, name, email, role, lastActive: '' });
+            }
+            localStorage.setItem('users', JSON.stringify(users));
+            loadUsers();
+            loadRoles();
+            syncCurrentUserRole();
+            checkAdminStatus();
+            alert('Users uploaded successfully');
+        } catch (err) {
+            alert('CSV upload failed: ' + err.message);
+        }
+        event.target.value = '';
+    };
+    reader.onerror = () => alert('Failed reading file');
+    reader.readAsText(file);
+}
+
+function handleCSVUpload(event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+        try {
+            const text = reader.result;
+            const lines = String(text).trim().split(/\r?\n/);
+            if (lines.length < 2) throw new Error('CSV has no data');
+            const header = lines[0].split(',').map(h => h.trim());
+            const expected = ['Employee ID','Employee name','Email ID','Role','Last active date&time'];
+            const matches = expected.every((h, i) => (header[i] || '').toLowerCase() === h.toLowerCase());
+            if (!matches) throw new Error('Invalid CSV header. Expected: ' + expected.join(', '));
+
+            const users = JSON.parse(localStorage.getItem('users') || '[]');
+            for (let i = 1; i < lines.length; i++) {
+                const cols = lines[i].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+                if (cols.length < 5) continue;
+                const [employeeId, name, email, role, lastActive] = cols;
+                users.push({ employeeId, name, email, role, lastActive: lastActive || '' });
+            }
+            localStorage.setItem('users', JSON.stringify(users));
+            loadUsers();
+            alert('Users uploaded successfully');
+            // After bulk upload, ensure session role is synced
+            syncCurrentUserRole();
+            checkAdminStatus();
+        } catch (err) {
+            alert('CSV upload failed: ' + err.message);
+        }
+        event.target.value = '';
+    };
+    reader.onerror = () => alert('Failed reading file');
+    reader.readAsText(file);
+}
+
+function startCoursePlayer(auto = false) {
+    const frame = document.getElementById('coursePlayerFrame');
+    const playBtn = document.getElementById('coursePlayerPlay');
+    if (!currentCourseVideoId || !frame) return;
+    frame.src = `https://www.youtube.com/embed/${currentCourseVideoId}?autoplay=1&rel=0`;
+    if (playBtn) playBtn.style.display = 'none';
+}
+
+function closeCoursePlayer() {
+    const overlay = document.getElementById('coursePlayerOverlay');
+    const frame = document.getElementById('coursePlayerFrame');
+    const playBtn = document.getElementById('coursePlayerPlay');
+    if (overlay && frame) {
+        frame.src = '';
+        overlay.style.display = 'none';
+    }
+    if (playBtn) playBtn.style.display = 'flex';
+    currentCourseVideoId = '';
+}
+
+function overlayBackdropClick(event) {
+    if (event.target.id === 'coursePlayerOverlay') {
+        closeCoursePlayer();
+    }
+}
+
+function loadCoursesView(searchTerm = '') {
+    const courses = JSON.parse(localStorage.getItem('courses') || '[]');
+    const sections = {
+        beginner: document.querySelector('#beginner-courses .type-grid'),
+        intermediate: document.querySelector('#intermediate-courses .type-grid'),
+        advanced: document.querySelector('#advanced-courses .type-grid')
+    };
+    // Clear
+    Object.values(sections).forEach(grid => grid.innerHTML = '');
+    const term = searchTerm.trim().toLowerCase();
+    const matchesTerm = (name) => {
+        if (!term) return true;
+        const words = name.toLowerCase().split(/\s+/);
+        return words.some(w => w.startsWith(term));
+    };
+    courses
+        .filter(course => matchesTerm(course.name))
+        .forEach(course => {
+        const card = document.createElement('div');
+        card.className = 'course-card';
+        card.innerHTML = `
+            <div onclick="openCoursePlayer('${course.videoId}', '${course.name.replace(/'/g, "\'")}')">
+                <img src="https://img.youtube.com/vi/${course.videoId}/hqdefault.jpg" alt="${course.name}" style="width: 100%; height: auto; border-radius:8px; margin-bottom: 10px; display: block;">
+            </div>
+            <p style="margin:10px 0 5px 0; text-align:center; color:var(--text-main); font-weight:500;">${course.name}</p>
+            <small style="color:var(--text-secondary); text-align:center; display:block;">Uploaded: ${course.uploadDate}</small>
+            <small style="color:var(--text-secondary); text-align:center; display:block;">Uploaded by: Admin</small>
+        `;
+        sections[course.type].appendChild(card);
+    });
+}
+
+window.addEventListener('load', () => {
+    loadCourses();
+    loadCoursesView();
+    const searchInput = document.getElementById('courseSearchInput');
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => loadCoursesView(e.target.value));
+    }
+    loadAssignedCourses();
+    syncCurrentUserRole();
+    checkAdminStatus();
+    updateAnnouncements();
+    loadUsers();
+    loadRoles();
+});
+
+function checkAdminStatus() {
+    // Check if user is admin (you can modify this logic based on your authentication)
+    const isAdmin = (localStorage.getItem('userRole') || '').toLowerCase() === 'admin';
+    const users = JSON.parse(localStorage.getItem('users') || '[]');
+    const refreshBtn = document.getElementById('adminRefreshNewsBtn');
+    if (refreshBtn && isAdmin) {
+        refreshBtn.style.display = 'block';
+    }
+    const userMgmtItem = document.getElementById('userMgmtSidebarItem');
+    if (userMgmtItem) {
+        userMgmtItem.style.display = isAdmin ? 'block' : 'none';
+    }
+    const roleMgmtItem = document.getElementById('roleMgmtSidebarItem');
+    if (roleMgmtItem) {
+        // Keep Role Management visible so it doesn't disappear
+        roleMgmtItem.style.display = 'block';
+    }
+}
+
+function syncCurrentUserRole() {
+    try {
+        const currentName = localStorage.getItem('userName') || '';
+        const currentEmail = localStorage.getItem('userEmail') || '';
+        const users = JSON.parse(localStorage.getItem('users') || '[]');
+        const match = users.find(u =>
+            (u.email && currentEmail && u.email.toLowerCase() === currentEmail.toLowerCase()) ||
+            (u.name && currentName && u.name.toLowerCase() === currentName.toLowerCase())
+        );
+        if (match && match.role) {
+            localStorage.setItem('userRole', match.role.toLowerCase());
+        }
+    } catch (e) {
+        // no-op
+    }
+}
+
+function forceRefreshNews() {
+    if (confirm('This will refresh the AI news for all users. Continue?')) {
+        // Clear the cache
+        localStorage.removeItem('aiNews');
+        localStorage.removeItem('aiNewsTimestamp');
+        // Fetch fresh news
+        fetchAINews();
+        alert('News refreshed successfully! All users will see the updated news.');
+    }
+}
+
+// ============ Measure & Master Functions ============
+const GEMINI_API_KEY = "AIzaSyCt7e-k-rc26DhPs8XvZQgRVr2bwaSn2cM";
+let assessmentQuestions = [];
+let currentQuestionIndex = 0;
+let userAnswers = [];
+let currentAssessmentType = 'initial'; // 'initial' or 'video'
+let currentVideoAssessmentCourse = null;
+
+async function startInitialAssessment() {
+    document.getElementById('initialAssessmentContainer').style.display = 'none';
+    document.getElementById('assessmentQuizContainer').innerHTML = '<p style="text-align:center; color:var(--text-secondary);">Generating personalized questions...</p>';
+    document.getElementById('assessmentQuizContainer').style.display = 'block';
+    
+    currentAssessmentType = 'initial';
+    // Mark assessment as started to hide the announcement
+    localStorage.setItem('initialAssessmentStarted', 'true');
+    if (typeof updateAnnouncements === 'function') updateAnnouncements();
+    await generateQuestions();
+    displayQuestion();
+}
+
+async function generateQuestions() {
+    try {
+        const prompt = currentAssessmentType === 'initial' 
+            ? `Generate exactly 20 multiple-choice questions covering Web Development, Large Language Models (LLMs), Transformers, OCR tools, Artificial Intelligence, Machine Learning, and related technologies. Each question should have 4 options with only one correct answer. Return a JSON array with this exact structure: [{"question": "...", "options": ["A) ...", "B) ...", "C) ...", "D) ..."], "correctAnswer": "A"}]. Make questions challenging and practical.`
+            : `Based on the video topic "${currentVideoAssessmentCourse.topic}", generate exactly 10 multiple-choice questions that test understanding of the concepts covered. Each question should have 4 options with only one correct answer. Return a JSON array with this exact structure: [{"question": "...", "options": ["A) ...", "B) ...", "C) ...", "D) ..."], "correctAnswer": "A"}]. Focus on key concepts, definitions, and applications.`;
+
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_API_KEY}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }]
+            })
+        });
+
+        const data = await response.json();
+        if (data.error) throw new Error(data.error.message);
+
+        let textResponse = data.candidates[0].content.parts[0].text;
+        const cleanJson = textResponse.replace(/```json|```/g, "").trim();
+        assessmentQuestions = JSON.parse(cleanJson);
+        currentQuestionIndex = 0;
+        userAnswers = [];
+    } catch (error) {
+        console.error("Question generation error:", error);
+        alert("Failed to generate questions. Please try again.");
+    }
+}
+
+function displayQuestion() {
+    if (currentQuestionIndex >= assessmentQuestions.length) return;
+
+    const q = assessmentQuestions[currentQuestionIndex];
+    const container = document.getElementById('assessmentQuizContainer');
+    
+    container.innerHTML = `
+        <div id="quizProgress" style="color:var(--text-secondary); margin-bottom:15px;">Question ${currentQuestionIndex + 1} of ${assessmentQuestions.length}</div>
+        <div id="quizQuestion" style="background:var(--card-bg); padding:20px; border:1px solid var(--border-color); border-radius:8px; margin-bottom:20px;">
+            <h3 id="questionText" style="color:var(--text-main); margin-bottom:15px;">${q.question}</h3>
+            <div id="optionsContainer">
+                ${q.options.map((opt, idx) => `
+                    <div class="quiz-option" onclick="selectOption(${idx})" data-option="${idx}">
+                        ${opt}
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+        ${currentQuestionIndex < assessmentQuestions.length - 1 
+            ? '<button id="nextQuestionBtn" onclick="nextQuestion()" style="background:var(--primary-blue); color:white; border:none; padding:12px 24px; border-radius:6px; cursor:pointer; font-weight:bold;">Next Question</button>'
+            : '<button id="submitAssessmentBtn" onclick="submitAssessment()" style="background:#4CAF50; color:white; border:none; padding:12px 24px; border-radius:6px; cursor:pointer; font-weight:bold;">Submit Assessment</button>'}
+    `;
+}
+
+function selectOption(optionIndex) {
+    document.querySelectorAll('.quiz-option').forEach(opt => opt.classList.remove('selected'));
+    document.querySelector(`[data-option="${optionIndex}"]`).classList.add('selected');
+    userAnswers[currentQuestionIndex] = String.fromCharCode(65 + optionIndex); // A, B, C, D
+}
+
+function nextQuestion() {
+    if (!userAnswers[currentQuestionIndex]) {
+        alert('Please select an answer before proceeding.');
+        return;
+    }
+    currentQuestionIndex++;
+    displayQuestion();
+}
+
+async function submitAssessment() {
+    if (!userAnswers[currentQuestionIndex]) {
+        alert('Please select an answer before submitting.');
+        return;
+    }
+
+    const score = calculateScore();
+    
+    if (currentAssessmentType === 'initial') {
+        await showInitialResults(score);
+    } else {
+        await showVideoAssessmentResults(score);
+    }
+}
+
+function calculateScore() {
+    let correct = 0;
+    assessmentQuestions.forEach((q, idx) => {
+        if (userAnswers[idx] === q.correctAnswer) correct++;
+    });
+    return correct;
+}
+
+async function showInitialResults(score) {
+    document.getElementById('assessmentQuizContainer').style.display = 'none';
+    
+    const scoreOutOf10 = (score / assessmentQuestions.length * 10).toFixed(1);
+    let level = '';
+    if (scoreOutOf10 <= 4) level = 'Beginner';
+    else if (scoreOutOf10 <= 8) level = 'Intermediate';
+    else level = 'Advanced';
+
+    const resultsDiv = document.getElementById('assessmentResults');
+    resultsDiv.style.display = 'block';
+    document.getElementById('scoreDisplay').textContent = `${scoreOutOf10}/10`;
+    document.getElementById('levelDisplay').innerHTML = `Level: <span style="color:var(--primary-blue);">${level}</span>`;
+
+    // Get video suggestion from Gemini
+    await getVideoSuggestion(level, scoreOutOf10);
+}
+
+async function getVideoSuggestion(level, score) {
+    const container = document.getElementById('videoSuggestionContainer');
+    container.innerHTML = '<p style="color:var(--text-secondary);">Finding the perfect course for you...</p>';
+
+    try {
+        const prompt = `Based on a ${level} level learner who scored ${score}/10 in an assessment covering Web Development, LLMs, Transformers, OCR, and AI topics, suggest ONE highly relevant YouTube video that will help them improve. STRICT REQUIREMENTS: 1) Choose ONLY from these verified embeddable channels: freeCodeCamp.org, Fireship, Tech With Tim, Traversy Media, Programming with Mosh, Corey Schafer, CS Dojo, 2) The video MUST have embedding allowed (check: no restrictions), 3) Must be a complete course/tutorial (not a short clip), 4) Must have high views (100k+) and good ratings. For ${level} level, suggest: Beginner=HTML/CSS/JavaScript basics, Intermediate=React/Node/Python/APIs, Advanced=ML/AI/System Design. Return ONLY a JSON object: {"videoId": "VERIFIED_YouTube_ID", "topic": "Topic Name", "definition": "2-3 sentence definition", "uses": "2-3 sentence practical applications"}. ONLY suggest videos you are CERTAIN are embeddable and from the listed channels.`;
+
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_API_KEY}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }]
+            })
+        });
+
+        const data = await response.json();
+        if (data.error) throw new Error(data.error.message);
+
+        let textResponse = data.candidates[0].content.parts[0].text;
+        const cleanJson = textResponse.replace(/```json|```/g, "").trim();
+        const videoData = JSON.parse(cleanJson);
+
+        // Assign course to user
+        assignCourseToUser(videoData, level);
+        
+        container.innerHTML = `
+            <div style="background:rgba(76,175,80,0.1); padding:15px; border-radius:8px; border:1px solid #4CAF50;">
+                <p style="color:#4CAF50; font-weight:bold; margin-bottom:10px;">✓ Course Assigned Successfully!</p>
+                <p style="color:var(--text-secondary);">A personalized ${level} level course on <strong>${videoData.topic}</strong> has been added to your "My Assigned Courses" section below.</p>
+            </div>
+        `;
+
+    } catch (error) {
+        console.error("Video suggestion error:", error);
+        container.innerHTML = '<p style="color:#f85149;">Failed to get video suggestion. Please try again.</p>';
+    }
+}
+
+function assignCourseToUser(videoData, level) {
+    const assignedCourses = JSON.parse(localStorage.getItem('assignedCourses') || '[]');
+    const newCourse = {
+        id: Date.now(),
+        videoId: videoData.videoId,
+        topic: videoData.topic,
+        definition: videoData.definition,
+        uses: videoData.uses,
+        level: level,
+        assignedDate: new Date().toLocaleDateString(),
+        completed: false,
+        passed: false
+    };
+    assignedCourses.push(newCourse);
+    localStorage.setItem('assignedCourses', JSON.stringify(assignedCourses));
+    loadAssignedCourses();
+}
+
+function loadAssignedCourses() {
+    const courses = JSON.parse(localStorage.getItem('assignedCourses') || '[]');
+    const upcomingCourse = JSON.parse(localStorage.getItem('upcomingCourse') || 'null');
+    const assignedGrid = document.getElementById('assignedCoursesGrid');
+    const passedGrid = document.getElementById('passedCoursesGrid');
+    
+    if (!assignedGrid || !passedGrid) return;
+
+    const activeCourses = courses.filter(c => !c.passed);
+    const passedCourses = courses.filter(c => c.passed);
+
+    // Render active courses with locking logic
+    if (activeCourses.length === 0) {
+        assignedGrid.innerHTML = '<p style="color:var(--text-secondary); grid-column:1/-1; text-align:center;">No active courses. Complete an assessment to get personalized recommendations!</p>';
+    } else {
+        let activeCoursesHTML = activeCourses.map((course, index) => {
+            // Only the first active course is unlocked
+            const isLocked = index > 0;
+            const previousCourse = index > 0 ? activeCourses[index - 1] : null;
+            
+            return `
+            <div class="assigned-course-card" style="${isLocked ? 'opacity: 0.5; position: relative;' : ''}">
+                ${isLocked ? '<div style="position:absolute; top:10px; right:10px; background:#f85149; color:white; padding:5px 10px; border-radius:6px; font-size:11px; font-weight:bold;">🔒 Locked</div>' : ''}
+                <div class="course-thumbnail-wrapper">
+                    <img src="https://img.youtube.com/vi/${course.videoId}/mqdefault.jpg" alt="${course.topic}" ${!isLocked ? `onclick='openCoursePlayer("${course.videoId}", "${course.topic.replace(/"/g, '&quot;')}")'` : ''} style="max-width: 50%; margin: 0 auto; display: block; ${!isLocked ? 'cursor: pointer;' : ''} border-radius: 8px;">
+                </div>
+                <h4 style="color:var(--primary-blue); margin:10px 0;">${course.topic}</h4>
+                <p style="color:var(--text-secondary); font-size:12px; margin-bottom:10px;">Level: ${course.level} | Assigned: ${course.assignedDate}</p>
+                
+                <div class="course-definition">
+                    <strong style="color:var(--primary-blue);">Definition:</strong> ${course.definition}
+                </div>
+                
+                <div class="course-uses">
+                    <strong style="color:#4CAF50;">Uses:</strong> ${course.uses}
+                </div>
+                
+                ${isLocked 
+                    ? `<div style="margin-top:15px; padding:10px; background:rgba(248,81,73,0.1); border:1px solid #f85149; border-radius:6px; text-align:center; color:#f85149; font-size:12px;">🔒 Complete "${previousCourse.topic}" assessment first</div>`
+                    : `<button onclick='openCoursePlayer("${course.videoId}", "${course.topic.replace(/"/g, '&quot;')}")' style="width:100%; margin-top:15px; background:var(--primary-blue); color:white; border:none; padding:10px; border-radius:6px; cursor:pointer; font-weight:bold;">▶ Start Training</button>
+                       <button onclick="startVideoAssessment(${course.id})" style="width:100%; margin-top:10px; background:#4CAF50; color:white; border:none; padding:10px; border-radius:6px; cursor:pointer; font-weight:bold;">Attend Assessment</button>`
+                }
+            </div>
+        `;
+        }).join('');
+
+        // Add upcoming course preview if available
+        if (upcomingCourse) {
+            activeCoursesHTML += `
+            <div class="assigned-course-card" style="opacity: 0.6; position: relative; border: 2px dashed var(--primary-blue);">
+                <div style="position:absolute; top:10px; right:10px; background:var(--primary-blue); color:white; padding:5px 10px; border-radius:6px; font-size:11px; font-weight:bold;">⭐ Upcoming</div>
+                <div class="course-thumbnail-wrapper">
+                    <img src="https://img.youtube.com/vi/${upcomingCourse.videoId}/mqdefault.jpg" alt="${upcomingCourse.topic}" style="max-width: 50%; margin: 0 auto; display: block; border-radius: 8px; filter: grayscale(50%);">
+                </div>
+                <h4 style="color:var(--primary-blue); margin:10px 0;">${upcomingCourse.topic}</h4>
+                <p style="color:var(--text-secondary); font-size:12px; margin-bottom:10px;">Level: ${upcomingCourse.level}</p>
+                
+                <div class="course-definition">
+                    <strong style="color:var(--primary-blue);">Definition:</strong> ${upcomingCourse.definition}
+                </div>
+                
+                <div class="course-uses">
+                    <strong style="color:#4CAF50;">Uses:</strong> ${upcomingCourse.uses}
+                </div>
+                
+                <div style="margin-top:15px; padding:10px; background:rgba(66,133,244,0.1); border:1px solid var(--primary-blue); border-radius:6px; text-align:center; color:var(--primary-blue); font-size:12px;">⭐ Available after completing current assessment</div>
+            </div>
+            `;
+        }
+        
+        assignedGrid.innerHTML = activeCoursesHTML;
+    }
+
+    // Render passed courses
+    if (passedCourses.length === 0) {
+        passedGrid.innerHTML = '<p style="color:var(--text-secondary); grid-column:1/-1; text-align:center;">No passed courses yet. Complete assessments to unlock this section!</p>';
+    } else {
+        passedGrid.innerHTML = passedCourses.map(course => `
+            <div class="assigned-course-card" style="border: 2px solid #4CAF50;">
+                <div style="position:absolute; top:10px; right:10px; background:#4CAF50; color:white; padding:5px 10px; border-radius:6px; font-size:11px; font-weight:bold;">✓ Passed</div>
+                <div class="course-thumbnail-wrapper">
+                    <img src="https://img.youtube.com/vi/${course.videoId}/mqdefault.jpg" alt="${course.topic}" onclick='openCoursePlayer("${course.videoId}", "${course.topic.replace(/"/g, '&quot;')}")' style="max-width: 50%; margin: 0 auto; display: block; cursor: pointer; border-radius: 8px;">
+                </div>
+                <h4 style="color:#4CAF50; margin:10px 0;">${course.topic}</h4>
+                <p style="color:var(--text-secondary); font-size:12px; margin-bottom:10px;">Level: ${course.level} | Completed: ${course.assignedDate}</p>
+                
+                <div class="course-definition">
+                    <strong style="color:var(--primary-blue);">Definition:</strong> ${course.definition}
+                </div>
+                
+                <div class="course-uses">
+                    <strong style="color:#4CAF50;">Uses:</strong> ${course.uses}
+                </div>
+                
+                <button onclick='openCoursePlayer("${course.videoId}", "${course.topic.replace(/"/g, '&quot;')}")' style="width:100%; margin-top:15px; background:#4CAF50; color:white; border:none; padding:10px; border-radius:6px; cursor:pointer; font-weight:bold;">▶ Replay Course</button>
+            </div>
+        `).join('');
+    }
+}
+
+function openCoursePlayerAndEnableAssessment(courseId, videoId, topic) {
+    openCoursePlayer(videoId, topic);
+}
+
+function resetAllAssessments() {
+    if (confirm('Are you sure you want to reset all assessments and assigned courses? This will clear all your progress.')) {
+        localStorage.removeItem('assignedCourses');
+        document.getElementById('assessmentResults').style.display = 'none';
+        document.getElementById('assessmentQuizContainer').style.display = 'none';
+        document.getElementById('initialAssessmentContainer').style.display = 'block';
+        assessmentQuestions = [];
+        currentQuestionIndex = 0;
+        userAnswers = [];
+        currentAssessmentType = 'initial';
+        currentVideoAssessmentCourse = null;
+        loadAssignedCourses();
+        alert('All assessments have been reset. You can start fresh!');
+    }
+}
+
+async function startVideoAssessment(courseId) {
+    const courses = JSON.parse(localStorage.getItem('assignedCourses') || '[]');
+    currentVideoAssessmentCourse = courses.find(c => c.id === courseId);
+    
+    if (!currentVideoAssessmentCourse) return;
+
+    // Hide assigned courses, show quiz
+    document.getElementById('initialAssessmentContainer').style.display = 'none';
+    document.getElementById('assessmentResults').style.display = 'none';
+    document.getElementById('assessmentQuizContainer').innerHTML = '<p style="text-align:center; color:var(--text-secondary);">Generating questions based on the video content...</p>';
+    document.getElementById('assessmentQuizContainer').style.display = 'block';
+    
+    currentAssessmentType = 'video';
+    await generateQuestions();
+    displayQuestion();
+}
+
+async function showVideoAssessmentResults(score) {
+    document.getElementById('assessmentQuizContainer').style.display = 'none';
+    
+    const scorePercentage = (score / assessmentQuestions.length * 100).toFixed(0);
+    const passed = scorePercentage >= 80;
+    
+    // Generate upcoming course suggestion immediately (before passing)
+    const nextLevel = currentVideoAssessmentCourse.level === 'Beginner' ? 'Intermediate' : currentVideoAssessmentCourse.level === 'Intermediate' ? 'Advanced' : null;
+    if (nextLevel) {
+        suggestNextLevelCourse(nextLevel, currentVideoAssessmentCourse.level);
+    }
+    
+    // Update course status if passed
+    if (passed) {
+        const courses = JSON.parse(localStorage.getItem('assignedCourses') || '[]');
+        const course = courses.find(c => c.id === currentVideoAssessmentCourse.id);
+        if (course) {
+            course.passed = true;
+            localStorage.setItem('assignedCourses', JSON.stringify(courses));
+            
+            // Move upcoming course to assigned courses if available
+            const upcomingCourse = JSON.parse(localStorage.getItem('upcomingCourse') || 'null');
+            if (upcomingCourse) {
+                const assignedCourses = JSON.parse(localStorage.getItem('assignedCourses') || '[]');
+                const newCourse = {
+                    id: Date.now(),
+                    videoId: upcomingCourse.videoId,
+                    topic: upcomingCourse.topic,
+                    definition: upcomingCourse.definition,
+                    uses: upcomingCourse.uses,
+                    level: upcomingCourse.level,
+                    assignedDate: new Date().toLocaleDateString(),
+                    completed: false,
+                    passed: false
+                };
+                assignedCourses.push(newCourse);
+                localStorage.setItem('assignedCourses', JSON.stringify(assignedCourses));
+                localStorage.removeItem('upcomingCourse');
+            }
+            
+            loadAssignedCourses();
+        }
+    }
+    
+    const resultsDiv = document.getElementById('assessmentResults');
+    resultsDiv.style.display = 'block';
+    document.getElementById('scoreDisplay').textContent = `${score}/${assessmentQuestions.length}`;
+    document.getElementById('levelDisplay').innerHTML = `Score: <span style="color:${passed ? '#4CAF50' : '#f85149'};">${scorePercentage}%</span>`;
+    document.getElementById('videoSuggestionContainer').innerHTML = `
+        <div style="background:rgba(${passed ? '76,175,80' : '248,81,73'},0.1); padding:20px; border-radius:8px; border:1px solid ${passed ? '#4CAF50' : '#f85149'};">
+            <h4 style="color:${passed ? '#4CAF50' : '#f85149'}; margin-bottom:10px;">${passed ? '✓ Assessment Passed!' : '✗ Assessment Not Passed'}</h4>
+            <p style="color:var(--text-main);">You scored ${score} out of ${assessmentQuestions.length} (${scorePercentage}%) on the "${currentVideoAssessmentCourse.topic}" assessment.</p>
+            <p style="color:var(--text-secondary); margin-top:10px;">${passed ? 'Congratulations! You have demonstrated strong understanding of this topic and have passed the course. Your next level course has been unlocked!' : 'You need at least 80% to pass this course. Please review the video again and retake the assessment.'}</p>
+            <button onclick="resetAssessment()" style="margin-top:15px; background:var(--primary-blue); color:white; border:none; padding:10px 20px; border-radius:6px; cursor:pointer; font-weight:bold;">Back to Courses</button>
+        </div>
+    `;
+}
+
+function resetAssessment() {
+    document.getElementById('assessmentResults').style.display = 'none';
+    document.getElementById('assessmentQuizContainer').style.display = 'none';
+    document.getElementById('initialAssessmentContainer').style.display = 'block';
+    assessmentQuestions = [];
+    currentQuestionIndex = 0;
+    userAnswers = [];
+    currentAssessmentType = 'initial';
+    currentVideoAssessmentCourse = null;
+}
+
+async function suggestNextLevelCourse(nextLevel, previousLevel) {
+    try {
+        const prompt = `The learner has successfully completed a ${previousLevel} level course and is now ready for ${nextLevel} level content. Suggest ONE highly relevant YouTube video for ${nextLevel} level learning. STRICT REQUIREMENTS: 1) Choose ONLY from verified embeddable channels: freeCodeCamp.org, Fireship, Tech With Tim, Traversy Media, Programming with Mosh, Corey Schafer, 2) Must be embeddable (no restrictions), 3) Complete course/tutorial, 4) High views (100k+). For ${nextLevel} level, suggest: Intermediate=React/Node/APIs/Python, Advanced=ML/AI/System Design/Cloud. Return JSON: {"videoId": "VERIFIED_YouTube_ID", "topic": "Topic", "definition": "2-3 sentences", "uses": "2-3 sentences"}. ONLY embeddable videos from listed channels.`;
+
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_API_KEY}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }]
+            })
+        });
+
+        const data = await response.json();
+        if (data.error) throw new Error(data.error.message);
+
+        let textResponse = data.candidates[0].content.parts[0].text;
+        const cleanJson = textResponse.replace(/```json|```/g, "").trim();
+        const videoData = JSON.parse(cleanJson);
+
+        // Store as upcoming course instead of assigning immediately
+        localStorage.setItem('upcomingCourse', JSON.stringify({
+            videoId: videoData.videoId,
+            topic: videoData.topic,
+            definition: videoData.definition,
+            uses: videoData.uses,
+            level: nextLevel
+        }));
+        
+        loadAssignedCourses();
+    } catch (error) {
+        console.error("Next level suggestion error:", error);
+    }
+}
+
+</script>
+
+<script>
+// ===== Hub Bot (Gemini) =====
+const HUB_BOT_HISTORY_KEY = 'hubBotHistory';
+const HUB_BOT_SYSTEM_PROMPT = `You are Hub Bot, an AI assistant for the OneOrigin Learning Hub.
+Your duties:
+- Answer questions about courses available in the hub accurately using the provided course list.
+- If asked about broader technical topics beyond the hub, explain clearly with correct, safe, neutral information.
+- Be concise, friendly, and practical. Prefer short paragraphs and bullet points when helpful.
+- Never provide harmful, hateful, illegal, or unsafe content.`;
+
+function getCoursesContext() {
+    const courses = JSON.parse(localStorage.getItem('courses') || '[]');
+    const assigned = JSON.parse(localStorage.getItem('assignedCourses') || '[]');
+    const lines = [];
+    if (courses.length) {
+        lines.push('Courses (Library):');
+        courses.forEach(c => lines.push(`- ${c.name} [${c.type}] (id:${c.id}, videoId:${c.videoId})`));
+    }
+    if (assigned.length) {
+        lines.push('Assigned Courses (My Learning):');
+        assigned.forEach(a => lines.push(`- ${a.topic} [${a.level}] (videoId:${a.videoId}) ${a.passed ? '✓ passed' : ''}`));
+    }
+    return lines.join('\n');
+}
+
+function initHubBot() {
+    // Initialize history
+    if (!localStorage.getItem(HUB_BOT_HISTORY_KEY)) {
+        const seed = [{ role: 'assistant', content: 'Hi! I\'m Hub Bot. Ask me about our courses or any tech concept.' }];
+        localStorage.setItem(HUB_BOT_HISTORY_KEY, JSON.stringify(seed));
+    }
+    // Render if containers exist
+    renderHubBotMessages('hubBotMessages');
+    renderHubBotMessages('hubBotPageMessages');
+
+    // Attach Enter-to-send handlers
+    try {
+        const widgetInput = document.getElementById('hubBotInput');
+        if (widgetInput && !widgetInput.__enterHooked) {
+            widgetInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    sendHubBotMessage('widget');
+                }
+            });
+            widgetInput.__enterHooked = true;
+        }
+        const pageInput = document.getElementById('hubBotPageInput');
+        if (pageInput && !pageInput.__enterHooked) {
+            pageInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    sendHubBotMessage('page');
+                }
+            });
+            pageInput.__enterHooked = true;
+        }
+    } catch (_) { /* no-op */ }
+}
+
+function toggleHubBotWidget() {
+    const panel = document.getElementById('hubBotWidget');
+    if (!panel) return;
+    const isShown = panel.style.display === 'block';
+    panel.style.display = isShown ? 'none' : 'block';
+    if (!isShown) initHubBot();
+}
+
+function renderHubBotMessages(targetId) {
+    const container = document.getElementById(targetId);
+    if (!container) return;
+    const history = JSON.parse(localStorage.getItem(HUB_BOT_HISTORY_KEY) || '[]');
+    container.innerHTML = history.map(msg => {
+        const align = msg.role === 'assistant' ? 'flex-start' : 'flex-end';
+        const bg = msg.role === 'assistant' ? 'rgba(66,133,244,0.12)' : 'rgba(76,175,80,0.12)';
+        const border = msg.role === 'assistant' ? '1px solid var(--border-color)' : '1px solid #4CAF50';
+        return `<div style="display:flex; justify-content:${align}; margin:6px 0;">
+            <div style="max-width:90%; background:${bg}; border:${border}; color:var(--text-main); padding:10px; border-radius:10px; white-space:pre-wrap;">${msg.content}</div>
+        </div>`;
+    }).join('');
+    container.scrollTop = container.scrollHeight;
+}
+
+async function sendHubBotMessage(source) {
+    const inputId = source === 'page' ? 'hubBotPageInput' : 'hubBotInput';
+    const messagesId = source === 'page' ? 'hubBotPageMessages' : 'hubBotMessages';
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    const question = (input.value || '').trim();
+    if (!question) return;
+
+    // Append user message
+    const history = JSON.parse(localStorage.getItem(HUB_BOT_HISTORY_KEY) || '[]');
+    history.push({ role: 'user', content: question });
+    localStorage.setItem(HUB_BOT_HISTORY_KEY, JSON.stringify(history));
+    renderHubBotMessages(messagesId);
+    input.value = '';
+
+    // Show thinking bubble
+    const container = document.getElementById(messagesId);
+    if (container) {
+        container.innerHTML += `<div style="display:flex; justify-content:flex-start; margin:6px 0;"><div style="max-width:90%; background:rgba(66,133,244,0.08); border:1px solid var(--border-color); color:var(--text-secondary); padding:10px; border-radius:10px;">Thinking...</div></div>`;
+        container.scrollTop = container.scrollHeight;
+    }
+
+    try {
+        const context = getCoursesContext();
+        const fullPrompt = `${HUB_BOT_SYSTEM_PROMPT}\n\nCourse data:\n${context}\n\nQuestion: ${question}\nAnswer as Hub Bot.`;
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: fullPrompt }] }] })
+        });
+        const data = await response.json();
+        let answer = 'Sorry, I could not fetch an answer right now.';
+        if (data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) {
+            answer = data.candidates[0].content.parts.map(p => p.text || '').join('\n').trim();
+        }
+        // Append assistant message
+        const updated = JSON.parse(localStorage.getItem(HUB_BOT_HISTORY_KEY) || '[]');
+        updated.push({ role: 'assistant', content: answer });
+        localStorage.setItem(HUB_BOT_HISTORY_KEY, JSON.stringify(updated));
+        renderHubBotMessages(messagesId);
+    } catch (err) {
+        const updated = JSON.parse(localStorage.getItem(HUB_BOT_HISTORY_KEY) || '[]');
+        updated.push({ role: 'assistant', content: 'I ran into an issue fetching the answer. Please try again.' });
+        localStorage.setItem(HUB_BOT_HISTORY_KEY, JSON.stringify(updated));
+        renderHubBotMessages(messagesId);
+    }
+}
+
+function clearHubBotChat() {
+    if (!confirm('Clear the Hub Bot chat history?')) return;
+    try {
+        localStorage.removeItem(HUB_BOT_HISTORY_KEY);
+        initHubBot();
+        // Re-render both views
+        renderHubBotMessages('hubBotMessages');
+        renderHubBotMessages('hubBotPageMessages');
+    } catch (e) {
+        alert('Unable to clear chat: ' + (e && e.message ? e.message : 'unknown error'));
+    }
+}
+
+// Initialize Hub Bot on load
+window.addEventListener('load', () => {
+    initHubBot();
+});
+</script>
+</script>
+
+</body>
+</html>

@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Watch Lesson | OneOrigin Hub</title>
+    <style>
+        body { background-color: #0d1117; color: #c9d1d9; font-family: 'Segoe UI', sans-serif; text-align: center; padding: 20px; }
+        .container { max-width: 900px; margin: auto; }
+        
+        /* Fixed: Restored 16:9 widescreen dimensions */
+        .video-wrapper { 
+            position: relative; 
+            padding-bottom: 56.25%; /* Perfect 16:9 Ratio */
+            height: 0; 
+            margin: 20px 0; 
+            background: #000;
+            border-radius: 12px;
+            border: 1px solid #30363d;
+            overflow: hidden;
+        }
+        .video-wrapper iframe, .video-wrapper div#player { 
+            position: absolute; top:0; left:0; width:100%; height:100%; border: none;
+        }
+
+        /* The "Watching Completed" Overlay to hide suggestions */
+        #completionOverlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(13, 17, 23, 0.95); /* Dark background */
+            display: none; /* Hidden until video ends */
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            animation: fadeIn 0.5s ease-in-out;
+        }
+
+        .btn-assessment { 
+            background-color: #238636; color: white; border: none; padding: 15px 40px; 
+            border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 16px; 
+            transition: 0.3s;
+        }
+        .btn-assessment:disabled { 
+            background-color: #161b22; color: #484f58; border: 1px solid #30363d; cursor: not-allowed; 
+        }
+        #statusHint { margin-top: 15px; color: #8b949e; font-size: 14px; }
+        
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 id="lessonTitle">Loading Lesson...</h1>
+        
+        <div class="video-wrapper">
+            <div id="player"></div>
+            
+            <div id="completionOverlay">
+                <h2 style="color: #58a6ff; font-size: 2rem;">✅ Watching Completed</h2>
+                <p style="font-size: 1.2rem;">You have finished the lesson content.</p>
+            </div>
+        </div>
+        
+        <button id="assessmentBtn" class="btn-assessment" disabled onclick="window.location.href='assessment.html'">Take Assessment</button>
+        <p id="statusHint">Finish the video to unlock the assessment.</p>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDnfIJQxO6mi2_NEGqXRGH5EAxeaNcb7qc",
+            authDomain: "oneorigin-learning-hub.firebaseapp.com",
+            projectId: "oneorigin-learning-hub",
+            storageBucket: "oneorigin-learning-hub.firebasestorage.app",
+            messagingSenderId: "4168147692",
+            appId: "1:4168147692:web:43a1205a0af9770f633bc9"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        let videoId = "";
+        let alreadyPassed = false;
+
+        onAuthStateChanged(auth, async user => {
+            if(!user) return;
+            const courseId = localStorage.getItem("selectedCourseId");
+            
+            // 1. Check if user already passed
+            const progRef = doc(db, "userProgress", user.email, "completedCourses", courseId);
+            const progSnap = await getDoc(progRef);
+            if(progSnap.exists() && progSnap.data().status === "Passed") {
+                alreadyPassed = true;
+                document.getElementById('statusHint').innerText = "✅ Assessment Locked: Course already completed.";
+            }
+
+            // 2. Fetch Course Video Data
+            const courseSnap = await getDoc(doc(db, "courses", courseId));
+            if(courseSnap.exists()){
+                videoId = courseSnap.data().videoId;
+                document.getElementById('lessonTitle').innerText = courseSnap.data().title;
+                loadYoutubeAPI();
+            }
+        });
+
+        function loadYoutubeAPI() {
+            const tag = document.createElement('script');
+            tag.src = "https://www.youtube.com/iframe_api";
+            document.head.appendChild(tag);
+        }
+
+        window.onYouTubeIframeAPIReady = () => {
+            new YT.Player('player', {
+                videoId: videoId,
+                playerVars: { 
+                    'rel': 0,               // Minimize related videos
+                    'modestbranding': 1,    // Hide YT Logo
+                    'iv_load_policy': 3     // Hide annotations
+                },
+                events: {
+                    'onStateChange': (event) => {
+                        // event.data == 0 means the video has "Ended"
+                        if(event.data === 0) {
+                            // 1. Show the "Watching Completed" message overlay
+                            document.getElementById('completionOverlay').style.display = "flex";
+                            
+                            // 2. Unlock assessment if they haven't passed yet
+                            if(!alreadyPassed) {
+                                document.getElementById('assessmentBtn').disabled = false;
+                                document.getElementById('statusHint').innerText = "Video complete! You can now proceed.";
+                            }
+                        }
+                    }
+                }
+            });
+        };
+    </script>
+</body>
+</html>
