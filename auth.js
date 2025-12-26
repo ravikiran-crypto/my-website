@@ -3,7 +3,7 @@ import { getAuth, signInWithPopup, GoogleAuthProvider } from "https://www.gstati
 
 const firebaseConfig = {
   apiKey: "AIzaSyDnfIJQxO6mi2_NEGqXRGH5EAxeaNcb7qc",
-  authDomain: "www.oneorigin.us",
+  authDomain: "https://my-website-git-main-ravikiran-cryptos-projects.vercel.app/",
   projectId: "oneorigin-learning-hub",
   storageBucket: "oneorigin-learning-hub.firebasestorage.app",
   messagingSenderId: "4168147692",
