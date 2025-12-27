@@ -407,9 +407,17 @@ body.light-theme .user-badge {
     border: 1px solid #d0d7de; 
     color: #24292f !important; /* Forces dark text in light mode */
 }
-        .btn-primary, .btn-logout, .btn-add { background: transparent !important; color: #4285F4 !important; border: 1px solid #4285F4 !important; padding: 10px 20px; border-radius: 8px; font-weight: 700 !important; cursor: pointer; transition: all 0.3s ease; box-shadow: none !important; text-shadow: none !important; display: flex; align-items: center; justify-content: center; }
+        .btn-primary, .btn-logout, .btn-add { background: transparent !important; color: #4285F4 !important; border: 1px solid #4285F4 !important; padding: 10px 20px; border-radius: 8px; font-weight: 700 !important; cursor: pointer; transition: all 0.2s ease; box-shadow: none !important; text-shadow: none !important; display: flex; align-items: center; justify-content: center; }
         .btn-primary { width: calc(25% - 40px); margin: 25px auto 0 auto; display: block; padding: 15px; font-size: 16px; background: transparent !important; color: #4285F4 !important; border: 1px solid #4285F4 !important; border-radius: 8px; box-shadow: none !important; cursor: pointer; text-align: center; }
         .btn-logout { background: transparent !important; color: #4285F4 !important; border: 1px solid #4285F4 !important; padding: 8px 16px; border-radius: 8px; box-shadow: none !important; }
+        /* Subtle hover lift for all buttons and clickable items */
+        button, .btn-primary, .btn-logout, .btn-add, .sidebar-item, .toggle-btn {
+            transition: transform 0.12s ease, box-shadow 0.12s ease;
+        }
+        button:hover, .btn-primary:hover, .btn-logout:hover, .btn-add:hover, .sidebar-item:hover, .toggle-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.18);
+        }
         .app-body { display: flex; flex: 1; overflow: hidden; }
         .sidebar { width: var(--sidebar-collapsed); background-color: var(--card-bg); border-right: 1px solid var(--border-color); transition: width var(--transition-speed) cubic-bezier(0.68, -0.55, 0.265, 1.55); display: flex; flex-direction: column; box-shadow: none !important; }
         .sidebar.expanded { width: var(--sidebar-expanded); }
@@ -548,7 +556,7 @@ body.light-theme .user-badge {
                 <div class="home-card">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                         <h2>📰 Daily AI News</h2>
-                        <button id="adminRefreshNewsBtn" onclick="forceRefreshNews()" style="display:none; background:#f85149; color:white; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:bold;">🔄 Refresh News</button>
+                        <button id="adminRefreshNewsBtn" onclick="forceRefreshNews()" style="background:#f85149; color:white; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:bold;">🔄 Refresh News</button>
                     </div>
                     <div id="news-container"></div>
                 </div>
@@ -1016,9 +1024,9 @@ function setUserBadge() {
     const badge = document.getElementById('userName');
     if (!badge) return;
     const email = localStorage.getItem('userEmail') || '';
-    const stored = localStorage.getItem('userName') || '';
+    const stored = (localStorage.getItem('userName') || '').trim();
     const derived = deriveNameFromEmail(email);
-    badge.textContent = derived || stored || 'User';
+    badge.textContent = stored || derived || 'User';
 }
 
 window.onload = () => {
@@ -1195,6 +1203,7 @@ function loadCourses() {
 }
 
 let currentCourseVideoId = '';
+let currentCourseTitle = '';
 
 function openCoursePlayer(videoId, title) {
     const overlay = document.getElementById('coursePlayerOverlay');
@@ -1202,6 +1211,7 @@ function openCoursePlayer(videoId, title) {
     const titleEl = document.getElementById('coursePlayerTitle');
     const playBtn = document.getElementById('coursePlayerPlay');
     currentCourseVideoId = videoId;
+    currentCourseTitle = title || '';
     if (overlay && frame && titleEl) {
         titleEl.textContent = title || 'Now Playing';
         overlay.style.display = 'flex';
@@ -1487,8 +1497,14 @@ function handleCSVUpload(event) {
 function startCoursePlayer(auto = false) {
     const frame = document.getElementById('coursePlayerFrame');
     const playBtn = document.getElementById('coursePlayerPlay');
-    if (!currentCourseVideoId || !frame) return;
-    frame.src = `https://www.youtube.com/embed/${currentCourseVideoId}?autoplay=1&rel=0`;
+    if (!frame) return;
+    const hasValidId = currentCourseVideoId && currentCourseVideoId.length >= 6;
+    const fallbackQuery = encodeURIComponent(currentCourseTitle || 'web development tutorial');
+    frame.src = hasValidId
+        ? `https://www.youtube.com/embed/${currentCourseVideoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1`
+        : `https://www.youtube.com/embed?listType=search&list=${fallbackQuery}&autoplay=1&rel=0&modestbranding=1&playsinline=1`;
+    frame.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share');
+    frame.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
     if (playBtn) playBtn.style.display = 'none';
 }
 
