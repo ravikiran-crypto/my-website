@@ -1605,19 +1605,10 @@ function forceRefreshNews() {
 }
 
 function logout() {
-    // Clear user session data (keep theme/settings)
+    // Clear only session identifiers; keep all persisted data (users, roles, courses, news, etc.)
     localStorage.removeItem('userEmail');
     localStorage.removeItem('userName');
-    localStorage.removeItem('users');
-    localStorage.removeItem('announcements');
-    localStorage.removeItem('courses');
-    localStorage.removeItem('roles');
-    localStorage.removeItem('assessments');
-    localStorage.removeItem('hubBotHistory');
     localStorage.removeItem('userRole');
-    // Also clear news cache to force fresh fetch on next login
-    localStorage.removeItem('aiNews');
-    localStorage.removeItem('aiNewsTimestamp');
     // Redirect to login page
     window.location.href = 'index.html';
 }
