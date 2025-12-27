@@ -436,6 +436,28 @@ body.light-theme .user-badge {
         .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 25px; width: 100%; }
         .course-card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; margin-bottom: 15px; padding-bottom: 15px; height: 100%; }
         .course-card h3 { font-size: 18px; margin: 15px 15px 5px 15px; text-align: left; color: var(--primary-blue); }
+
+        /* Hub Bot refreshed styles */
+        .hub-bot-shell { background: linear-gradient(135deg, rgba(88, 71, 195, 0.7), rgba(32, 20, 90, 0.8)), radial-gradient(circle at 20% 20%, rgba(255,255,255,0.06), rgba(0,0,0,0)); border: 1px solid rgba(255,255,255,0.08); border-radius: 18px; padding: 22px; max-width: 980px; margin: 0 auto; box-shadow: 0 18px 36px rgba(0,0,0,0.3); backdrop-filter: blur(6px); }
+        .hub-bot-hero { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:14px; }
+        .hub-bot-meta { display:flex; align-items:center; gap:12px; }
+        .hub-bot-avatar { width:52px; height:52px; border-radius:14px; background: linear-gradient(135deg, #ff7ce5, #6c4bff); display:flex; align-items:center; justify-content:center; font-size:26px; box-shadow: 0 10px 24px rgba(0,0,0,0.25); }
+        .hub-bot-title { color:#fff; font-weight:800; font-size:22px; letter-spacing:0.2px; }
+        .hub-bot-sub { color: rgba(255,255,255,0.72); font-size:13px; }
+        .hub-bot-status { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+        .pill { padding:8px 12px; border-radius:999px; font-size:12px; font-weight:700; border:1px solid rgba(255,255,255,0.18); color:#fff; backdrop-filter: blur(4px); }
+        .pill.live { background: rgba(76, 175, 80, 0.16); border-color: rgba(76,175,80,0.35); }
+        .pill.alt { background: rgba(255,255,255,0.06); }
+        .ghost { background: rgba(255,255,255,0.08); color:#fff; border:1px solid rgba(255,255,255,0.18); padding:8px 12px; border-radius:10px; cursor:pointer; font-weight:700; }
+        .ghost:hover { background: rgba(255,255,255,0.16); }
+        .hub-bot-prompts { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0 14px 0; }
+        .prompt-chip { background: rgba(255,255,255,0.08); color:#fff; border:1px solid rgba(255,255,255,0.16); border-radius:12px; padding:8px 12px; font-size:12px; cursor:pointer; transition: transform 0.12s ease, box-shadow 0.12s ease; }
+        .prompt-chip:hover { transform: translateY(-1px); box-shadow: 0 8px 18px rgba(0,0,0,0.2); }
+        .hub-bot-messages { background: rgba(10,12,20,0.55); border:1px solid rgba(255,255,255,0.1); border-radius:14px; padding:12px; min-height:320px; max-height:520px; overflow-y:auto; color:#e9ecf5; box-shadow: inset 0 1px 0 rgba(255,255,255,0.03); }
+        .hub-bot-input { display:flex; gap:10px; margin-top:12px; background: rgba(0,0,0,0.38); border:1px solid rgba(255,255,255,0.12); border-radius:12px; padding:8px; align-items:center; }
+        .hub-bot-input input { flex:1; padding:12px; background: transparent; border:none; color:#fff; outline:none; font-size:14px; }
+        .hub-bot-input button { background:#6c4bff; color:white; border:none; padding:12px 18px; border-radius:10px; cursor:pointer; font-weight:800; box-shadow: 0 10px 20px rgba(108,75,255,0.35); }
+        .hub-bot-input button:hover { transform: translateY(-1px); }
         .topic-summary { padding: 0 20px; font-size: 14px; line-height: 1.6; color: var(--text-secondary); flex-grow: 1; }
         .topic-summary b { color: var(--text-main); display: block; margin-top: 12px; font-size: 13px; text-transform: uppercase; border-bottom: 1px solid var(--border-color); padding-bottom: 5px; margin-bottom: 8px; }
         .caution-box { margin-top: 15px; padding: 10px; border-radius: 6px; background: rgba(248, 81, 73, 0.1); border-left: 3px solid #f85149; font-size: 13px; color: #f85149; }
@@ -556,7 +578,7 @@ body.light-theme .user-badge {
                 <div class="home-card">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                         <h2>📰 Daily AI News</h2>
-                        <button id="adminRefreshNewsBtn" onclick="forceRefreshNews()" style="background:#f85149; color:white; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:bold;">🔄 Refresh News</button>
+                        <button id="adminRefreshNewsBtn" onclick="forceRefreshNews()" style="background:#111; color:white; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:bold;">🔄 Refresh News</button>
                     </div>
                     <div id="news-container"></div>
                 </div>
@@ -571,24 +593,36 @@ body.light-theme .user-badge {
 
         <!-- Hub Bot Page -->
         <section id="hub-bot-view" style="display: none;">
-            <h2 style="color: var(--primary-blue);">Hub Bot</h2>
-            <div id="hubBotPage" style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px; padding: 16px; max-width: 900px; margin: 0 auto;">
-                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
-                    <div style="display:flex; align-items:center; gap:8px;">
-                        <div style="width:28px; height:28px; border-radius:50%; background: var(--primary-blue); display:flex; align-items:center; justify-content:center; color:white; font-weight:700;">🤖</div>
-                        <div style="color:var(--text-main); font-weight:700;">Hub Bot</div>
+            <div class="hub-bot-shell">
+                <div class="hub-bot-hero">
+                    <div class="hub-bot-meta">
+                        <div class="hub-bot-avatar">🤖</div>
+                        <div>
+                            <div class="hub-bot-title">Hub Bot</div>
+                            <div class="hub-bot-sub">Your AI copilot for courses & troubleshooting</div>
+                        </div>
                     </div>
-                    <div style="display:flex; align-items:center; gap:8px;">
-                        <div style="color:var(--text-secondary); font-size:12px;">Powered by Gemini</div>
-                        <button onclick="clearHubBotChat()" style="background: transparent; color: var(--text-secondary); border:1px solid var(--border-color); padding:6px 10px; border-radius:6px; cursor:pointer;">🗑 Clear Chat</button>
+                    <div class="hub-bot-status">
+                        <span class="pill live">Live</span>
+                        <span class="pill alt">Powered by Gemini</span>
+                        <button class="ghost" onclick="clearHubBotChat()">🗑 Clear chat</button>
                     </div>
                 </div>
-                <div id="hubBotPageMessages" style="background: var(--bg-dark); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; min-height: 320px; max-height: 520px; overflow-y: auto;">
+
+                <div class="hub-bot-prompts">
+                    <div class="prompt-chip" onclick="hubBotInsert('Summarize this course: ')" title="Summarize course">📝 Summarize this course</div>
+                    <div class="prompt-chip" onclick="hubBotInsert('Give me a practice plan for ')" title="Practice plan">📅 Practice plan</div>
+                    <div class="prompt-chip" onclick="hubBotInsert('Explain this error: ')" title="Debug help">🛠 Debug my issue</div>
+                    <div class="prompt-chip" onclick="hubBotInsert('Create flashcards for ')" title="Flashcards">📚 Flashcards</div>
+                </div>
+
+                <div id="hubBotPageMessages" class="hub-bot-messages">
                     <!-- Messages render here -->
                 </div>
-                <div style="display:flex; gap:8px; margin-top:10px;">
-                    <input id="hubBotPageInput" type="text" placeholder="Ask about courses or any tech topic..." style="flex:1; padding:10px; background: var(--bg-dark); border:1px solid var(--border-color); border-radius:6px; color: var(--text-main);">
-                    <button onclick="sendHubBotMessage('page')" style="background: var(--primary-blue); color: white; border: none; padding: 10px 16px; border-radius: 6px; cursor: pointer;">Send</button>
+
+                <div class="hub-bot-input">
+                    <input id="hubBotPageInput" type="text" placeholder="Ask anything about courses, errors, or learning paths..." />
+                    <button onclick="sendHubBotMessage('page')">Send</button>
                 </div>
             </div>
         </section>
@@ -773,7 +807,8 @@ body.light-theme .user-badge {
         </div>
         <div style="display:flex; align-items:center; gap:8px;">
             <button onclick="clearHubBotChat()" title="Clear chat" style="background: transparent; color: var(--text-secondary); border:1px solid var(--border-color); padding:4px 8px; border-radius:6px; cursor:pointer;">🗑</button>
-            <button onclick="toggleHubBotWidget()" style="background: transparent; color: var(--text-secondary); border:none; cursor:pointer; font-size:18px;">✕</button>
+            <button onclick="minimizeHubBotWidget()" title="Minimize" style="background: transparent; color: var(--text-secondary); border:1px solid var(--border-color); padding:4px 8px; border-radius:6px; cursor:pointer; font-size:16px;">—</button>
+            <button onclick="closeHubBotWidget()" title="Close" style="background: transparent; color: var(--text-secondary); border:none; cursor:pointer; font-size:18px;">✕</button>
         </div>
     </div>
     <div id="hubBotMessages" style="padding:10px; max-height:380px; overflow-y:auto;">
@@ -1027,6 +1062,14 @@ function setUserBadge() {
     const stored = (localStorage.getItem('userName') || '').trim();
     const derived = deriveNameFromEmail(email);
     badge.textContent = stored || derived || 'User';
+}
+
+// Quick insert helper for Hub Bot prompt chips
+function hubBotInsert(text) {
+    const input = document.getElementById('hubBotPageInput');
+    if (!input) return;
+    input.value = text;
+    input.focus();
 }
 
 window.onload = () => {
@@ -2122,6 +2165,23 @@ function toggleHubBotWidget() {
     const isShown = panel.style.display === 'block';
     panel.style.display = isShown ? 'none' : 'block';
     if (!isShown) initHubBot();
+}
+
+function minimizeHubBotWidget() {
+    const panel = document.getElementById('hubBotWidget');
+    if (!panel) return;
+    panel.style.display = 'none';
+    // Do not clear chat
+}
+
+function closeHubBotWidget() {
+    const panel = document.getElementById('hubBotWidget');
+    if (!panel) return;
+    // Clear chat history and hide
+    localStorage.removeItem(HUB_BOT_HISTORY_KEY);
+    renderHubBotMessages('hubBotMessages');
+    renderHubBotMessages('hubBotPageMessages');
+    panel.style.display = 'none';
 }
 
 function renderHubBotMessages(targetId) {
