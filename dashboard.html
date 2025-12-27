@@ -1256,6 +1256,26 @@ function saveNewUser() {
 function handleRoleChange(index, value) {
     const users = JSON.parse(localStorage.getItem('users') || '[]');
     if (!users[index]) return;
+    const oldRole = users[index].role;
+    const employeeName = users[index].name;
+    
+    // Show confirmation dialog
+    if (!confirm(`Are you sure you want to change ${employeeName}'s role from ${oldRole} to ${value}?`)) {
+        // Reset dropdown to old value if user cancels
+        const selects = document.querySelectorAll('select');
+        selects.forEach(sel => {
+            if (sel.value !== oldRole) {
+                // Find the right dropdown based on the user index
+                const rows = document.querySelectorAll('tbody tr');
+                if (rows[index]) {
+                    const roleSelect = rows[index].querySelector('select');
+                    if (roleSelect) roleSelect.value = oldRole;
+                }
+            }
+        });
+        return;
+    }
+    
     users[index].role = value;
     localStorage.setItem('users', JSON.stringify(users));
     // If the changed user is the current session user, sync session role
