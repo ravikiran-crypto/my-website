@@ -850,9 +850,11 @@ async function fetchAINews() {
     const now = Date.now();
     const newsContainer = document.getElementById('news-container');
 
-    // Check cache
+    // Check cache - only use if within 24 hours
     const cachedTimestamp = localStorage.getItem(TIMESTAMP_KEY);
-    if (cachedTimestamp && (now - parseInt(cachedTimestamp)) < CACHE_DURATION) {
+    const timeDiff = cachedTimestamp ? (now - parseInt(cachedTimestamp)) : CACHE_DURATION + 1;
+    
+    if (timeDiff < CACHE_DURATION) {
         const cachedNews = localStorage.getItem(CACHE_KEY);
         if (cachedNews) {
             try {
@@ -863,6 +865,10 @@ async function fetchAINews() {
                 // Invalid cache, proceed to fetch
             }
         }
+    } else {
+        // Cache expired or doesn't exist - clear it to force fresh fetch
+        localStorage.removeItem(TIMESTAMP_KEY);
+        localStorage.removeItem(CACHE_KEY);
     }
 
     // Fetch new news
@@ -1599,8 +1605,19 @@ function forceRefreshNews() {
 }
 
 function logout() {
-    // Clear all stored user and app data
-    localStorage.clear();
+    // Clear user session data (keep theme/settings)
+    localStorage.removeItem('userEmail');
+    localStorage.removeItem('userName');
+    localStorage.removeItem('users');
+    localStorage.removeItem('announcements');
+    localStorage.removeItem('courses');
+    localStorage.removeItem('roles');
+    localStorage.removeItem('assessments');
+    localStorage.removeItem('hubBotHistory');
+    localStorage.removeItem('userRole');
+    // Also clear news cache to force fresh fetch on next login
+    localStorage.removeItem('aiNews');
+    localStorage.removeItem('aiNewsTimestamp');
     // Redirect to login page
     window.location.href = 'index.html';
 }
