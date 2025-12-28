@@ -1160,6 +1160,20 @@ window.onload = () => {
     // Initialize role-based access control (SUPERADMIN logic is here)
     syncCurrentUserRole();
     checkAdminStatus();
+    
+    // Load all course data
+    loadCourses();
+    loadCoursesView();
+    const searchInput = document.getElementById('courseSearchInput');
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => loadCoursesView(e.target.value));
+    }
+    loadAssignedCourses();
+    
+    // Load user and role data
+    updateAnnouncements();
+    loadUsers();
+    loadRoles();
 
     // Show Home view
     const homeView = document.getElementById('home-view');
@@ -1696,14 +1710,25 @@ function loadCoursesView(searchTerm = '') {
         intermediate: document.querySelector('#intermediate-courses .type-grid'),
         advanced: document.querySelector('#advanced-courses .type-grid')
     };
+    
+    // Check if sections exist
+    if (!sections.beginner || !sections.intermediate || !sections.advanced) {
+        console.error('Course sections not found in DOM');
+        return;
+    }
+    
     // Clear
-    Object.values(sections).forEach(grid => grid.innerHTML = '');
+    Object.values(sections).forEach(grid => {
+        if (grid) grid.innerHTML = '';
+    });
+    
     const term = searchTerm.trim().toLowerCase();
     const matchesTerm = (name) => {
         if (!term) return true;
         const words = name.toLowerCase().split(/\s+/);
         return words.some(w => w.startsWith(term));
     };
+    
     courses
         .filter(course => matchesTerm(course.name))
         .forEach(course => {
@@ -1717,24 +1742,15 @@ function loadCoursesView(searchTerm = '') {
             <small style="color:var(--text-secondary); text-align:center; display:block;">Uploaded: ${course.uploadDate}</small>
             <small style="color:var(--text-secondary); text-align:center; display:block;">Uploaded by: Admin</small>
         `;
-        sections[course.type].appendChild(card);
+        const targetSection = sections[course.type];
+        if (targetSection) {
+            targetSection.appendChild(card);
+        }
+    });
     });
 }
 
-window.addEventListener('load', () => {
-    loadCourses();
-    loadCoursesView();
-    const searchInput = document.getElementById('courseSearchInput');
-    if (searchInput) {
-        searchInput.addEventListener('input', (e) => loadCoursesView(e.target.value));
-    }
-    loadAssignedCourses();
-    syncCurrentUserRole();
-    checkAdminStatus();
-    updateAnnouncements();
-    loadUsers();
-    loadRoles();
-});
+// Note: All initialization moved to window.onload above to avoid conflicts
 
 function checkAdminStatus() {
     // Check if user is admin
