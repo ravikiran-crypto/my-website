@@ -6,6 +6,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script src="api-config.js"></script>
     <style>
         :root {
     --sidebar-collapsed: 75px;
@@ -918,18 +919,11 @@ async function fetchAINews() {
     newsContainer.innerHTML = '<div class="news-item">Fetching real-time AI news...</div>';
 
     try {
-        const API_KEY = "AIzaSyB2mT9qF0oYkSDwbGyKJoFYi0TYE7gJ9UU";
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${API_KEY}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{
-                    parts: [{ text: "Current date is December 27, 2025. Provide a list of the top 5 most recent and significant AI news headlines from today (December 27, 2025) and yesterday (December 26, 2025). Focus on new tool/model launches, partnerships, and acquisitions. For each item, return a JSON object with: 'date', 'headline', 'summary' (brief explanation), and 'url' (the actual article link). Return a JSON array in this exact format: [{\"date\": \"...\", \"headline\": \"...\", \"summary\": \"...\", \"url\": \"...\"}, ...]" }]
-                }]
-            })
-        });
+        const data = await callGeminiAPI(
+            "Current date is December 27, 2025. Provide a list of the top 5 most recent and significant AI news headlines from today (December 27, 2025) and yesterday (December 26, 2025). Focus on new tool/model launches, partnerships, and acquisitions. For each item, return a JSON object with: 'date', 'headline', 'summary' (brief explanation), and 'url' (the actual article link). Return a JSON array in this exact format: [{\"date\": \"...\", \"headline\": \"...\", \"summary\": \"...\", \"url\": \"...\"}, ...]",
+            'gemini-2.5-flash'
+        );
 
-        const data = await response.json();
         if (data.error) throw new Error(data.error.message);
 
         let textResponse = data.candidates[0].content.parts[0].text;
@@ -1673,7 +1667,6 @@ function logout() {
 }
 
 // ============ Measure & Master Functions ============
-const GEMINI_API_KEY = "AIzaSyB2mT9qF0oYkSDwbGyKJoFYi0TYE7gJ9UU";
 let assessmentQuestions = [];
 let currentQuestionIndex = 0;
 let userAnswers = [];
@@ -1699,15 +1692,7 @@ async function generateQuestions() {
             ? `Generate exactly 20 multiple-choice questions covering Web Development, Large Language Models (LLMs), Transformers, OCR tools, Artificial Intelligence, Machine Learning, and related technologies. Each question should have 4 options with only one correct answer. Return a JSON array with this exact structure: [{"question": "...", "options": ["A) ...", "B) ...", "C) ...", "D) ..."], "correctAnswer": "A"}]. Make questions challenging and practical.`
             : `Based on the video topic "${currentVideoAssessmentCourse.topic}", generate exactly 10 multiple-choice questions that test understanding of the concepts covered. Each question should have 4 options with only one correct answer. Return a JSON array with this exact structure: [{"question": "...", "options": ["A) ...", "B) ...", "C) ...", "D) ..."], "correctAnswer": "A"}]. Focus on key concepts, definitions, and applications.`;
 
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_API_KEY}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }]
-            })
-        });
-
-        const data = await response.json();
+        const data = await callGeminiAPI(prompt, 'gemini-2.0-flash-exp');
         if (data.error) throw new Error(data.error.message);
 
         let textResponse = data.candidates[0].content.parts[0].text;
@@ -1808,15 +1793,7 @@ async function getVideoSuggestion(level, score) {
     try {
         const prompt = `Based on a ${level} level learner who scored ${score}/10 in an assessment covering Web Development, LLMs, Transformers, OCR, and AI topics, suggest ONE highly relevant YouTube video that will help them improve. STRICT REQUIREMENTS: 1) Choose ONLY from these verified embeddable channels: freeCodeCamp.org, Fireship, Tech With Tim, Traversy Media, Programming with Mosh, Corey Schafer, CS Dojo, 2) The video MUST have embedding allowed (check: no restrictions), 3) Must be a complete course/tutorial (not a short clip), 4) Must have high views (100k+) and good ratings. For ${level} level, suggest: Beginner=HTML/CSS/JavaScript basics, Intermediate=React/Node/Python/APIs, Advanced=ML/AI/System Design. Return ONLY a JSON object: {"videoId": "VERIFIED_YouTube_ID", "topic": "Topic Name", "definition": "2-3 sentence definition", "uses": "2-3 sentence practical applications"}. ONLY suggest videos you are CERTAIN are embeddable and from the listed channels.`;
 
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_API_KEY}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }]
-            })
-        });
-
-        const data = await response.json();
+        const data = await callGeminiAPI(prompt, 'gemini-2.0-flash-exp');
         if (data.error) throw new Error(data.error.message);
 
         let textResponse = data.candidates[0].content.parts[0].text;
@@ -2067,15 +2044,7 @@ async function suggestNextLevelCourse(nextLevel, previousLevel) {
     try {
         const prompt = `The learner has successfully completed a ${previousLevel} level course and is now ready for ${nextLevel} level content. Suggest ONE highly relevant YouTube video for ${nextLevel} level learning. STRICT REQUIREMENTS: 1) Choose ONLY from verified embeddable channels: freeCodeCamp.org, Fireship, Tech With Tim, Traversy Media, Programming with Mosh, Corey Schafer, 2) Must be embeddable (no restrictions), 3) Complete course/tutorial, 4) High views (100k+). For ${nextLevel} level, suggest: Intermediate=React/Node/APIs/Python, Advanced=ML/AI/System Design/Cloud. Return JSON: {"videoId": "VERIFIED_YouTube_ID", "topic": "Topic", "definition": "2-3 sentences", "uses": "2-3 sentences"}. ONLY embeddable videos from listed channels.`;
 
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_API_KEY}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }]
-            })
-        });
-
-        const data = await response.json();
+        const data = await callGeminiAPI(prompt, 'gemini-2.0-flash-exp');
         if (data.error) throw new Error(data.error.message);
 
         let textResponse = data.candidates[0].content.parts[0].text;
@@ -2224,12 +2193,7 @@ async function sendHubBotMessage(source) {
     try {
         const context = getCoursesContext();
         const fullPrompt = `${HUB_BOT_SYSTEM_PROMPT}\n\nCourse data:\n${context}\n\nQuestion: ${question}\nAnswer as Hub Bot.`;
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: fullPrompt }] }] })
-        });
-        const data = await response.json();
+        const data = await callGeminiAPI(fullPrompt, 'gemini-2.5-flash');
         let answer = 'Sorry, I could not fetch an answer right now.';
         if (data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) {
             answer = data.candidates[0].content.parts.map(p => p.text || '').join('\n').trim();
