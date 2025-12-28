@@ -96,9 +96,10 @@ app.post('/api/gemini/custom', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`\n🚀 Server running on http://localhost:${PORT}`);
-  console.log(`📡 API endpoints available at http://localhost:${PORT}/api/`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`\n🚀 Server running on http://192.168.0.200:${PORT}`);
+  console.log(`📡 API endpoints available at http://192.168.0.200:${PORT}/api/`);
+  console.log(`🌐 Network access enabled - users can connect from other computers`);
   
   const apiKey = process.env.GEMINI_API_KEY;
   if (apiKey) {

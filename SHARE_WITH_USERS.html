@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OneOrigin Hub - Access Instructions</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            padding: 50px;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 600px;
+            text-align: center;
+        }
+        
+        h1 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 2.5em;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+        
+        .url-box {
+            background: #f8f9fa;
+            border: 2px solid #667eea;
+            border-radius: 10px;
+            padding: 25px;
+            margin: 30px 0;
+        }
+        
+        .url-label {
+            color: #666;
+            font-size: 0.9em;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .url {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #667eea;
+            margin: 10px 0;
+        }
+        
+        .copy-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-size: 1em;
+            cursor: pointer;
+            margin-top: 15px;
+            transition: all 0.3s ease;
+        }
+        
+        .copy-btn:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .copy-btn:active {
+            transform: translateY(0);
+        }
+        
+        .instructions {
+            text-align: left;
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+        
+        .instructions h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+        
+        .instructions ol {
+            padding-left: 20px;
+        }
+        
+        .instructions li {
+            margin: 10px 0;
+            line-height: 1.6;
+        }
+        
+        .note {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 5px;
+            text-align: left;
+        }
+        
+        .note strong {
+            color: #856404;
+        }
+        
+        .success {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 5px;
+            text-align: left;
+            display: none;
+        }
+        
+        .success.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎓 OneOrigin Hub</h1>
+        <p class="subtitle">Access the Learning Platform</p>
+        
+        <div class="url-box">
+            <div class="url-label">Open this URL in your browser:</div>
+            <div class="url" id="urlText">http://192.168.0.200:3000</div>
+            <button class="copy-btn" onclick="copyURL()">📋 Copy URL</button>
+        </div>
+        
+        <div class="success" id="successMsg">
+            <strong>✅ URL Copied!</strong> Paste it in your browser's address bar.
+        </div>
+        
+        <div class="instructions">
+            <h3>📝 How to Access:</h3>
+            <ol>
+                <li>Make sure you're connected to the same Wi-Fi network</li>
+                <li>Click the "Copy URL" button above (or copy the URL manually)</li>
+                <li>Open your web browser (Chrome, Edge, Firefox, etc.)</li>
+                <li>Paste the URL in the address bar and press Enter</li>
+                <li>Login with your <strong>@oneorigin.us</strong> email</li>
+            </ol>
+        </div>
+        
+        <div class="note">
+            <strong>⚠️ Important:</strong> You must be on the same network as the server computer. If you can't connect, contact your admin.
+        </div>
+    </div>
+    
+    <script>
+        function copyURL() {
+            const url = document.getElementById('urlText').textContent;
+            navigator.clipboard.writeText(url).then(() => {
+                const successMsg = document.getElementById('successMsg');
+                successMsg.classList.add('show');
+                setTimeout(() => {
+                    successMsg.classList.remove('show');
+                }, 3000);
+            }).catch(err => {
+                alert('Failed to copy. Please copy manually: ' + url);
+            });
+        }
+    </script>
+</body>
+</html>

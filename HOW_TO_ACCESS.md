@@ -18,55 +18,78 @@ npm start
 
 You should see:
 ```
-🚀 Server running on http://localhost:3000
-📡 API endpoints available at http://localhost:3000/api/
+🚀 Server running on http://192.168.0.200:3000
+📡 API endpoints available at http://192.168.0.200:3000/api/
+🌐 Network access enabled - users can connect from other computers
 ✅ GEMINI_API_KEY loaded: AIzaSyCls...kfZg
 ```
 
 ### **Step 2: Open in Browser**
 
-Go to: **http://localhost:3000**
+**From your computer (server):**
+```
+http://192.168.0.200:3000
+```
+
+**From other computers on the network:**
+```
+http://192.168.0.200:3000
+```
 
 NOT: ~~file:///C:/Users/.../index.html~~ ❌
+NOT: ~~http://localhost:3000~~ ❌ (only works on server computer)
 
 ---
 
-## 👥 For Other Users:
+## 👥 For Other Users on the Network:
 
-### **Option A: Same Computer (Localhost)**
+### **Network Access Already Configured! ✅**
 
-If users are on the same computer:
-1. Make sure server is running
-2. Tell them to go to: `http://localhost:3000`
+Your server is now accessible from any computer on the same network.
 
-### **Option B: Different Computers (Network Access)**
+**Simply share this URL with all users:**
+```
+http://192.168.0.200:3000
+```
 
-If users are on different computers in the same network:
+**Requirements:**
+1. ✅ Server must be running on your computer (`npm start`)
+2. ✅ All users must be on the same Wi-Fi/network
+3. ✅ Windows Firewall may prompt - click "Allow access"
 
-1. **Find your computer's IP address:**
-   ```powershell
-   ipconfig
-   ```
-   Look for "IPv4 Address" (e.g., `192.168.1.100`)
+**Users should:**
+- Open their browser
+- Type: `http://192.168.0.200:3000`
+- Login with their @oneorigin.us email
 
-2. **Update api-config.js:**
-   ```javascript
-   const API_BASE_URL = 'http://192.168.1.100:3000';
-   ```
+---
 
-3. **Share the URL with users:**
-   ```
-   http://192.168.1.100:3000
-   ```
+## 🔥 Windows Firewall (If users can't connect):
 
-4. **Make sure Windows Firewall allows port 3000**
+If users on other computers cannot access the app:
 
-### **Option C: Deploy to Cloud (Production)**
+1. **When prompted:** Click "Allow access" on Windows Firewall popup
+   
+   OR
 
-For internet access from anywhere:
+2. **Manually allow port 3000:**
+   - Open Windows Defender Firewall
+   - Click "Advanced settings"
+   - Click "Inbound Rules" → "New Rule"
+   - Select "Port" → Next
+   - Enter "3000" → Next
+   - Select "Allow the connection" → Next
+   - Check all (Domain, Private, Public) → Next
+   - Name: "OneOrigin Hub" → Finish
 
-1. **Deploy to Heroku, Railway, or Render:**
-   - Follow deployment guide in SETUP_INSTRUCTIONS.md
+---
+
+## 🌐 For Internet Access (Optional):
+
+For access from anywhere (not just local network):
+
+1. **Deploy to cloud service:**
+   - Heroku, Railway, or Render
    - Get a public URL like: `https://oneorigin-hub.herokuapp.com`
 
 2. **Update api-config.js with production URL:**
