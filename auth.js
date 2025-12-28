@@ -23,6 +23,26 @@ document.getElementById('loginBtn').addEventListener('click', async () => {
         if (user.email.endsWith("@oneorigin.us")) {
             localStorage.setItem("userName", user.displayName || "");
             localStorage.setItem("userEmail", user.email || "");
+            
+            // Auto-record user in users table if not exists
+            const users = JSON.parse(localStorage.getItem('users') || '[]');
+            const existingUser = users.find(u => u.email && u.email.toLowerCase() === user.email.toLowerCase());
+            
+            if (!existingUser) {
+                users.push({
+                    employeeId: 'AUTO-' + Date.now(),
+                    name: user.displayName || user.email.split('@')[0],
+                    email: user.email,
+                    role: user.email.toLowerCase() === 'ravikiran@oneorigin.us' ? 'Admin' : 'User',
+                    lastActive: new Date().toLocaleString()
+                });
+                localStorage.setItem('users', JSON.stringify(users));
+            } else {
+                // Update last active
+                existingUser.lastActive = new Date().toLocaleString();
+                localStorage.setItem('users', JSON.stringify(users));
+            }
+            
             window.location.href = "dashboard.html";
         } else {
             alert("Access Denied: Please use your @oneorigin.us email.");

@@ -716,7 +716,8 @@ body.light-theme .user-badge {
             <!-- Initial Assessment Button -->
             <div id="initialAssessmentContainer" style="text-align:center; padding:40px; background: var(--card-bg); border: 2px solid var(--border-color); border-radius: 10px; margin-bottom: 30px;">
                 <p style="color:var(--text-secondary); margin-bottom:20px;">Test your knowledge across Web Development, LLMs, Transformers, OCR, AI and more!</p>
-                <button onclick="startInitialAssessment()" style="background:var(--primary-blue); color:white; border:none; padding:15px 30px; border-radius:8px; cursor:pointer; font-size:16px; font-weight:bold;">Start Assessment</button>
+                <div id="initialAssessmentStatus"></div>
+                <button id="startAssessmentBtn" onclick="startInitialAssessment()" style="background:var(--primary-blue); color:white; border:none; padding:15px 30px; border-radius:8px; cursor:pointer; font-size:16px; font-weight:bold;">Start Assessment</button>
             </div>
 
             <!-- Assessment Quiz Container -->
@@ -1965,6 +1966,8 @@ async function submitAssessment() {
     const score = calculateScore();
     
     if (currentAssessmentType === 'initial') {
+        // Store initial assessment score
+        localStorage.setItem('initialAssessmentScore', `${score}/${assessmentQuestions.length}`);
         await showInitialResults(score);
     } else {
         await showVideoAssessmentResults(score);
@@ -2045,11 +2048,48 @@ function assignCourseToUser(videoData, level) {
     loadAssignedCourses();
 }
 
+function updateInitialAssessmentStatus() {
+    const assignedCourses = JSON.parse(localStorage.getItem('assignedCourses') || '[]');
+    const initialScore = localStorage.getItem('initialAssessmentScore');
+    const statusDiv = document.getElementById('initialAssessmentStatus');
+    const startBtn = document.getElementById('startAssessmentBtn');
+    
+    if (!statusDiv || !startBtn) return;
+    
+    // If courses are assigned or assessment is completed, hide button and show status
+    if (assignedCourses.length > 0 || initialScore) {
+        startBtn.style.display = 'none';
+        
+        if (initialScore) {
+            statusDiv.innerHTML = `
+                <div style="padding:20px; background:rgba(76,175,80,0.1); border:1px solid #4CAF50; border-radius:8px; margin-bottom:15px;">
+                    <div style="color:#4CAF50; font-weight:bold; font-size:18px; margin-bottom:10px;">✓ Assessment Completed</div>
+                    <div style="color:var(--text-main); font-size:16px;">Your Score: ${initialScore}</div>
+                    <div style="color:var(--text-secondary); font-size:14px; margin-top:8px;">Courses have been assigned based on your performance</div>
+                </div>
+            `;
+        } else {
+            statusDiv.innerHTML = `
+                <div style="padding:15px; background:rgba(66,133,244,0.1); border:1px solid var(--primary-blue); border-radius:8px; margin-bottom:15px;">
+                    <div style="color:var(--primary-blue); font-weight:bold;">Courses Assigned</div>
+                    <div style="color:var(--text-secondary); font-size:14px; margin-top:5px;">Check your assigned courses below</div>
+                </div>
+            `;
+        }
+    } else {
+        startBtn.style.display = 'block';
+        statusDiv.innerHTML = '';
+    }
+}
+
 function loadAssignedCourses() {
     const courses = JSON.parse(localStorage.getItem('assignedCourses') || '[]');
     const upcomingCourse = JSON.parse(localStorage.getItem('upcomingCourse') || 'null');
     const assignedGrid = document.getElementById('assignedCoursesGrid');
     const passedGrid = document.getElementById('passedCoursesGrid');
+    
+    // Update initial assessment button status
+    updateInitialAssessmentStatus();
     
     if (!assignedGrid || !passedGrid) return;
 
@@ -2324,6 +2364,8 @@ window.deleteCourse = deleteCourse;
 window.startVideoAssessment = startVideoAssessment;
 window.resetAssessment = resetAssessment;
 window.loadAssignedCourses = loadAssignedCourses;
+window.updateInitialAssessmentStatus = updateInitialAssessmentStatus;
+window.loadRoles = loadRoles;
 
 </script>
 
