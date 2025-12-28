@@ -104,3 +104,11 @@ async function addSharedAnnouncement(announcement) {
         return announcements;
     }
 }
+
+// Make functions available globally for dashboard.html
+window.getSharedCourses = getSharedCourses;
+window.addSharedCourse = addSharedCourse;
+window.deleteSharedCourse = deleteSharedCourse;
+window.syncSharedCourses = syncSharedCourses;
+window.getSharedAnnouncements = getSharedAnnouncements;
+window.addSharedAnnouncement = addSharedAnnouncement;
