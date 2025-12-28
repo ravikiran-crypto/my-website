@@ -2228,7 +2228,6 @@ async function showVideoAssessmentResults(score) {
         if (passed) {
             course.passed = true;
         }
-    }
         localStorage.setItem('assignedCourses', JSON.stringify(courses));
         
         // Move upcoming course to assigned courses if available (only if passed)
