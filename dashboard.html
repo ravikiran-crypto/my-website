@@ -657,34 +657,7 @@ body.light-theme .user-badge {
 
         <!-- Role Management Section -->
         <section id="role-mgmt-view" style="display: none;">
-            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 20px; gap:12px; flex-wrap:wrap;">
-                <div>
-                    <h2 style="color: var(--primary-blue); margin: 0;">Role Management</h2>
-                    <p style="margin:6px 0 0 0; color: var(--text-secondary); font-size:12px;">Manage user roles. Admin-only.</p>
-                </div>
-                <div style="display:flex; gap:10px; align-items:center;">
-                    <button style="background: var(--primary-blue); color: white; border: none; padding: 10px 16px; border-radius: 6px; cursor: pointer; font-weight: bold;" onclick="openAddUserModal()">+ Add User</button>
-                    <button style="background: #f85149; color: white; border: none; padding: 10px 16px; border-radius: 6px; cursor: pointer; font-weight: bold;" onclick="deleteSelectedRoles()">🗑 Delete Selected</button>
-                    <label style="font-size:12px; color:var(--text-secondary)">Bulk Upload CSV</label>
-                    <input type="file" accept=".csv" onchange="handleRoleCSVUpload(event)" style="background: var(--card-bg); color: var(--text-main); border: 1px solid var(--border-color); padding:8px; border-radius:6px;">
-                </div>
-            </div>
-            <table class="admin-table">
-                <thead>
-                    <tr>
-                        <th style="width:40px; text-align:center;"><input type="checkbox" id="roleSelectAll" onclick="toggleSelectAllRoles(this)"></th>
-                        <th>Employee ID</th>
-                        <th>Employee name</th>
-                        <th>Email ID</th>
-                        <th>Role</th>
-                        <th>Last active date&time</th>
-                        <th>Delete</th>
-                    </tr>
-                </thead>
-                <tbody id="roleMgmtTableBody">
-                    <!-- Roles will render here -->
-                </tbody>
-            </table>
+            <h2 style="color: var(--primary-blue); margin: 0;">Role Management</h2>
         </section>
         <section id="courses-view" style="display: none;">
             <h2 style="color: var(--primary-blue);">Courses</h2>
@@ -737,7 +710,7 @@ body.light-theme .user-badge {
         <section id="measure-master-view" style="display: none;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                 <h2 style="color: var(--primary-blue); margin: 0;">Measure & Master</h2>
-                <button onclick="resetAllAssessments()" style="background: #f85149; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold;">🔄 Reset All</button>
+                <button id="resetAllAssessmentsBtn" onclick="resetAllAssessments()" style="background: #f85149; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold;">🔄 Reset All</button>
             </div>
             
             <!-- Initial Assessment Button -->
@@ -1354,7 +1327,7 @@ async function loadCourses() {
         row.insertCell(3).innerText = course.videoId;
         row.insertCell(4).innerText = course.uploadDate;
         const deleteCell = row.insertCell(5);
-        deleteCell.innerHTML = '<button style="background:#f85149; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;" onclick="deleteCourse(' + course.id + ')">Delete</button>';
+        deleteCell.innerHTML = `<button style="background:#f85149; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;" onclick="deleteCourse(${course.id})">Delete</button>`;
     });
     loadRoles();
 }
@@ -1815,6 +1788,12 @@ function checkAdminStatus() {
     const courseMgmtItem = document.getElementById('courseMgmtSidebarItem');
     if (courseMgmtItem) {
         courseMgmtItem.style.display = isAdmin ? 'block' : 'none';
+    }
+    
+    // Reset All button - Admin only
+    const resetAllBtn = document.getElementById('resetAllAssessmentsBtn');
+    if (resetAllBtn) {
+        resetAllBtn.style.display = isAdmin ? 'block' : 'none';
     }
     
     // If non-admin tries to view admin sections, redirect to home
