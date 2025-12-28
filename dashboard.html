@@ -1705,6 +1705,8 @@ function overlayBackdropClick(event) {
 
 function loadCoursesView(searchTerm = '') {
     const courses = JSON.parse(localStorage.getItem('courses') || '[]');
+    console.log('Loading courses view, found', courses.length, 'courses:', courses);
+    
     const sections = {
         beginner: document.querySelector('#beginner-courses .type-grid'),
         intermediate: document.querySelector('#intermediate-courses .type-grid'),
@@ -1729,6 +1731,7 @@ function loadCoursesView(searchTerm = '') {
         return words.some(w => w.startsWith(term));
     };
     
+    let displayedCount = 0;
     courses
         .filter(course => matchesTerm(course.name))
         .forEach(course => {
@@ -1745,8 +1748,13 @@ function loadCoursesView(searchTerm = '') {
         const targetSection = sections[course.type];
         if (targetSection) {
             targetSection.appendChild(card);
+            displayedCount++;
+        } else {
+            console.warn('No section found for course type:', course.type);
         }
     });
+    
+    console.log('Displayed', displayedCount, 'courses in the view');
 }
 
 // Note: All initialization moved to window.onload above to avoid conflicts
