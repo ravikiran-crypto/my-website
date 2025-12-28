@@ -45,23 +45,21 @@ async function getSharedCourses() {
 
 // Add course to Firestore
 async function addSharedCourse(course) {
+    // Always add to localStorage first for immediate availability
+    const localCourses = JSON.parse(localStorage.getItem('courses') || '[]');
+    localCourses.push(course);
+    localStorage.setItem('courses', JSON.stringify(localCourses));
+    
     try {
         console.log('➕ Adding course to Firestore:', course);
         const courseRef = doc(db, 'courses', course.id.toString());
         await setDoc(courseRef, course);
         console.log('✅ Course added successfully to Firestore');
-        // Also update localStorage for offline access
-        const courses = await getSharedCourses();
-        localStorage.setItem('courses', JSON.stringify(courses));
-        return courses;
+        return localCourses;
     } catch (error) {
         console.error('❌ Error adding course to Firestore:', error);
-        console.log('⚠️ Falling back to localStorage');
-        // Fallback to localStorage
-        const courses = JSON.parse(localStorage.getItem('courses') || '[]');
-        courses.push(course);
-        localStorage.setItem('courses', JSON.stringify(courses));
-        return courses;
+        console.log('⚠️ Course saved to localStorage only');
+        return localCourses;
     }
 }
 
