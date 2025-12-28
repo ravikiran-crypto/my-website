@@ -567,7 +567,7 @@ body.light-theme .user-badge {
             <div class="sidebar-item" onclick="switchTab('hub-bot-view', this)">🤖 <span class="sidebar-text">Hub Bot</span></div>
         </div>
         <div class="sidebar-footer">
-            <div class="sidebar-item" onclick="switchTab('course-mgmt-view', this)">📖 <span class="sidebar-text">Course Mgmt</span></div>
+            <div class="sidebar-item" id="courseMgmtSidebarItem" onclick="switchTab('course-mgmt-view', this)">📖 <span class="sidebar-text">Course Mgmt</span></div>
             <div class="sidebar-item" id="roleMgmtSidebarItem" onclick="switchTab('role-mgmt-view', this)">👥 <span class="sidebar-text">Role Mgmt</span></div>
             <div class="sidebar-item" onclick="switchTab('settings-view', this)">⚙️ <span class="sidebar-text">Settings</span></div>
         </div>
@@ -840,7 +840,7 @@ body.light-theme .user-badge {
         <div style="margin-bottom:12px;">
             <label style="display:block; margin-bottom:5px; font-size:14px; color:var(--text-main);">Role</label>
             <select id="newEmpRole" style="width:100%; padding:10px; background:var(--bg-dark); border:1px solid var(--border-color); border-radius:6px; color:var(--text-main);">
-                <option value="Employee">Employee</option>
+                <option value="User" selected>User</option>
                 <option value="Admin">Admin</option>
             </select>
         </div>
@@ -1142,6 +1142,15 @@ window.onload = () => {
     // Update badge using email-derived full name when available
     setUserBadge();
 
+    // Initialize role-based access control
+    syncCurrentUserRole();
+    checkAdminStatus();
+    
+    // Set default role to "User" if no role is found
+    if (!localStorage.getItem('userRole')) {
+        localStorage.setItem('userRole', 'user');
+    }
+
     // Show Home view
     const homeView = document.getElementById('home-view');
     if (homeView) homeView.style.display = 'block';
@@ -1324,7 +1333,7 @@ function loadUsers() {
         row.insertCell(2).innerText = u.email || '';
         const roleCell = row.insertCell(3);
         roleCell.innerHTML = `<select onchange="handleRoleChange(${idx}, this.value)" style="padding:6px; background:var(--bg-dark); color:var(--text-main); border:1px solid var(--border-color); border-radius:6px;">
-            <option value="Employee" ${u.role === 'Employee' ? 'selected' : ''}>Employee</option>
+            <option value="User" ${u.role === 'User' ? 'selected' : ''}>User</option>
             <option value="Admin" ${u.role === 'Admin' ? 'selected' : ''}>Admin</option>
         </select>`;
         row.insertCell(4).innerText = u.lastActive || '';
@@ -1453,7 +1462,7 @@ function loadRoles() {
         row.insertCell(3).innerText = u.email || '';
         const roleCell = row.insertCell(4);
         roleCell.innerHTML = `<select onchange="handleRoleChange(${idx}, this.value)" style="padding:6px; background:var(--bg-dark); color:var(--text-main); border:1px solid var(--border-color); border-radius:6px;">
-            <option value="Employee" ${u.role === 'Employee' ? 'selected' : ''}>Employee</option>
+            <option value="User" ${u.role === 'User' ? 'selected' : ''}>User</option>
             <option value="Admin" ${u.role === 'Admin' ? 'selected' : ''}>Admin</option>
         </select>`;
         row.insertCell(5).innerText = u.lastActive || '';
@@ -1655,21 +1664,42 @@ window.addEventListener('load', () => {
 });
 
 function checkAdminStatus() {
-    // Check if user is admin (you can modify this logic based on your authentication)
+    // Check if user is admin
     const isAdmin = (localStorage.getItem('userRole') || '').toLowerCase() === 'admin';
-    const users = JSON.parse(localStorage.getItem('users') || '[]');
+    
+    // Admin Refresh News Button - Admin only
     const refreshBtn = document.getElementById('adminRefreshNewsBtn');
-    if (refreshBtn && isAdmin) {
-        refreshBtn.style.display = 'block';
+    if (refreshBtn) {
+        refreshBtn.style.display = isAdmin ? 'block' : 'none';
     }
+    
+    // User Management Sidebar - Admin only
     const userMgmtItem = document.getElementById('userMgmtSidebarItem');
     if (userMgmtItem) {
         userMgmtItem.style.display = isAdmin ? 'block' : 'none';
     }
+    
+    // Role Management Sidebar - Admin only
     const roleMgmtItem = document.getElementById('roleMgmtSidebarItem');
     if (roleMgmtItem) {
-        // Keep Role Management visible so it doesn't disappear
-        roleMgmtItem.style.display = 'block';
+        roleMgmtItem.style.display = isAdmin ? 'block' : 'none';
+    }
+    
+    // Course Management Sidebar - Admin only
+    const courseMgmtItem = document.getElementById('courseMgmtSidebarItem');
+    if (courseMgmtItem) {
+        courseMgmtItem.style.display = isAdmin ? 'block' : 'none';
+    }
+    
+    // If non-admin tries to view admin sections, redirect to home
+    if (!isAdmin) {
+        const currentView = document.querySelector('section[style*="display: block"], section[style*="display:block"]');
+        if (currentView) {
+            const viewId = currentView.id;
+            if (viewId === 'admin-view' || viewId === 'role-mgmt-view' || viewId === 'course-mgmt-view') {
+                switchTab('home-view', null);
+            }
+        }
     }
 }
 
