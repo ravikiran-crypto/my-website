@@ -920,14 +920,26 @@ async function fetchAINews() {
 
     try {
         const data = await callGeminiAPI(
-            "Current date is December 27, 2025. Provide a list of the top 5 most recent and significant AI news headlines from today (December 27, 2025) and yesterday (December 26, 2025). Focus on new tool/model launches, partnerships, and acquisitions. For each item, return a JSON object with: 'date', 'headline', 'summary' (brief explanation), and 'url' (the actual article link). Return a JSON array in this exact format: [{\"date\": \"...\", \"headline\": \"...\", \"summary\": \"...\", \"url\": \"...\"}, ...]",
-            'gemini-2.5-flash'
+            "You must return ONLY valid JSON, nothing else. Current date is December 28, 2025. Create a JSON array of 5 recent AI news items with this exact structure: [{\"date\": \"Dec 28, 2025\", \"headline\": \"News Title\", \"summary\": \"Brief description\", \"url\": \"https://example.com/article\"}]. Focus on: new AI models/tools, partnerships, acquisitions. Return ONLY the JSON array, no explanations or markdown.",
+            'gemini-2.0-flash-exp'
         );
 
         if (data.error) throw new Error(data.error.message);
 
         let textResponse = data.candidates[0].content.parts[0].text;
-        const cleanJson = textResponse.replace(/```json|```/g, "").trim();
+        
+        // Extract JSON from response (handle markdown code blocks or plain text)
+        let cleanJson = textResponse.trim();
+        
+        // Remove markdown code blocks if present
+        cleanJson = cleanJson.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+        
+        // Try to find JSON array in the response
+        const jsonMatch = cleanJson.match(/\[\s*\{[\s\S]*\}\s*\]/);
+        if (jsonMatch) {
+            cleanJson = jsonMatch[0];
+        }
+        
         const newsArray = JSON.parse(cleanJson);
 
         // Cache the news
