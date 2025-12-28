@@ -904,6 +904,11 @@ if (userEmail && !localStorage.getItem('migrated_to_firestore')) {
 </script>
 
 <script>
+// Check if running through server (not file://)
+if (window.location.protocol === 'file:') {
+    alert('⚠️ ERROR: Please access this app through the server!\n\nRun: npm start\nThen open: http://localhost:3000\n\nThe app cannot work from local files.');
+    window.location.href = 'server-required.html';
+}
 
 function displayNews(newsArray) {
     const newsContainer = document.getElementById('news-container');
@@ -1111,6 +1116,13 @@ function hubBotInsert(text) {
 }
 
 window.onload = () => {
+    // Check if user is logged in - redirect to login if not
+    const userEmail = localStorage.getItem('userEmail');
+    if (!userEmail) {
+        window.location.href = 'index.html';
+        return;
+    }
+    
     // Generate Static Title
     const titleText = "OneOrigin Learning Hub";
     const titleContainer = document.getElementById('bouncingTitle');
@@ -1142,14 +1154,9 @@ window.onload = () => {
     // Update badge using email-derived full name when available
     setUserBadge();
 
-    // Initialize role-based access control
+    // Initialize role-based access control (SUPERADMIN logic is here)
     syncCurrentUserRole();
     checkAdminStatus();
-    
-    // Set default role to "User" if no role is found
-    if (!localStorage.getItem('userRole')) {
-        localStorage.setItem('userRole', 'user');
-    }
 
     // Show Home view
     const homeView = document.getElementById('home-view');
@@ -1362,6 +1369,17 @@ function saveNewUser() {
 function handleRoleChange(index, value) {
     const users = JSON.parse(localStorage.getItem('users') || '[]');
     if (!users[index]) return;
+    
+    const SUPERADMIN_EMAIL = 'ravikiran@oneorigin.us';
+    const userEmail = users[index].email || '';
+    
+    // Prevent changing superadmin role
+    if (userEmail.toLowerCase() === SUPERADMIN_EMAIL.toLowerCase()) {
+        alert('⚠️ Cannot change the role of the Superadmin!\n\nravikiran@oneorigin.us always has Admin access.');
+        loadUsers(); // Reload to reset the dropdown
+        return;
+    }
+    
     const oldRole = users[index].role;
     const employeeName = users[index].name;
     
@@ -1479,6 +1497,16 @@ function saveNewRole() {
 function deleteRole(userIndex) {
     const users = JSON.parse(localStorage.getItem('users') || '[]');
     if (!users[userIndex]) return;
+    
+    const SUPERADMIN_EMAIL = 'ravikiran@oneorigin.us';
+    const userEmail = users[userIndex].email || '';
+    
+    // Prevent deleting superadmin
+    if (userEmail.toLowerCase() === SUPERADMIN_EMAIL.toLowerCase()) {
+        alert('⚠️ Cannot delete the Superadmin!\n\nravikiran@oneorigin.us is a permanent admin.');
+        return;
+    }
+    
     if (!confirm('Delete this user?')) return;
     users.splice(userIndex, 1);
     localStorage.setItem('users', JSON.stringify(users));
@@ -1494,8 +1522,22 @@ function deleteSelectedRoles() {
         alert('Select at least one entry to delete.');
         return;
     }
-    if (!confirm(`Delete ${selectedIdx.length} user(s)?`)) return;
+    
+    const SUPERADMIN_EMAIL = 'ravikiran@oneorigin.us';
     const users = JSON.parse(localStorage.getItem('users') || '[]');
+    
+    // Check if superadmin is in the selection
+    const superadminSelected = selectedIdx.some(idx => {
+        const user = users[idx];
+        return user && user.email && user.email.toLowerCase() === SUPERADMIN_EMAIL.toLowerCase();
+    });
+    
+    if (superadminSelected) {
+        alert('⚠️ Cannot delete the Superadmin!\n\nravikiran@oneorigin.us cannot be removed.\nPlease deselect and try again.');
+        return;
+    }
+    
+    if (!confirm(`Delete ${selectedIdx.length} user(s)?`)) return;
     const remaining = users.filter((_, idx) => !selectedIdx.includes(idx));
     localStorage.setItem('users', JSON.stringify(remaining));
     const selectAll = document.getElementById('roleSelectAll');
@@ -1707,6 +1749,34 @@ function syncCurrentUserRole() {
     try {
         const currentName = localStorage.getItem('userName') || '';
         const currentEmail = localStorage.getItem('userEmail') || '';
+        
+        // SUPERADMIN: ravikiran@oneorigin.us always has admin access
+        const SUPERADMIN_EMAIL = 'ravikiran@oneorigin.us';
+        if (currentEmail.toLowerCase() === SUPERADMIN_EMAIL.toLowerCase()) {
+            localStorage.setItem('userRole', 'admin');
+            
+            // Ensure superadmin exists in users list
+            const users = JSON.parse(localStorage.getItem('users') || '[]');
+            const superadminExists = users.find(u => u.email && u.email.toLowerCase() === SUPERADMIN_EMAIL.toLowerCase());
+            
+            if (!superadminExists) {
+                users.push({
+                    employeeId: 'SUPERADMIN',
+                    name: 'Ravikiran',
+                    email: SUPERADMIN_EMAIL,
+                    role: 'Admin',
+                    lastActive: new Date().toLocaleString()
+                });
+                localStorage.setItem('users', JSON.stringify(users));
+            } else if (superadminExists.role !== 'Admin') {
+                // Force superadmin role to Admin if changed
+                superadminExists.role = 'Admin';
+                localStorage.setItem('users', JSON.stringify(users));
+            }
+            return;
+        }
+        
+        // For other users, check their role from users list
         const users = JSON.parse(localStorage.getItem('users') || '[]');
         const match = users.find(u =>
             (u.email && currentEmail && u.email.toLowerCase() === currentEmail.toLowerCase()) ||
@@ -1714,9 +1784,13 @@ function syncCurrentUserRole() {
         );
         if (match && match.role) {
             localStorage.setItem('userRole', match.role.toLowerCase());
+        } else {
+            // Default to 'user' role if not found in users list
+            localStorage.setItem('userRole', 'user');
         }
     } catch (e) {
-        // no-op
+        // Default to user role on error
+        localStorage.setItem('userRole', 'user');
     }
 }
 

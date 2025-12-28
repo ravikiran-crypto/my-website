@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OneOrigin Hub - Server Required</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0d1117;
+            color: #e6edf3;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 600px;
+            padding: 40px;
+            text-align: center;
+        }
+        .warning-icon {
+            font-size: 80px;
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #f85149;
+            margin-bottom: 20px;
+        }
+        .message {
+            font-size: 18px;
+            line-height: 1.6;
+            margin-bottom: 30px;
+            color: #b4b4b4;
+        }
+        .instructions {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: left;
+            margin-bottom: 20px;
+        }
+        .instructions h3 {
+            color: #4285f4;
+            margin-top: 0;
+        }
+        .code {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            color: #7ee787;
+            margin: 10px 0;
+        }
+        .btn {
+            display: inline-block;
+            background: #4285f4;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: bold;
+            transition: background 0.3s;
+        }
+        .btn:hover {
+            background: #357ae8;
+        }
+        .error-details {
+            font-size: 14px;
+            color: #f85149;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="warning-icon">⚠️</div>
+        <h1>Server Not Running</h1>
+        <div class="message">
+            This application requires a backend server to be running for API key security and functionality.
+        </div>
+
+        <div class="instructions">
+            <h3>📋 How to Start the Server:</h3>
+            <p><strong>Step 1:</strong> Open PowerShell/Terminal in the project folder</p>
+            <p><strong>Step 2:</strong> Run this command:</p>
+            <div class="code">npm start</div>
+            <p><strong>Step 3:</strong> Open your browser and go to:</p>
+            <div class="code">http://localhost:3000</div>
+        </div>
+
+        <div class="instructions">
+            <h3>🔍 Why This Happens:</h3>
+            <p>You're currently viewing this page from a local file (file:// protocol). The app needs to run through a server (http://) to:</p>
+            <ul style="text-align: left; margin-left: 20px;">
+                <li>Securely use API keys</li>
+                <li>Make backend API calls</li>
+                <li>Enable all features</li>
+            </ul>
+        </div>
+
+        <a href="http://localhost:3000" class="btn">Go to http://localhost:3000</a>
+        
+        <div class="error-details">
+            <p>If clicking above doesn't work, the server isn't running yet.</p>
+        </div>
+    </div>
+
+    <script>
+        // Detect if running from file:// protocol
+        if (window.location.protocol === 'file:') {
+            // Already showing warning
+            console.error('❌ App opened from file system. Server required!');
+        } else if (window.location.protocol === 'http:' || window.location.protocol === 'https:') {
+            // Running through server - redirect to index.html
+            window.location.href = '/index.html';
+        }
+    </script>
+</body>
+</html>
