@@ -7,6 +7,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <script src="api-config.js"></script>
+    <script src="shared-storage.js"></script>
     <script type="module" src="firestore-db.js"></script>
     <style>
         :root {
@@ -150,7 +151,7 @@
     width: 100%;
 }
 
-.course-section h3 { margin: 20px 0 10px 0; color: var(--primary-blue); font-size: 18px; }
+.course-section h3 { margin: 20px 0 10px 0; color: var(--primary-blue); font-size: 18px; cursor: default; pointer-events: none; user-select: none; }
 #beginner-courses, #intermediate-courses, #advanced-courses {
     border: 1px solid var(--border-color);
     padding: 20px 24px;
@@ -1274,7 +1275,7 @@ function closeAddCourseModal() {
     document.getElementById('addCourseModal').style.display = 'none';
 }
 
-function saveNewCourse() {
+async function saveNewCourse() {
     const name = document.getElementById('newCourseName').value.trim();
     const type = document.getElementById('newCourseType').value;
     const videoId = document.getElementById('newVideoId').value.trim();
@@ -1284,12 +1285,12 @@ function saveNewCourse() {
         return;
     }
 
-    const courses = JSON.parse(localStorage.getItem('courses') || '[]');
     const uploadDate = new Date().toLocaleDateString();
     const id = Date.now();
-    courses.push({ id, name, type, videoId, uploadDate });
-    localStorage.setItem('courses', JSON.stringify(courses));
-    sessionStorage.setItem('courses_backup', JSON.stringify(courses)); // Auto-backup
+    const newCourse = { id, name, type, videoId, uploadDate };
+    
+    // Save to shared storage so ALL users can see it
+    addSharedCourse(newCourse);
 
     // Announce the new course
     const announcements = JSON.parse(localStorage.getItem('announcements') || '[]');
@@ -1326,6 +1327,9 @@ function deleteCourse(id) {
 }
 
 function loadCourses() {
+    // Sync shared courses to local storage first
+    syncSharedCourses();
+    
     const courses = JSON.parse(localStorage.getItem('courses') || '[]');
     const tbody = document.getElementById('courseMgmtTableBody');
     tbody.innerHTML = '';
@@ -1703,8 +1707,13 @@ function overlayBackdropClick(event) {
     }
 }
 
-function loadCoursesView(searchTerm = '') {
-    const courses = JSON.parse(localStorage.getItem('courses') || '[]');
+async function loadCoursesView(searchTerm = '') {
+    // Sync shared courses first so all users see the same courses
+    syncSharedCourses();
+    
+    // Load courses from localStorage (now synced from shared storage)
+    let courses = JSON.parse(localStorage.getItem('courses') || '[]');
+    
     console.log('Loading courses view, found', courses.length, 'courses:', courses);
     
     const sections = {
