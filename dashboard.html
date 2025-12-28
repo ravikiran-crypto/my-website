@@ -2079,8 +2079,16 @@ function loadAssignedCourses() {
                 
                 ${isLocked 
                     ? `<div style="margin-top:15px; padding:10px; background:rgba(248,81,73,0.1); border:1px solid #f85149; border-radius:6px; text-align:center; color:#f85149; font-size:12px;">🔒 Complete "${previousCourse.topic}" assessment first</div>`
-                    : `<button onclick='openCoursePlayer("${course.videoId}", "${course.topic.replace(/"/g, '&quot;')}")' style="width:100%; margin-top:15px; background:var(--primary-blue); color:white; border:none; padding:10px; border-radius:6px; cursor:pointer; font-weight:bold;">▶ Start Training</button>
-                       <button onclick="startVideoAssessment(${course.id})" style="width:100%; margin-top:10px; background:#4CAF50; color:white; border:none; padding:10px; border-radius:6px; cursor:pointer; font-weight:bold;">Attend Assessment</button>`
+                    : course.attemptedDate 
+                        ? `<button onclick='openCoursePlayer("${course.videoId}", "${course.topic.replace(/"/g, '&quot;')}")' style="width:100%; margin-top:15px; background:var(--primary-blue); color:white; border:none; padding:10px; border-radius:6px; cursor:pointer; font-weight:bold;">▶ Start Training</button>
+                           <div style="width:100%; margin-top:10px; padding:12px; background:rgba(76,175,80,0.1); border:1px solid #4CAF50; border-radius:6px; text-align:center;">
+                               <div style="color:#4CAF50; font-weight:bold; margin-bottom:5px;">✓ Already Attempted</div>
+                               <div style="color:var(--text-main); font-size:14px;">Score: ${course.lastScore}% (${course.attemptCount} attempt${course.attemptCount > 1 ? 's' : ''})</div>
+                               <div style="color:var(--text-secondary); font-size:12px; margin-top:3px;">Last: ${course.attemptedDate}</div>
+                               ${course.lastScore < 80 ? `<button onclick="startVideoAssessment(${course.id})" style="width:100%; margin-top:8px; background:#f0ad4e; color:white; border:none; padding:8px; border-radius:6px; cursor:pointer; font-weight:bold; font-size:12px;">Retake Assessment</button>` : ''}
+                           </div>`
+                        : `<button onclick='openCoursePlayer("${course.videoId}", "${course.topic.replace(/"/g, '&quot;')}")' style="width:100%; margin-top:15px; background:var(--primary-blue); color:white; border:none; padding:10px; border-radius:6px; cursor:pointer; font-weight:bold;">▶ Start Training</button>
+                           <button onclick="startVideoAssessment(${course.id})" style="width:100%; margin-top:10px; background:#4CAF50; color:white; border:none; padding:10px; border-radius:6px; cursor:pointer; font-weight:bold;">Attend Assessment</button>`
                 }
             </div>
         `;
@@ -2172,6 +2180,11 @@ async function startVideoAssessment(courseId) {
     document.getElementById('assessmentQuizContainer').innerHTML = '<p style="text-align:center; color:var(--text-secondary);">Generating questions based on the video content...</p>';
     document.getElementById('assessmentQuizContainer').style.display = 'block';
     
+    // Auto-scroll to quiz section
+    setTimeout(() => {
+        document.getElementById('assessmentQuizContainer').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
+    
     currentAssessmentType = 'video';
     await generateQuestions();
     displayQuestion();
@@ -2189,15 +2202,21 @@ async function showVideoAssessmentResults(score) {
         suggestNextLevelCourse(nextLevel, currentVideoAssessmentCourse.level);
     }
     
-    // Update course status if passed
-    if (passed) {
-        const courses = JSON.parse(localStorage.getItem('assignedCourses') || '[]');
-        const course = courses.find(c => c.id === currentVideoAssessmentCourse.id);
-        if (course) {
+    // Update course status with score and attempt date
+    const courses = JSON.parse(localStorage.getItem('assignedCourses') || '[]');
+    const course = courses.find(c => c.id === currentVideoAssessmentCourse.id);
+    if (course) {
+        course.lastScore = scorePercentage;
+        course.attemptedDate = new Date().toLocaleDateString();
+        course.attemptCount = (course.attemptCount || 0) + 1;
+        if (passed) {
             course.passed = true;
-            localStorage.setItem('assignedCourses', JSON.stringify(courses));
-            
-            // Move upcoming course to assigned courses if available
+        }
+    }
+        localStorage.setItem('assignedCourses', JSON.stringify(courses));
+        
+        // Move upcoming course to assigned courses if available (only if passed)
+        if (passed) {
             const upcomingCourse = JSON.parse(localStorage.getItem('upcomingCourse') || 'null');
             if (upcomingCourse) {
                 const assignedCourses = JSON.parse(localStorage.getItem('assignedCourses') || '[]');
@@ -2216,9 +2235,9 @@ async function showVideoAssessmentResults(score) {
                 localStorage.setItem('assignedCourses', JSON.stringify(assignedCourses));
                 localStorage.removeItem('upcomingCourse');
             }
-            
-            loadAssignedCourses();
         }
+        
+        loadAssignedCourses();
     }
     
     const resultsDiv = document.getElementById('assessmentResults');
@@ -2399,7 +2418,9 @@ async function sendHubBotMessage(source) {
     try {
         const context = getCoursesContext();
         const fullPrompt = `${HUB_BOT_SYSTEM_PROMPT}\n\nCourse data:\n${context}\n\nQuestion: ${question}\nAnswer as Hub Bot.`;
-        const data = await callGeminiAPI(fullPrompt, 'gemini-2.5-flash');
+        console.log('🤖 Hub Bot: Sending request to Gemini API...');
+        const data = await callGeminiAPI(fullPrompt, 'gemini-2.0-flash-exp');
+        console.log('🤖 Hub Bot: Received response:', data);
         let answer = 'Sorry, I could not fetch an answer right now.';
         if (data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) {
             answer = data.candidates[0].content.parts.map(p => p.text || '').join('\n').trim();
@@ -2410,8 +2431,9 @@ async function sendHubBotMessage(source) {
         localStorage.setItem(HUB_BOT_HISTORY_KEY, JSON.stringify(updated));
         renderHubBotMessages(messagesId);
     } catch (err) {
+        console.error('❌ Hub Bot error:', err);
         const updated = JSON.parse(localStorage.getItem(HUB_BOT_HISTORY_KEY) || '[]');
-        updated.push({ role: 'assistant', content: 'I ran into an issue fetching the answer. Please try again.' });
+        updated.push({ role: 'assistant', content: `I ran into an issue: ${err.message || 'Unknown error'}. Please check the console for details.` });
         localStorage.setItem(HUB_BOT_HISTORY_KEY, JSON.stringify(updated));
         renderHubBotMessages(messagesId);
     }
