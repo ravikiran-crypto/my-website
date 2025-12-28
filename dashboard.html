@@ -1706,9 +1706,10 @@ function overlayBackdropClick(event) {
 
 async function loadCoursesView(searchTerm = '') {
     // Sync shared courses from API first so all users see the same courses
+    console.log('🔄 loadCoursesView called with searchTerm:', searchTerm);
     const courses = await syncSharedCourses();
     
-    console.log('Loading courses view, found', courses.length, 'courses:', courses);
+    console.log('📊 Loading courses view, found', courses.length, 'courses:', courses);
     
     const sections = {
         beginner: document.querySelector('#beginner-courses .type-grid'),

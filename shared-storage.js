@@ -14,15 +14,29 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig, 'shared-storage-app');
 const db = getFirestore(app);
 
+console.log('✅ Firestore initialized successfully');
+
 // Get shared courses from Firestore
 async function getSharedCourses() {
     try {
+        console.log('📚 Fetching courses from Firestore...');
         const coursesCol = collection(db, 'courses');
         const snapshot = await getDocs(coursesCol);
-        const courses = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const courses = snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: data.id || doc.id,
+                name: data.name,
+                type: data.type,
+                videoId: data.videoId,
+                uploadDate: data.uploadDate
+            };
+        });
+        console.log(`✅ Found ${courses.length} courses in Firestore:`, courses);
         return courses;
     } catch (error) {
-        console.error('Error getting courses from Firestore:', error);
+        console.error('❌ Error getting courses from Firestore:', error);
+        console.log('⚠️ Falling back to localStorage');
         // Fallback to localStorage
         const local = localStorage.getItem('courses');
         return local ? JSON.parse(local) : [];
@@ -32,14 +46,17 @@ async function getSharedCourses() {
 // Add course to Firestore
 async function addSharedCourse(course) {
     try {
+        console.log('➕ Adding course to Firestore:', course);
         const courseRef = doc(db, 'courses', course.id.toString());
         await setDoc(courseRef, course);
+        console.log('✅ Course added successfully to Firestore');
         // Also update localStorage for offline access
         const courses = await getSharedCourses();
         localStorage.setItem('courses', JSON.stringify(courses));
         return courses;
     } catch (error) {
-        console.error('Error adding course to Firestore:', error);
+        console.error('❌ Error adding course to Firestore:', error);
+        console.log('⚠️ Falling back to localStorage');
         // Fallback to localStorage
         const courses = JSON.parse(localStorage.getItem('courses') || '[]');
         courses.push(course);
