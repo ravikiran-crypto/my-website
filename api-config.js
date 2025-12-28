@@ -1,8 +1,7 @@
 // API Configuration
-// Change this based on your deployment:
-// - For local development with Express server: 'http://localhost:3000'
-// - For Firebase Functions: 'https://YOUR-PROJECT-ID.cloudfunctions.net'
-const API_BASE_URL = 'http://192.168.0.200:3000'; // Network IP for multi-user access
+// Automatically detects the current URL to work on any network
+// Works with: localhost, 192.168.x.x, or any cloud deployment
+const API_BASE_URL = window.location.origin; // Dynamically uses current server URL
 
 /**
  * Call Gemini API through backend proxy
