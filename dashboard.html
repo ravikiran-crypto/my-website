@@ -1314,13 +1314,24 @@ async function saveNewCourse() {
 }
 
 async function deleteCourse(id) {
-    // Delete from shared API storage
-    await deleteSharedCourse(id);
+    if (!confirm('Are you sure you want to delete this course?')) {
+        return;
+    }
     
-    // Reload the courses
-    await loadCourses();
-    await loadCoursesView();
-    loadRoles();
+    try {
+        console.log('🗑️ Deleting course with ID:', id);
+        // Delete from shared storage (Firestore/localStorage)
+        await deleteSharedCourse(id);
+        console.log('✅ Course deleted successfully');
+        
+        // Reload the courses
+        await loadCourses();
+        await loadCoursesView();
+        loadRoles();
+    } catch (error) {
+        console.error('❌ Error deleting course:', error);
+        alert('Failed to delete course. Please try again.');
+    }
 }
 
 async function loadCourses() {

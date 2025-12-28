@@ -68,17 +68,22 @@ async function addSharedCourse(course) {
 // Delete course from Firestore
 async function deleteSharedCourse(courseId) {
     try {
+        console.log('🗑️ Deleting course from Firestore, ID:', courseId);
         const courseRef = doc(db, 'courses', courseId.toString());
         await deleteDoc(courseRef);
+        console.log('✅ Deleted from Firestore');
         // Also update localStorage
         const courses = await getSharedCourses();
         localStorage.setItem('courses', JSON.stringify(courses));
         return courses;
     } catch (error) {
-        console.error('Error deleting course from Firestore:', error);
+        console.error('❌ Error deleting course from Firestore:', error);
+        console.log('⚠️ Falling back to localStorage delete');
         // Fallback to localStorage
         let courses = JSON.parse(localStorage.getItem('courses') || '[]');
-        courses = courses.filter(c => c.id !== courseId);
+        console.log('📦 Before delete, localStorage has', courses.length, 'courses');
+        courses = courses.filter(c => c.id != courseId); // Use != for type coercion
+        console.log('📦 After delete, localStorage has', courses.length, 'courses');
         localStorage.setItem('courses', JSON.stringify(courses));
         return courses;
     }
@@ -87,8 +92,15 @@ async function deleteSharedCourse(courseId) {
 // Sync shared courses to local storage
 async function syncSharedCourses() {
     const courses = await getSharedCourses();
-    localStorage.setItem('courses', JSON.stringify(courses));
-    return courses;
+    // Only update localStorage if we got data from Firestore OR localStorage is empty
+    const localCourses = JSON.parse(localStorage.getItem('courses') || '[]');
+    if (courses.length > 0 || localCourses.length === 0) {
+        localStorage.setItem('courses', JSON.stringify(courses));
+        return courses;
+    }
+    // If Firestore returned empty but localStorage has data, use localStorage
+    console.log('⚠️ Using localStorage courses as Firestore returned empty');
+    return localCourses;
 }
 
 // Get announcements from Firestore
