@@ -1,13 +1,6 @@
 // API Configuration
-// Automatically detects if accessed via file:// or http://
-let API_BASE_URL;
-if (window.location.protocol === 'file:') {
-  // If opened directly as file, use default server URL
-  API_BASE_URL = 'http://192.168.0.200:3000';
-} else {
-  // If accessed through server, use current origin
-  API_BASE_URL = window.location.origin;
-}
+// Automatically uses the correct API base URL for Vercel deployment
+const API_BASE_URL = window.location.origin;
 
 /**
  * Call Gemini API through backend proxy

@@ -1,0 +1,6 @@
+{
+  "rewrites": [
+    { "source": "/api/gemini", "destination": "/api/gemini" },
+    { "source": "/api/gemini/custom", "destination": "/api/gemini-custom" }
+  ]
+}
