@@ -1,77 +1,106 @@
-// Shared Course Storage - API-based for real multi-user sync
-const DATA_API = window.location.origin + '/api/data';
+// Shared Course Storage - Firebase Firestore for real multi-user sync
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js";
+import { getFirestore, collection, doc, setDoc, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-firestore.js";
 
-// Get data from API
-async function getSharedData(type) {
-    try {
-        const response = await fetch(DATA_API, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'get', type })
-        });
-        const result = await response.json();
-        return result.success ? result.data : [];
-    } catch (error) {
-        console.error('Error getting shared data:', error);
-        return [];
-    }
-}
+const firebaseConfig = {
+  apiKey: "AIzaSyDnfIJQxO6mi2_NEGqXRGH5EAxeaNcb7qc",
+  authDomain: "oneorigin-learning-hub.firebaseapp.com",
+  projectId: "oneorigin-learning-hub",
+  storageBucket: "oneorigin-learning-hub.firebasestorage.app",
+  messagingSenderId: "4168147692",
+  appId: "1:4168147692:web:43a1205a0af9770f633bc9"
+};
 
-// Add data to API
-async function addSharedData(type, data) {
-    try {
-        const response = await fetch(DATA_API, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'add', type, data })
-        });
-        const result = await response.json();
-        return result.success ? result.data : [];
-    } catch (error) {
-        console.error('Error adding shared data:', error);
-        return [];
-    }
-}
+const app = initializeApp(firebaseConfig, 'shared-storage-app');
+const db = getFirestore(app);
 
-// Delete data from API
-async function deleteSharedData(type, id) {
-    try {
-        const response = await fetch(DATA_API, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'delete', type, id })
-        });
-        const result = await response.json();
-        return result.success ? result.data : [];
-    } catch (error) {
-        console.error('Error deleting shared data:', error);
-        return [];
-    }
-}
-
-// Legacy functions for compatibility
+// Get shared courses from Firestore
 async function getSharedCourses() {
-    return await getSharedData('courses');
+    try {
+        const coursesCol = collection(db, 'courses');
+        const snapshot = await getDocs(coursesCol);
+        const courses = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        return courses;
+    } catch (error) {
+        console.error('Error getting courses from Firestore:', error);
+        // Fallback to localStorage
+        const local = localStorage.getItem('courses');
+        return local ? JSON.parse(local) : [];
+    }
 }
 
+// Add course to Firestore
 async function addSharedCourse(course) {
-    return await addSharedData('courses', course);
+    try {
+        const courseRef = doc(db, 'courses', course.id.toString());
+        await setDoc(courseRef, course);
+        // Also update localStorage for offline access
+        const courses = await getSharedCourses();
+        localStorage.setItem('courses', JSON.stringify(courses));
+        return courses;
+    } catch (error) {
+        console.error('Error adding course to Firestore:', error);
+        // Fallback to localStorage
+        const courses = JSON.parse(localStorage.getItem('courses') || '[]');
+        courses.push(course);
+        localStorage.setItem('courses', JSON.stringify(courses));
+        return courses;
+    }
 }
 
+// Delete course from Firestore
 async function deleteSharedCourse(courseId) {
-    return await deleteSharedData('courses', courseId);
+    try {
+        const courseRef = doc(db, 'courses', courseId.toString());
+        await deleteDoc(courseRef);
+        // Also update localStorage
+        const courses = await getSharedCourses();
+        localStorage.setItem('courses', JSON.stringify(courses));
+        return courses;
+    } catch (error) {
+        console.error('Error deleting course from Firestore:', error);
+        // Fallback to localStorage
+        let courses = JSON.parse(localStorage.getItem('courses') || '[]');
+        courses = courses.filter(c => c.id !== courseId);
+        localStorage.setItem('courses', JSON.stringify(courses));
+        return courses;
+    }
 }
 
+// Sync shared courses to local storage
 async function syncSharedCourses() {
     const courses = await getSharedCourses();
     localStorage.setItem('courses', JSON.stringify(courses));
     return courses;
 }
 
+// Get announcements from Firestore
 async function getSharedAnnouncements() {
-    return await getSharedData('announcements');
+    try {
+        const announcementsCol = collection(db, 'announcements');
+        const snapshot = await getDocs(announcementsCol);
+        const announcements = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+            .sort((a, b) => new Date(b.date) - new Date(a.date));
+        return announcements;
+    } catch (error) {
+        console.error('Error getting announcements from Firestore:', error);
+        const local = localStorage.getItem('announcements');
+        return local ? JSON.parse(local) : [];
+    }
 }
 
+// Add announcement to Firestore
 async function addSharedAnnouncement(announcement) {
-    return await addSharedData('announcements', announcement);
+    try {
+        const announcementId = Date.now().toString();
+        const announcementRef = doc(db, 'announcements', announcementId);
+        await setDoc(announcementRef, announcement);
+        return await getSharedAnnouncements();
+    } catch (error) {
+        console.error('Error adding announcement to Firestore:', error);
+        const announcements = JSON.parse(localStorage.getItem('announcements') || '[]');
+        announcements.unshift(announcement);
+        localStorage.setItem('announcements', JSON.stringify(announcements));
+        return announcements;
+    }
 }
