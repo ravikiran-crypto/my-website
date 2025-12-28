@@ -1,7 +1,13 @@
 // API Configuration
-// Automatically detects the current URL to work on any network
-// Works with: localhost, 192.168.x.x, or any cloud deployment
-const API_BASE_URL = window.location.origin; // Dynamically uses current server URL
+// Automatically detects if accessed via file:// or http://
+let API_BASE_URL;
+if (window.location.protocol === 'file:') {
+  // If opened directly as file, use default server URL
+  API_BASE_URL = 'http://192.168.0.200:3000';
+} else {
+  // If accessed through server, use current origin
+  API_BASE_URL = window.location.origin;
+}
 
 /**
  * Call Gemini API through backend proxy

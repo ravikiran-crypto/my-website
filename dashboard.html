@@ -1151,6 +1151,9 @@ window.onload = () => {
     toggleTheme(savedTheme);
     document.getElementById('themeToggle').value = savedTheme;
 
+    // Backup and restore data from sessionStorage to prevent data loss
+    backupAndRestoreData();
+
     // Update badge using email-derived full name when available
     setUserBadge();
 
@@ -1162,6 +1165,30 @@ window.onload = () => {
     const homeView = document.getElementById('home-view');
     if (homeView) homeView.style.display = 'block';
 };
+
+// Backup data to sessionStorage and restore if localStorage is cleared
+function backupAndRestoreData() {
+    // List of keys to backup
+    const keysToBackup = ['users', 'courses', 'announcements', 'userCourses'];
+    
+    // Backup: Copy from localStorage to sessionStorage
+    keysToBackup.forEach(key => {
+        const data = localStorage.getItem(key);
+        if (data && data !== '[]' && data !== 'null') {
+            sessionStorage.setItem(key + '_backup', data);
+        }
+    });
+    
+    // Restore: If localStorage is empty but sessionStorage has data, restore it
+    keysToBackup.forEach(key => {
+        const localData = localStorage.getItem(key);
+        const backupData = sessionStorage.getItem(key + '_backup');
+        
+        if ((!localData || localData === '[]' || localData === 'null') && backupData) {
+            localStorage.setItem(key, backupData);
+        }
+    });
+}
 
 </script>
 
@@ -1248,6 +1275,7 @@ function saveNewCourse() {
     const id = Date.now();
     courses.push({ id, name, type, videoId, uploadDate });
     localStorage.setItem('courses', JSON.stringify(courses));
+    sessionStorage.setItem('courses_backup', JSON.stringify(courses)); // Auto-backup
 
     // Announce the new course
     const announcements = JSON.parse(localStorage.getItem('announcements') || '[]');
@@ -1276,6 +1304,7 @@ function deleteCourse(id) {
     if (index > -1) {
         courses.splice(index, 1);
         localStorage.setItem('courses', JSON.stringify(courses));
+        sessionStorage.setItem('courses_backup', JSON.stringify(courses)); // Auto-backup
         loadCourses();
         loadCoursesView();
         loadRoles();
@@ -1402,6 +1431,7 @@ function handleRoleChange(index, value) {
     
     users[index].role = value;
     localStorage.setItem('users', JSON.stringify(users));
+    sessionStorage.setItem('users_backup', JSON.stringify(users)); // Auto-backup
     // If the changed user is the current session user, sync session role
     syncCurrentUserRole();
     checkAdminStatus();
@@ -1510,6 +1540,7 @@ function deleteRole(userIndex) {
     if (!confirm('Delete this user?')) return;
     users.splice(userIndex, 1);
     localStorage.setItem('users', JSON.stringify(users));
+    sessionStorage.setItem('users_backup', JSON.stringify(users)); // Auto-backup
     loadUsers();
     loadRoles();
     checkAdminStatus();
