@@ -1463,9 +1463,19 @@ function handleRoleChange(index, value) {
     users[index].role = value;
     localStorage.setItem('users', JSON.stringify(users));
     sessionStorage.setItem('users_backup', JSON.stringify(users)); // Auto-backup
-    // If the changed user is the current session user, sync session role
+    
+    // If the changed user is the current session user, sync and reload page
+    const currentEmail = localStorage.getItem('userEmail') || '';
+    const changedUserEmail = users[index].email || '';
+    
     syncCurrentUserRole();
     checkAdminStatus();
+    
+    // If current user's role was changed, reload page to update UI
+    if (currentEmail.toLowerCase() === changedUserEmail.toLowerCase()) {
+        alert(`Your role has been changed to ${value}. The page will reload to apply changes.`);
+        setTimeout(() => location.reload(), 500);
+    }
 }
 
 // ===== Role Management JS =====
@@ -2331,6 +2341,10 @@ window.submitAssessment = submitAssessment;
 window.loadCoursesView = loadCoursesView;
 window.openCoursePlayer = openCoursePlayer;
 window.handleRoleChange = handleRoleChange;
+window.deleteCourse = deleteCourse;
+window.startVideoAssessment = startVideoAssessment;
+window.resetAssessment = resetAssessment;
+window.loadAssignedCourses = loadAssignedCourses;
 
 </script>
 
