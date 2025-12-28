@@ -1,57 +1,77 @@
-// Shared Course Storage - Simple Cloud Storage Solution
-// This file provides a workaround for shared course data across users
+// Shared Course Storage - API-based for real multi-user sync
+const DATA_API = window.location.origin + '/api/data';
 
-// Use this as a shared data store (replace with actual API/database in production)
-const SHARED_COURSES_KEY = 'oneorigin_shared_courses';
-
-// Initialize shared storage with sample data if empty
-function initializeSharedCourses() {
-    const sharedData = localStorage.getItem(SHARED_COURSES_KEY);
-    if (!sharedData || sharedData === '[]') {
-        const sampleCourses = [
-            {
-                id: 1735382400000,
-                name: 'Excel Basic',
-                type: 'beginner',
-                videoId: 'RRY-wTT6-ds',
-                uploadDate: '12/28/2025'
-            }
-        ];
-        localStorage.setItem(SHARED_COURSES_KEY, JSON.stringify(sampleCourses));
-        return sampleCourses;
+// Get data from API
+async function getSharedData(type) {
+    try {
+        const response = await fetch(DATA_API, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'get', type })
+        });
+        const result = await response.json();
+        return result.success ? result.data : [];
+    } catch (error) {
+        console.error('Error getting shared data:', error);
+        return [];
     }
-    return JSON.parse(sharedData);
 }
 
-// Get all shared courses
-function getSharedCourses() {
-    const courses = localStorage.getItem(SHARED_COURSES_KEY);
-    return courses ? JSON.parse(courses) : initializeSharedCourses();
+// Add data to API
+async function addSharedData(type, data) {
+    try {
+        const response = await fetch(DATA_API, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'add', type, data })
+        });
+        const result = await response.json();
+        return result.success ? result.data : [];
+    } catch (error) {
+        console.error('Error adding shared data:', error);
+        return [];
+    }
 }
 
-// Add a new course to shared storage
-function addSharedCourse(course) {
-    const courses = getSharedCourses();
-    courses.push(course);
-    localStorage.setItem(SHARED_COURSES_KEY, JSON.stringify(courses));
-    // Also sync to regular courses key
+// Delete data from API
+async function deleteSharedData(type, id) {
+    try {
+        const response = await fetch(DATA_API, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'delete', type, id })
+        });
+        const result = await response.json();
+        return result.success ? result.data : [];
+    } catch (error) {
+        console.error('Error deleting shared data:', error);
+        return [];
+    }
+}
+
+// Legacy functions for compatibility
+async function getSharedCourses() {
+    return await getSharedData('courses');
+}
+
+async function addSharedCourse(course) {
+    return await addSharedData('courses', course);
+}
+
+async function deleteSharedCourse(courseId) {
+    return await deleteSharedData('courses', courseId);
+}
+
+async function syncSharedCourses() {
+    const courses = await getSharedCourses();
     localStorage.setItem('courses', JSON.stringify(courses));
     return courses;
 }
 
-// Delete a course from shared storage
-function deleteSharedCourse(courseId) {
-    let courses = getSharedCourses();
-    courses = courses.filter(c => c.id !== courseId);
-    localStorage.setItem(SHARED_COURSES_KEY, JSON.stringify(courses));
-    // Also sync to regular courses key
-    localStorage.setItem('courses', JSON.stringify(courses));
-    return courses;
+async function getSharedAnnouncements() {
+    return await getSharedData('announcements');
 }
 
-// Sync shared courses to local storage
-function syncSharedCourses() {
-    const sharedCourses = getSharedCourses();
-    localStorage.setItem('courses', JSON.stringify(sharedCourses));
-    return sharedCourses;
+async function addSharedAnnouncement(announcement) {
+    return await addSharedData('announcements', announcement);
 }

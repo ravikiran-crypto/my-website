@@ -1004,11 +1004,12 @@ async function fetchAINews() {
     }
 }
 
-function updateAnnouncements() {
+async function updateAnnouncements() {
     const container = document.getElementById('announcements-container');
     if (!container) return;
 
-    const announcements = JSON.parse(localStorage.getItem('announcements') || '[]');
+    // Get announcements from shared API storage
+    const announcements = await getSharedAnnouncements();
     const hasStartedTechAssessment = localStorage.getItem('initialAssessmentStarted') === 'true';
 
     const items = [];
@@ -1289,22 +1290,21 @@ async function saveNewCourse() {
     const id = Date.now();
     const newCourse = { id, name, type, videoId, uploadDate };
     
-    // Save to shared storage so ALL users can see it
-    addSharedCourse(newCourse);
-
-    // Announce the new course
-    const announcements = JSON.parse(localStorage.getItem('announcements') || '[]');
-    announcements.unshift({
+    // Save to shared API storage so ALL users can see it
+    await addSharedCourse(newCourse);
+    
+    // Add announcement
+    const announcement = {
         message: `New course added: ${name} (${type})`,
         date: new Date().toLocaleString(),
         type: 'course'
-    });
-    localStorage.setItem('announcements', JSON.stringify(announcements));
+    };
+    await addSharedAnnouncement(announcement);
 
-    loadCourses();
-    loadCoursesView();
+    await loadCourses();
+    await loadCoursesView();
     loadRoles();
-    if (typeof updateAnnouncements === 'function') updateAnnouncements();
+    if (typeof updateAnnouncements === 'function') await updateAnnouncements();
 
     // Clear the form
     document.getElementById('newCourseName').value = '';
@@ -1313,25 +1313,22 @@ async function saveNewCourse() {
     closeAddCourseModal();
 }
 
-function deleteCourse(id) {
-    const courses = JSON.parse(localStorage.getItem('courses') || '[]');
-    const index = courses.findIndex(c => c.id === id);
-    if (index > -1) {
-        courses.splice(index, 1);
-        localStorage.setItem('courses', JSON.stringify(courses));
-        sessionStorage.setItem('courses_backup', JSON.stringify(courses)); // Auto-backup
-        loadCourses();
-        loadCoursesView();
-        loadRoles();
-    }
+async function deleteCourse(id) {
+    // Delete from shared API storage
+    await deleteSharedCourse(id);
+    
+    // Reload the courses
+    await loadCourses();
+    await loadCoursesView();
+    loadRoles();
 }
 
-function loadCourses() {
-    // Sync shared courses to local storage first
-    syncSharedCourses();
+async function loadCourses() {
+    // Sync shared courses from API first
+    const courses = await syncSharedCourses();
     
-    const courses = JSON.parse(localStorage.getItem('courses') || '[]');
     const tbody = document.getElementById('courseMgmtTableBody');
+    if (!tbody) return;
     tbody.innerHTML = '';
     courses.forEach((course, index) => {
         const row = tbody.insertRow();
@@ -1708,11 +1705,8 @@ function overlayBackdropClick(event) {
 }
 
 async function loadCoursesView(searchTerm = '') {
-    // Sync shared courses first so all users see the same courses
-    syncSharedCourses();
-    
-    // Load courses from localStorage (now synced from shared storage)
-    let courses = JSON.parse(localStorage.getItem('courses') || '[]');
+    // Sync shared courses from API first so all users see the same courses
+    const courses = await syncSharedCourses();
     
     console.log('Loading courses view, found', courses.length, 'courses:', courses);
     
