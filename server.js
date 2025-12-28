@@ -99,5 +99,12 @@ app.post('/api/gemini/custom', async (req, res) => {
 app.listen(PORT, () => {
   console.log(`\n🚀 Server running on http://localhost:${PORT}`);
   console.log(`📡 API endpoints available at http://localhost:${PORT}/api/`);
-  console.log(`\n⚠️  Make sure to set your GEMINI_API_KEY in the .env file\n`);
+  
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (apiKey) {
+    console.log(`✅ GEMINI_API_KEY loaded: ${apiKey.substring(0, 10)}...${apiKey.substring(apiKey.length - 4)}`);
+  } else {
+    console.log(`❌ GEMINI_API_KEY not found! Check your .env file`);
+  }
+  console.log('');
 });
