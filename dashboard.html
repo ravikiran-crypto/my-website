@@ -386,10 +386,10 @@
 
 .home-about-head {
     display: flex;
-    align-items: flex-end;
-    justify-content: space-between;
-    gap: 12px;
-    flex-wrap: wrap;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 8px;
 }
 
 .home-about-title {
@@ -403,7 +403,7 @@
     color: var(--text-secondary);
     font-size: 13px;
     line-height: 1.5;
-    max-width: 700px;
+    max-width: 980px;
 }
 
 .home-about-grid {
@@ -661,7 +661,7 @@ body.light-theme .user-badge {
             <div class="home-about">
                 <div class="home-about-head">
                     <h2 class="home-about-title">About the Hub</h2>
-                    <p class="home-about-subtitle">A single place to learn, track progress, and get help — designed to keep your growth consistent and measurable. Courses are assigned and validated so they are playable, progress is tracked across devices, and Hub Bot can continue conversations with chat history.</p>
+                    <p class="home-about-subtitle">A single place to learn, track progress, and get help — designed to keep your growth consistent and measurable. Courses are assigned and validated so they stay playable (with safe fallbacks when embeds fail), your learning data stays consistent across devices using shared storage, and Hub Bot can continue conversations with saved chat history so you can pick up where you left off.</p>
                 </div>
 
                 <div class="home-about-grid">
