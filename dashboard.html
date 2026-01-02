@@ -902,25 +902,44 @@ function displayNews(newsArray) {
 async function fetchAINews() {
     const CACHE_KEY = 'aiNews';
     const TIMESTAMP_KEY = 'aiNewsTimestamp';
-    const CACHE_DURATION = 24 * 60 * 60 * 1000; 
+    const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
     const now = Date.now();
     const newsContainer = document.getElementById('news-container');
 
-    // ... (keep your existing cache logic here) ...
+    if (!newsContainer) return;
 
+    // Check if we have cached news that's still valid
+    const cachedNews = localStorage.getItem(CACHE_KEY);
+    const cachedTimestamp = localStorage.getItem(TIMESTAMP_KEY);
+    
+    if (cachedNews && cachedTimestamp) {
+        const age = now - parseInt(cachedTimestamp);
+        if (age < CACHE_DURATION) {
+            // Use cached news if it's still fresh
+            try {
+                const newsArray = JSON.parse(cachedNews);
+                displayNews(newsArray);
+                console.log('Displaying cached AI news');
+                return;
+            } catch (e) {
+                console.error('Error parsing cached news:', e);
+            }
+        }
+    }
+
+    // Fetch fresh news
     newsContainer.innerHTML = '<div class="news-item">Fetching real-time AI news...</div>';
 
-    async function fetchAINews() {
-    // ... cache logic ...
     try {
         const data = await callGeminiAPI(
             `Use Google Search to find exactly 10 real, currently live AI news articles from the last 48 hours.
             STRICT RULES:
-            1. Sourced articles MUST be from reputable sites like Wired, TechCrunch, MIT News, or The Verge.
+            1. Sourced articles MUST be from reputable sites like Wired, TechCrunch, MIT News, The Verge, VentureBeat, or similar tech publications.
             2. The "url" field MUST be the exact, verified functional URL discovered via search.
             3. Do NOT provide "example.com" or any fabricated links.
-            Return ONLY a JSON array: [{"date": "Jan 2, 2026", "headline": "Title", "summary": "Summary", "url": "VERIFIED_URL"}]`,
-            'gemini-2.0-flash'
+            4. Each article must have a real publication date.
+            Return ONLY a JSON array: [{"date": "Jan 2, 2026", "headline": "Title", "summary": "Brief summary", "url": "VERIFIED_URL"}]`,
+            'gemini-2.0-flash-thinking-exp'
         );
 
         if (data.error) throw new Error(data.error.message);
@@ -933,25 +952,30 @@ async function fetchAINews() {
         
         const newsArray = JSON.parse(cleanJson);
 
-        localStorage.setItem(CACHE_KEY, JSON.stringify(newsArray));
-        localStorage.setItem(TIMESTAMP_KEY, now.toString());
-
-        displayNews(newsArray);
+        // Validate that we got proper news data
+        if (Array.isArray(newsArray) && newsArray.length > 0) {
+            localStorage.setItem(CACHE_KEY, JSON.stringify(newsArray));
+            localStorage.setItem(TIMESTAMP_KEY, now.toString());
+            displayNews(newsArray);
+            console.log('Fetched and displayed fresh AI news');
+        } else {
+            throw new Error('Invalid news data received');
+        }
 
     } catch (error) {
-        console.error("Gemini Error:", error);
+        console.error("AI News fetch error:", error);
         // Try to show cached news if available
         const cachedNews = localStorage.getItem(CACHE_KEY);
         if (cachedNews) {
             try {
                 const newsArray = JSON.parse(cachedNews);
                 displayNews(newsArray);
-                newsContainer.innerHTML += '<div class="news-item" style="color:#f85149; font-size:12px;">Showing cached news due to API error.</div>';
+                newsContainer.innerHTML += '<div class="news-item" style="color:#f85149; font-size:12px; margin-top:10px;">⚠️ Showing cached news due to API error.</div>';
             } catch (e) {
-                newsContainer.innerHTML = `<div class="news-item" style="color:#f85149;">Status: ${error.message}</div>`;
+                newsContainer.innerHTML = `<div class="news-item" style="color:#f85149;">⚠️ Error loading news: ${error.message}</div>`;
             }
         } else {
-            newsContainer.innerHTML = `<div class="news-item" style="color:#f85149;">Status: ${error.message}</div>`;
+            newsContainer.innerHTML = `<div class="news-item" style="color:#f85149;">⚠️ Error loading news: ${error.message}<br><small>No cached news available.</small></div>`;
         }
     }
 }
