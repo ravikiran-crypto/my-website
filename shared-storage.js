@@ -146,6 +146,25 @@ async function syncSharedCourses() {
     return localCourses;
 }
 
+// One-time cleanup: delete ALL courses (Firestore + localStorage)
+async function deleteAllSharedCourses() {
+    try {
+        console.log('🧹 Clearing ALL courses from Firestore...');
+        const coursesCol = collection(db, 'courses');
+        const snapshot = await getDocs(coursesCol);
+        await Promise.all(snapshot.docs.map(d => deleteDoc(doc(db, 'courses', d.id))));
+        console.log('✅ All courses deleted from Firestore');
+
+        localStorage.setItem('courses', '[]');
+        return [];
+    } catch (error) {
+        console.error('❌ Error clearing all courses from Firestore:', error);
+        console.log('⚠️ Falling back to localStorage clear only');
+        localStorage.setItem('courses', '[]');
+        return [];
+    }
+}
+
 // Get announcements from Firestore
 async function getSharedAnnouncements() {
     try {
@@ -182,6 +201,7 @@ window.getSharedCourses = getSharedCourses;
 window.addSharedCourse = addSharedCourse;
 window.deleteSharedCourse = deleteSharedCourse;
 window.syncSharedCourses = syncSharedCourses;
+window.deleteAllSharedCourses = deleteAllSharedCourses;
 window.getSharedAnnouncements = getSharedAnnouncements;
 window.addSharedAnnouncement = addSharedAnnouncement;
 

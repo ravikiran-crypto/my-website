@@ -717,7 +717,10 @@ body.light-theme .user-badge {
         <section id="course-mgmt-view" style="display: none;">
             <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 20px;">
                 <h2 style="color: var(--primary-blue); margin: 0;">Course Management</h2>
-                <button style="background: var(--primary-blue); color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold;" onclick="openAddCourseModal()">+ Add Course</button>
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <button id="clearAllCoursesBtn" style="display:none; background:#f85149; color:white; border:none; padding:10px 20px; border-radius:6px; cursor:pointer; font-weight:bold;" onclick="clearAllCoursesOneTime()">🧹 Clear All Courses</button>
+                    <button style="background: var(--primary-blue); color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold;" onclick="openAddCourseModal()">+ Add Course</button>
+                </div>
             </div>
             <table class="admin-table">
                 <thead>
@@ -2342,6 +2345,13 @@ function checkAdminStatus() {
     if (courseMgmtItem) {
         courseMgmtItem.style.display = isAdmin ? 'block' : 'none';
     }
+
+    // Clear All Courses button - Admin only
+    const clearAllCoursesBtn = document.getElementById('clearAllCoursesBtn');
+    if (clearAllCoursesBtn) {
+        const alreadyCleared = localStorage.getItem('one_time_courses_cleared') === 'true';
+        clearAllCoursesBtn.style.display = (isAdmin && !alreadyCleared) ? 'inline-block' : 'none';
+    }
     
     // Reset All button - Admin only
     const resetAllBtn = document.getElementById('resetAllAssessmentsBtn');
@@ -2358,6 +2368,47 @@ function checkAdminStatus() {
                 switchTab('home-view', null);
             }
         }
+    }
+}
+
+async function clearAllCoursesOneTime() {
+    const isAdmin = (localStorage.getItem('userRole') || '').toLowerCase() === 'admin' || (localStorage.getItem('userEmail') || '').toLowerCase() === 'ravikiran@oneorigin.us';
+    if (!isAdmin) {
+        alert('Only Admin can clear courses.');
+        return;
+    }
+
+    const alreadyCleared = localStorage.getItem('one_time_courses_cleared') === 'true';
+    if (alreadyCleared) {
+        alert('Courses were already cleared once.');
+        return;
+    }
+
+    const typed = prompt('This will permanently delete ALL courses for ALL users (database + local).\n\nType CLEAR ALL to continue:');
+    if (String(typed || '').trim().toUpperCase() !== 'CLEAR ALL') {
+        alert('Cancelled.');
+        return;
+    }
+
+    try {
+        if (window.deleteAllSharedCourses) {
+            await window.deleteAllSharedCourses();
+        } else {
+            // Fallback: clear local only
+            localStorage.setItem('courses', '[]');
+        }
+
+        localStorage.setItem('one_time_courses_cleared', 'true');
+        const btn = document.getElementById('clearAllCoursesBtn');
+        if (btn) btn.style.display = 'none';
+
+        await loadCourses();
+        await loadCoursesView();
+        if (typeof loadRoles === 'function') loadRoles();
+        alert('All courses cleared successfully.');
+    } catch (e) {
+        console.error('Failed clearing all courses:', e);
+        alert('Failed to clear all courses: ' + (e?.message || e));
     }
 }
 
