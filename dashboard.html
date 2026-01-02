@@ -1126,7 +1126,7 @@ function hubBotInsert(text) {
     input.focus();
 }
 
-window.onload = () => {
+window.onload = async () => {
     // Check if user is logged in - redirect to login if not
     const userEmail = localStorage.getItem('userEmail');
     if (!userEmail) {
@@ -1134,49 +1134,79 @@ window.onload = () => {
         return;
     }
     
-    // Auto-register current user if not already registered
-    const SUPERADMIN_EMAIL = 'ravikiran@oneorigin.us';
-    const users = JSON.parse(localStorage.getItem('users') || '[]');
-    const existingUserIndex = users.findIndex(u => u.email && u.email.toLowerCase() === userEmail.toLowerCase());
-    
-    if (existingUserIndex === -1 && userEmail.toLowerCase() !== SUPERADMIN_EMAIL.toLowerCase()) {
-        // User not in list and not superadmin - add them
-        const userName = localStorage.getItem('userName') || deriveNameFromEmail(userEmail);
-        const newUser = {
-            employeeId: 'EMP-' + Date.now(),
-            name: userName,
-            email: userEmail,
-            role: 'User',
-            lastActive: new Date().toLocaleString()
-        };
-        users.push(newUser);
-        localStorage.setItem('users', JSON.stringify(users));
-        localStorage.setItem('userRole', 'User');
-        console.log('User auto-registered on dashboard load:', userEmail, 'with ID:', newUser.employeeId);
-    } else if (existingUserIndex !== -1) {
-        // Update last active time and sync role
-        users[existingUserIndex].lastActive = new Date().toLocaleString();
-        
-        // Check if user has reset assessment flag
-        if (users[existingUserIndex].resetAssessmentFlag === true) {
-            // Clear assessment data
-            localStorage.removeItem('initialAssessmentScore');
-            localStorage.removeItem('userLevel');
-            localStorage.removeItem('initialAssessmentStarted');
-            localStorage.setItem('assignedCourses', '[]');
-            localStorage.removeItem('upcomingCourse');
-            
-            // Remove the reset flag
-            delete users[existingUserIndex].resetAssessmentFlag;
-            localStorage.setItem('users', JSON.stringify(users));
-            
-            console.log('Assessment data cleared for user:', userEmail);
+    // Cloud-backed auto-registration + role sync + reset flag (fallback to local only if cloud not available)
+    const __userSyncPromise = (async () => {
+        const SUPERADMIN_EMAIL = 'ravikiran@oneorigin.us';
+        const now = new Date().toLocaleString();
+        const displayName = (localStorage.getItem('userName') || '').trim() || deriveNameFromEmail(userEmail);
+
+        try {
+            if (window.upsertSharedUser && window.getSharedUserByEmail) {
+                // Upsert ensures user exists in Firestore and updates lastActive
+                await window.upsertSharedUser({
+                    email: userEmail,
+                    name: displayName,
+                    lastActive: now
+                });
+
+                const me = await window.getSharedUserByEmail(userEmail);
+                if (me?.role) {
+                    localStorage.setItem('userRole', String(me.role).toLowerCase() === 'admin' ? 'admin' : 'user');
+                }
+                if (me?.employeeId) {
+                    localStorage.setItem('employeeId', me.employeeId);
+                }
+
+                if (me?.resetAssessmentFlag === true && window.setUserResetAssessmentFlag) {
+                    localStorage.removeItem('initialAssessmentScore');
+                    localStorage.removeItem('userLevel');
+                    localStorage.removeItem('initialAssessmentStarted');
+                    localStorage.setItem('assignedCourses', '[]');
+                    localStorage.removeItem('upcomingCourse');
+                    await window.setUserResetAssessmentFlag(userEmail, false);
+                    console.log('Assessment data cleared for user via cloud flag:', userEmail);
+                }
+
+                // Ensure superadmin stays admin in local session
+                if (String(userEmail).toLowerCase() === SUPERADMIN_EMAIL.toLowerCase()) {
+                    localStorage.setItem('userRole', 'admin');
+                }
+
+                return;
+            }
+        } catch (e) {
+            console.warn('Cloud user sync failed; using local fallback', e);
         }
-        
-        localStorage.setItem('users', JSON.stringify(users));
-        // Sync the user's role from the users array
-        localStorage.setItem('userRole', users[existingUserIndex].role || 'User');
-    }
+
+        // Local fallback (single-device)
+        const users = JSON.parse(localStorage.getItem('users') || '[]');
+        const existingUserIndex = users.findIndex(u => u.email && u.email.toLowerCase() === userEmail.toLowerCase());
+
+        if (existingUserIndex === -1 && userEmail.toLowerCase() !== SUPERADMIN_EMAIL.toLowerCase()) {
+            const newUser = {
+                employeeId: 'EMP-' + Date.now(),
+                name: displayName,
+                email: userEmail,
+                role: 'User',
+                lastActive: now
+            };
+            users.push(newUser);
+            localStorage.setItem('users', JSON.stringify(users));
+            localStorage.setItem('userRole', 'User');
+        } else if (existingUserIndex !== -1) {
+            users[existingUserIndex].lastActive = now;
+            if (users[existingUserIndex].resetAssessmentFlag === true) {
+                localStorage.removeItem('initialAssessmentScore');
+                localStorage.removeItem('userLevel');
+                localStorage.removeItem('initialAssessmentStarted');
+                localStorage.setItem('assignedCourses', '[]');
+                localStorage.removeItem('upcomingCourse');
+                delete users[existingUserIndex].resetAssessmentFlag;
+            }
+            localStorage.setItem('users', JSON.stringify(users));
+            localStorage.setItem('userRole', users[existingUserIndex].role || 'User');
+        }
+    })();
     
     // Generate Static Title
     const titleText = "OneOrigin Learning Hub";
@@ -1213,7 +1243,8 @@ window.onload = () => {
     setUserBadge();
 
     // Initialize role-based access control (SUPERADMIN logic is here)
-    syncCurrentUserRole();
+    await __userSyncPromise;
+    await syncCurrentUserRole();
     checkAdminStatus();
     
     // Load all course data
@@ -1227,8 +1258,9 @@ window.onload = () => {
     
     // Load user and role data
     updateAnnouncements();
-    loadUsers();
-    loadRoles();
+    // These may be async (cloud-backed)
+    Promise.resolve(loadUsers()).catch(() => {});
+    Promise.resolve(loadRoles()).catch(() => {});
 
     // Show Home view
     const homeView = document.getElementById('home-view');
@@ -1473,10 +1505,13 @@ function loadUsers() {
     if (!tbody) return;
     
     const SUPERADMIN_EMAIL = 'ravikiran@oneorigin.us';
-    const users = JSON.parse(localStorage.getItem('users') || '[]');
+    // Prefer Firestore-backed shared users list
+    const users = (window.getSharedUsers ? [] : null);
     
     tbody.innerHTML = '';
-    users.forEach((u, idx) => {
+    const render = (list) => {
+        tbody.innerHTML = '';
+        list.forEach((u) => {
         const isSuperadmin = u.email && u.email.toLowerCase() === SUPERADMIN_EMAIL.toLowerCase();
         
         const row = tbody.insertRow();
@@ -1491,17 +1526,29 @@ function loadUsers() {
                 <span>🔒 Admin (Superadmin)</span>
             </div>`;
         } else {
-            roleCell.innerHTML = `<select onchange="handleRoleChange(${idx}, this.value)" style="padding:6px; background:var(--bg-dark); color:var(--text-main); border:1px solid var(--border-color); border-radius:6px;">
+            const safeEmail = String(u.email || '').replace(/'/g, "\\'");
+            roleCell.innerHTML = `<select onchange="handleRoleChange('${safeEmail}', this.value)" style="padding:6px; background:var(--bg-dark); color:var(--text-main); border:1px solid var(--border-color); border-radius:6px;">
                 <option value="User" ${u.role === 'User' ? 'selected' : ''}>User</option>
                 <option value="Admin" ${u.role === 'Admin' ? 'selected' : ''}>Admin</option>
             </select>`;
         }
         
         row.insertCell(4).innerText = u.lastActive || '';
-    });
+        });
+    };
+
+    if (window.getSharedUsers) {
+        // Async render from cloud
+        window.getSharedUsers()
+            .then(list => render(Array.isArray(list) ? list : []))
+            .catch(() => render(JSON.parse(localStorage.getItem('users') || '[]')));
+        return;
+    }
+
+    render(JSON.parse(localStorage.getItem('users') || '[]'));
 }
 
-function saveNewUser() {
+async function saveNewUser() {
     const employeeId = document.getElementById('newEmpId').value.trim();
     const name = document.getElementById('newEmpName').value.trim();
     const email = document.getElementById('newEmpEmail').value.trim();
@@ -1510,6 +1557,20 @@ function saveNewUser() {
         alert('Please fill in Employee ID, Name, and Email');
         return;
     }
+    if (window.upsertSharedUser) {
+        try {
+            await window.upsertSharedUser({ employeeId, name, email, role, lastActive: '' });
+            closeAddUserModal();
+            Promise.resolve(loadUsers()).catch(() => {});
+            Promise.resolve(loadRoles()).catch(() => {});
+            syncCurrentUserRole();
+            checkAdminStatus();
+            return;
+        } catch (e) {
+            console.warn('Cloud save user failed; falling back to local', e);
+        }
+    }
+
     const users = JSON.parse(localStorage.getItem('users') || '[]');
     users.push({ employeeId, name, email, role, lastActive: '' });
     localStorage.setItem('users', JSON.stringify(users));
@@ -1520,56 +1581,67 @@ function saveNewUser() {
     checkAdminStatus();
 }
 
-function handleRoleChange(index, value) {
-    const users = JSON.parse(localStorage.getItem('users') || '[]');
-    if (!users[index]) return;
-    
+async function handleRoleChange(userEmail, value) {
     const SUPERADMIN_EMAIL = 'ravikiran@oneorigin.us';
-    const userEmail = users[index].email || '';
+    const normalizedEmail = String(userEmail || '').trim().toLowerCase();
+    if (!normalizedEmail) return;
     
     // Prevent changing superadmin role
-    if (userEmail.toLowerCase() === SUPERADMIN_EMAIL.toLowerCase()) {
+    if (normalizedEmail === SUPERADMIN_EMAIL.toLowerCase()) {
         alert('⚠️ Cannot change the role of the Superadmin!\n\nravikiran@oneorigin.us always has Admin access.');
         loadUsers(); // Reload to reset the dropdown
         return;
     }
-    
-    const oldRole = users[index].role;
-    const employeeName = users[index].name;
+
+    const usersLocal = JSON.parse(localStorage.getItem('users') || '[]');
+    const localMatch = usersLocal.find(u => (u.email || '').toLowerCase() === normalizedEmail);
+    const oldRole = localMatch?.role || 'User';
+    const employeeName = localMatch?.name || normalizedEmail;
     
     // Show confirmation dialog
     if (!confirm(`Are you sure you want to change ${employeeName}'s role from ${oldRole} to ${value}?`)) {
-        // Reset dropdown to old value if user cancels
-        const selects = document.querySelectorAll('select');
-        selects.forEach(sel => {
-            if (sel.value !== oldRole) {
-                // Find the right dropdown based on the user index
-                const rows = document.querySelectorAll('tbody tr');
-                if (rows[index]) {
-                    const roleSelect = rows[index].querySelector('select');
-                    if (roleSelect) roleSelect.value = oldRole;
-                }
-            }
-        });
+        // Best-effort: refresh tables to restore correct values
+        Promise.resolve(loadUsers()).catch(() => {});
+        Promise.resolve(loadRoles()).catch(() => {});
         return;
     }
-    
-    users[index].role = value;
-    localStorage.setItem('users', JSON.stringify(users));
-    sessionStorage.setItem('users_backup', JSON.stringify(users)); // Auto-backup
-    
+
+    // Cloud-first role update
+    if (window.updateSharedUserRoleByEmail) {
+        try {
+            await window.updateSharedUserRoleByEmail(normalizedEmail, value);
+        } catch (e) {
+            console.warn('Cloud role update failed; falling back to local', e);
+            const idx = usersLocal.findIndex(u => (u.email || '').toLowerCase() === normalizedEmail);
+            if (idx !== -1) {
+                usersLocal[idx].role = value;
+                localStorage.setItem('users', JSON.stringify(usersLocal));
+                sessionStorage.setItem('users_backup', JSON.stringify(usersLocal));
+            }
+        }
+    } else {
+        const idx = usersLocal.findIndex(u => (u.email || '').toLowerCase() === normalizedEmail);
+        if (idx !== -1) {
+            usersLocal[idx].role = value;
+            localStorage.setItem('users', JSON.stringify(usersLocal));
+            sessionStorage.setItem('users_backup', JSON.stringify(usersLocal));
+        }
+    }
+
     // If the changed user is the current session user, sync and reload page
-    const currentEmail = localStorage.getItem('userEmail') || '';
-    const changedUserEmail = users[index].email || '';
-    
-    syncCurrentUserRole();
-    checkAdminStatus();
-    
-    // If current user's role was changed, reload page to update UI
-    if (currentEmail.toLowerCase() === changedUserEmail.toLowerCase()) {
+    const currentEmail = (localStorage.getItem('userEmail') || '').toLowerCase();
+    if (currentEmail && currentEmail === normalizedEmail) {
+        localStorage.setItem('userRole', String(value).toLowerCase() === 'admin' ? 'admin' : 'user');
+        checkAdminStatus();
         alert(`Your role has been changed to ${value}. The page will reload to apply changes.`);
         setTimeout(() => location.reload(), 500);
+        return;
     }
+
+    syncCurrentUserRole();
+    checkAdminStatus();
+    Promise.resolve(loadUsers()).catch(() => {});
+    Promise.resolve(loadRoles()).catch(() => {});
 }
 
 // ===== Role Management JS =====
@@ -1627,56 +1699,64 @@ function loadRoles() {
     if (!tbody) return;
     
     const SUPERADMIN_EMAIL = 'ravikiran@oneorigin.us';
-    const users = JSON.parse(localStorage.getItem('users') || '[]');
+    const render = (users) => {
+        tbody.innerHTML = '';
+        if (!Array.isArray(users) || users.length === 0) {
+            const row = tbody.insertRow();
+            const cell = row.insertCell(0);
+            cell.colSpan = 8;
+            cell.style.color = 'var(--text-secondary)';
+            cell.style.textAlign = 'center';
+            cell.innerText = 'No users found. Users will be automatically registered when they log in.';
+            return;
+        }
+        users.forEach((u) => {
+            const isSuperadmin = u.email && u.email.toLowerCase() === SUPERADMIN_EMAIL.toLowerCase();
+            const safeEmail = String(u.email || '').replace(/'/g, "\\'");
+
+            const row = tbody.insertRow();
+            const selectCell = row.insertCell(0);
+            selectCell.style.textAlign = 'center';
+            selectCell.innerHTML = `<input type="checkbox" class="role-row-check" data-email="${String(u.email || '').replace(/"/g, '&quot;')}">`;
+
+            row.insertCell(1).innerText = u.employeeId || '';
+            row.insertCell(2).innerText = u.name || '';
+            row.insertCell(3).innerText = u.email || '';
+
+            const roleCell = row.insertCell(4);
+            if (isSuperadmin) {
+                roleCell.innerHTML = `<div style="padding:6px; background:rgba(66,133,244,0.1); color:var(--primary-blue); border:1px solid var(--primary-blue); border-radius:6px; font-weight:bold; display:flex; align-items:center; gap:5px; justify-content:center;">
+                    <span>🔒 Admin (Superadmin)</span>
+                </div>`;
+            } else {
+                roleCell.innerHTML = `<select onchange="handleRoleChange('${safeEmail}', this.value)" style="padding:6px; background:var(--bg-dark); color:var(--text-main); border:1px solid var(--border-color); border-radius:6px;">
+                    <option value="User" ${u.role === 'User' ? 'selected' : ''}>User</option>
+                    <option value="Admin" ${u.role === 'Admin' ? 'selected' : ''}>Admin</option>
+                </select>`;
+            }
+
+            row.insertCell(5).innerText = u.lastActive || '';
+
+            const resetCell = row.insertCell(6);
+            resetCell.innerHTML = '<button style="background:#f0ad4e; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer; font-weight:bold;" onclick="resetUserAssessment(\'' + safeEmail + '\')" title="Reset this user\'s assessment and assigned courses">🔄 Reset</button>';
+
+            const deleteCell = row.insertCell(7);
+            if (isSuperadmin) {
+                deleteCell.innerHTML = '<div style="padding:5px 10px; color:var(--text-secondary); font-size:12px; text-align:center;">Protected</div>';
+            } else {
+                deleteCell.innerHTML = '<button style="background:#f85149; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;" onclick="deleteRole(\'' + safeEmail + '\')">Delete</button>';
+            }
+        });
+    };
     
-    tbody.innerHTML = '';
-    if (users.length === 0) {
-        const row = tbody.insertRow();
-        const cell = row.insertCell(0);
-        cell.colSpan = 8;
-        cell.style.color = 'var(--text-secondary)';
-        cell.style.textAlign = 'center';
-        cell.innerText = 'No users found. Users will be automatically registered when they log in.';
+    if (window.getSharedUsers) {
+        window.getSharedUsers()
+            .then(list => render(Array.isArray(list) ? list : []))
+            .catch(() => render(JSON.parse(localStorage.getItem('users') || '[]')));
         return;
     }
-    
-    users.forEach((u, idx) => {
-        const isSuperadmin = u.email && u.email.toLowerCase() === SUPERADMIN_EMAIL.toLowerCase();
-        
-        const row = tbody.insertRow();
-        const selectCell = row.insertCell(0);
-        selectCell.style.textAlign = 'center';
-        selectCell.innerHTML = `<input type="checkbox" class="role-row-check" data-uidx="${idx}">`;
-        
-        row.insertCell(1).innerText = u.employeeId || '';
-        row.insertCell(2).innerText = u.name || '';
-        row.insertCell(3).innerText = u.email || '';
-        
-        const roleCell = row.insertCell(4);
-        if (isSuperadmin) {
-            // For superadmin, show locked Admin role
-            roleCell.innerHTML = `<div style="padding:6px; background:rgba(66,133,244,0.1); color:var(--primary-blue); border:1px solid var(--primary-blue); border-radius:6px; font-weight:bold; display:flex; align-items:center; gap:5px; justify-content:center;">
-                <span>🔒 Admin (Superadmin)</span>
-            </div>`;
-        } else {
-            roleCell.innerHTML = `<select onchange="handleRoleChange(${idx}, this.value)" style="padding:6px; background:var(--bg-dark); color:var(--text-main); border:1px solid var(--border-color); border-radius:6px;">
-                <option value="User" ${u.role === 'User' ? 'selected' : ''}>User</option>
-                <option value="Admin" ${u.role === 'Admin' ? 'selected' : ''}>Admin</option>
-            </select>`;
-        }
-        
-        row.insertCell(5).innerText = u.lastActive || '';
-        
-        const resetCell = row.insertCell(6);
-        resetCell.innerHTML = '<button style="background:#f0ad4e; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer; font-weight:bold;" onclick="resetUserAssessment(\'' + (u.email || '') + '\')" title="Reset this user\'s assessment and assigned courses">🔄 Reset</button>';
-        
-        const deleteCell = row.insertCell(7);
-        if (isSuperadmin) {
-            deleteCell.innerHTML = '<div style="padding:5px 10px; color:var(--text-secondary); font-size:12px; text-align:center;">Protected</div>';
-        } else {
-            deleteCell.innerHTML = '<button style="background:#f85149; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;" onclick="deleteRole(' + idx + ')">Delete</button>';
-        }
-    });
+
+    render(JSON.parse(localStorage.getItem('users') || '[]'));
 }
 
 function saveNewRole() {
@@ -1684,23 +1764,38 @@ function saveNewRole() {
     openAddUserModal();
 }
 
-function deleteRole(userIndex) {
-    const users = JSON.parse(localStorage.getItem('users') || '[]');
-    if (!users[userIndex]) return;
-    
+async function deleteRole(userEmail) {
     const SUPERADMIN_EMAIL = 'ravikiran@oneorigin.us';
-    const userEmail = users[userIndex].email || '';
+    const normalizedEmail = String(userEmail || '').trim().toLowerCase();
+    if (!normalizedEmail) return;
     
     // Prevent deleting superadmin
-    if (userEmail.toLowerCase() === SUPERADMIN_EMAIL.toLowerCase()) {
+    if (normalizedEmail === SUPERADMIN_EMAIL.toLowerCase()) {
         alert('⚠️ Cannot delete the Superadmin!\n\nravikiran@oneorigin.us is a permanent admin.');
         return;
     }
     
     if (!confirm('Delete this user?')) return;
-    users.splice(userIndex, 1);
-    localStorage.setItem('users', JSON.stringify(users));
-    sessionStorage.setItem('users_backup', JSON.stringify(users)); // Auto-backup
+
+    if (window.deleteSharedUserByEmail) {
+        try {
+            await window.deleteSharedUserByEmail(normalizedEmail);
+            Promise.resolve(loadUsers()).catch(() => {});
+            Promise.resolve(loadRoles()).catch(() => {});
+            checkAdminStatus();
+            return;
+        } catch (e) {
+            console.warn('Cloud delete failed; falling back to local', e);
+        }
+    }
+
+    const users = JSON.parse(localStorage.getItem('users') || '[]');
+    const idx = users.findIndex(u => (u.email || '').toLowerCase() === normalizedEmail);
+    if (idx !== -1) {
+        users.splice(idx, 1);
+        localStorage.setItem('users', JSON.stringify(users));
+        sessionStorage.setItem('users_backup', JSON.stringify(users));
+    }
     loadUsers();
     loadRoles();
     checkAdminStatus();
@@ -1708,28 +1803,50 @@ function deleteRole(userIndex) {
 
 function deleteSelectedRoles() {
     const checks = Array.from(document.querySelectorAll('.role-row-check'));
-    const selectedIdx = checks.filter(c => c.checked).map(c => Number(c.dataset.uidx));
-    if (selectedIdx.length === 0) {
+    const selectedEmails = checks
+        .filter(c => c.checked)
+        .map(c => String(c.dataset.email || '').trim().toLowerCase())
+        .filter(Boolean);
+    if (selectedEmails.length === 0) {
         alert('Select at least one entry to delete.');
         return;
     }
     
     const SUPERADMIN_EMAIL = 'ravikiran@oneorigin.us';
-    const users = JSON.parse(localStorage.getItem('users') || '[]');
-    
-    // Check if superadmin is in the selection
-    const superadminSelected = selectedIdx.some(idx => {
-        const user = users[idx];
-        return user && user.email && user.email.toLowerCase() === SUPERADMIN_EMAIL.toLowerCase();
-    });
+    const superadminSelected = selectedEmails.some(e => e === SUPERADMIN_EMAIL.toLowerCase());
     
     if (superadminSelected) {
         alert('⚠️ Cannot delete the Superadmin!\n\nravikiran@oneorigin.us cannot be removed.\nPlease deselect and try again.');
         return;
     }
     
-    if (!confirm(`Delete ${selectedIdx.length} user(s)?`)) return;
-    const remaining = users.filter((_, idx) => !selectedIdx.includes(idx));
+    if (!confirm(`Delete ${selectedEmails.length} user(s)?`)) return;
+
+    if (window.deleteSharedUserByEmail) {
+        Promise.all(selectedEmails.map(e => window.deleteSharedUserByEmail(e)))
+            .then(() => {
+                const selectAll = document.getElementById('roleSelectAll');
+                if (selectAll) selectAll.checked = false;
+                Promise.resolve(loadUsers()).catch(() => {});
+                Promise.resolve(loadRoles()).catch(() => {});
+                checkAdminStatus();
+            })
+            .catch(err => {
+                console.warn('Cloud bulk delete failed; falling back to local', err);
+                const users = JSON.parse(localStorage.getItem('users') || '[]');
+                const remaining = users.filter(u => !selectedEmails.includes(String(u.email || '').toLowerCase()));
+                localStorage.setItem('users', JSON.stringify(remaining));
+                const selectAll = document.getElementById('roleSelectAll');
+                if (selectAll) selectAll.checked = false;
+                loadUsers();
+                loadRoles();
+                checkAdminStatus();
+            });
+        return;
+    }
+
+    const users = JSON.parse(localStorage.getItem('users') || '[]');
+    const remaining = users.filter(u => !selectedEmails.includes(String(u.email || '').toLowerCase()));
     localStorage.setItem('users', JSON.stringify(remaining));
     const selectAll = document.getElementById('roleSelectAll');
     if (selectAll) selectAll.checked = false;
@@ -1748,19 +1865,15 @@ function toggleAllRoleChecks(isChecked) {
     checks.forEach(c => c.checked = isChecked);
 }
 
-function resetUserAssessment(userEmail) {
+async function resetUserAssessment(userEmail) {
     if (!userEmail) {
         alert('Invalid user email');
         return;
     }
-    
+
+    const normalizedEmail = String(userEmail).trim().toLowerCase();
     const users = JSON.parse(localStorage.getItem('users') || '[]');
-    const user = users.find(u => u.email && u.email.toLowerCase() === userEmail.toLowerCase());
-    
-    if (!user) {
-        alert('User not found');
-        return;
-    }
+    const user = users.find(u => u.email && u.email.toLowerCase() === normalizedEmail) || { name: normalizedEmail };
     
     const confirmMsg = `Reset assessment for ${user.name}?
 
@@ -1775,7 +1888,7 @@ Are you sure?`;
     
     // Check if this is the current user
     const currentUserEmail = localStorage.getItem('userEmail') || '';
-    const isCurrentUser = currentUserEmail.toLowerCase() === userEmail.toLowerCase();
+    const isCurrentUser = currentUserEmail.toLowerCase() === normalizedEmail;
     
     if (isCurrentUser) {
         // Reset current user's data in localStorage
@@ -1785,22 +1898,34 @@ Are you sure?`;
         localStorage.setItem('assignedCourses', '[]');
         localStorage.removeItem('upcomingCourse');
         
-        alert(`Assessment reset successfully for ${user.name}!\n\nYou will need to refresh the page to retake the assessment.`);
-        
-        // Refresh the page for current user
-        setTimeout(() => {
-            window.location.reload();
-        }, 1500);
+        if (window.setUserResetAssessmentFlag) {
+            try { await window.setUserResetAssessmentFlag(normalizedEmail, false); } catch (_) {}
+        }
+
+        try {
+            updateInitialAssessmentStatus();
+            loadAssignedCourses();
+        } catch (_) {}
+
+        alert(`Assessment reset successfully for ${user.name}!\n\nYou can now retake the assessment.`);
     } else {
-        // For other users, we need to clear their data when they next log in
-        // Store a flag in their user object
-        const userIndex = users.findIndex(u => u.email && u.email.toLowerCase() === userEmail.toLowerCase());
+        // For other users, set a cloud flag so it applies on their device
+        if (window.setUserResetAssessmentFlag) {
+            try {
+                await window.setUserResetAssessmentFlag(normalizedEmail, true);
+                alert(`Assessment reset queued for ${user.name}!\n\nIt will apply when they next log in or load the dashboard.`);
+                return;
+            } catch (e) {
+                console.warn('Cloud reset flag failed; falling back to local', e);
+            }
+        }
+
+        const userIndex = users.findIndex(u => u.email && u.email.toLowerCase() === normalizedEmail);
         if (userIndex !== -1) {
             users[userIndex].resetAssessmentFlag = true;
             localStorage.setItem('users', JSON.stringify(users));
         }
-        
-        alert(`Assessment reset flag set for ${user.name}!\n\nTheir assessment data will be cleared when they next log in.`);
+        alert(`Assessment reset queued for ${user.name}!\n\n(Local-only fallback; may not work across devices.)`);
     }
     
     console.log('Assessment reset for user:', userEmail);
@@ -1810,7 +1935,7 @@ function handleRoleCSVUpload(event) {
     const file = event.target.files && event.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
         try {
             const text = String(reader.result || '').trim();
             const lines = text.split(/\r?\n/).filter(l => l.trim().length);
@@ -1822,16 +1947,24 @@ function handleRoleCSVUpload(event) {
             const matches = expected.every((h, i) => (header[i] || '').toLowerCase() === h.toLowerCase());
             if (!matches) throw new Error('Invalid CSV header. Expected: ' + expected.join(', '));
 
-            const users = JSON.parse(localStorage.getItem('users') || '[]');
+            const rows = [];
             for (let i = 1; i < lines.length; i++) {
                 const cols = splitRow(lines[i]).map(c => c.replace(/^\"|\"$/g, ''));
                 if (cols.length < 4) continue;
                 const [employeeId, name, email, role] = cols;
-                users.push({ employeeId, name, email, role, lastActive: '' });
+                rows.push({ employeeId, name, email, role, lastActive: '' });
             }
-            localStorage.setItem('users', JSON.stringify(users));
-            loadUsers();
-            loadRoles();
+
+            if (window.upsertSharedUser) {
+                await Promise.all(rows.map(r => window.upsertSharedUser(r)));
+            } else {
+                const users = JSON.parse(localStorage.getItem('users') || '[]');
+                rows.forEach(r => users.push(r));
+                localStorage.setItem('users', JSON.stringify(users));
+            }
+
+            Promise.resolve(loadUsers()).catch(() => {});
+            Promise.resolve(loadRoles()).catch(() => {});
             syncCurrentUserRole();
             checkAdminStatus();
             alert('Users uploaded successfully');
@@ -1848,7 +1981,7 @@ function handleCSVUpload(event) {
     const file = event.target.files && event.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
         try {
             const text = reader.result;
             const lines = String(text).trim().split(/\r?\n/);
@@ -1858,15 +1991,23 @@ function handleCSVUpload(event) {
             const matches = expected.every((h, i) => (header[i] || '').toLowerCase() === h.toLowerCase());
             if (!matches) throw new Error('Invalid CSV header. Expected: ' + expected.join(', '));
 
-            const users = JSON.parse(localStorage.getItem('users') || '[]');
+            const rows = [];
             for (let i = 1; i < lines.length; i++) {
                 const cols = lines[i].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
                 if (cols.length < 5) continue;
                 const [employeeId, name, email, role, lastActive] = cols;
-                users.push({ employeeId, name, email, role, lastActive: lastActive || '' });
+                rows.push({ employeeId, name, email, role, lastActive: lastActive || '' });
             }
-            localStorage.setItem('users', JSON.stringify(users));
-            loadUsers();
+
+            if (window.upsertSharedUser) {
+                await Promise.all(rows.map(r => window.upsertSharedUser(r)));
+            } else {
+                const users = JSON.parse(localStorage.getItem('users') || '[]');
+                rows.forEach(r => users.push(r));
+                localStorage.setItem('users', JSON.stringify(users));
+            }
+
+            Promise.resolve(loadUsers()).catch(() => {});
             alert('Users uploaded successfully');
             // After bulk upload, ensure session role is synced
             syncCurrentUserRole();
@@ -2023,51 +2164,43 @@ function checkAdminStatus() {
     }
 }
 
-function syncCurrentUserRole() {
+async function syncCurrentUserRole() {
+    const currentName = (localStorage.getItem('userName') || '').trim();
+    const currentEmail = (localStorage.getItem('userEmail') || '').trim();
+    const SUPERADMIN_EMAIL = 'ravikiran@oneorigin.us';
+
+    // Superadmin always admin
+    if (currentEmail.toLowerCase() === SUPERADMIN_EMAIL.toLowerCase()) {
+        localStorage.setItem('userRole', 'admin');
+        return;
+    }
+
+    // Prefer cloud role
     try {
-        const currentName = localStorage.getItem('userName') || '';
-        const currentEmail = localStorage.getItem('userEmail') || '';
-        
-        // SUPERADMIN: ravikiran@oneorigin.us always has admin access
-        const SUPERADMIN_EMAIL = 'ravikiran@oneorigin.us';
-        if (currentEmail.toLowerCase() === SUPERADMIN_EMAIL.toLowerCase()) {
-            localStorage.setItem('userRole', 'admin');
-            
-            // Ensure superadmin exists in users list
-            const users = JSON.parse(localStorage.getItem('users') || '[]');
-            const superadminExists = users.find(u => u.email && u.email.toLowerCase() === SUPERADMIN_EMAIL.toLowerCase());
-            
-            if (!superadminExists) {
-                users.push({
-                    employeeId: 'SUPERADMIN',
-                    name: 'Ravikiran',
-                    email: SUPERADMIN_EMAIL,
-                    role: 'Admin',
-                    lastActive: new Date().toLocaleString()
-                });
-                localStorage.setItem('users', JSON.stringify(users));
-            } else if (superadminExists.role !== 'Admin') {
-                // Force superadmin role to Admin if changed
-                superadminExists.role = 'Admin';
-                localStorage.setItem('users', JSON.stringify(users));
+        if (window.getSharedUserByEmail) {
+            const me = await window.getSharedUserByEmail(currentEmail);
+            if (me?.role) {
+                localStorage.setItem('userRole', String(me.role).toLowerCase() === 'admin' ? 'admin' : 'user');
+                return;
             }
-            return;
         }
-        
-        // For other users, check their role from users list
+    } catch (e) {
+        console.warn('Cloud role lookup failed; using local fallback', e);
+    }
+
+    // Local fallback
+    try {
         const users = JSON.parse(localStorage.getItem('users') || '[]');
         const match = users.find(u =>
             (u.email && currentEmail && u.email.toLowerCase() === currentEmail.toLowerCase()) ||
             (u.name && currentName && u.name.toLowerCase() === currentName.toLowerCase())
         );
         if (match && match.role) {
-            localStorage.setItem('userRole', match.role.toLowerCase());
+            localStorage.setItem('userRole', String(match.role).toLowerCase());
         } else {
-            // Default to 'user' role if not found in users list
             localStorage.setItem('userRole', 'user');
         }
-    } catch (e) {
-        // Default to user role on error
+    } catch (_) {
         localStorage.setItem('userRole', 'user');
     }
 }

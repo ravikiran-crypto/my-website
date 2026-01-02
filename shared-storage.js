@@ -1,6 +1,6 @@
 // Shared Course Storage - Firebase Firestore for real multi-user sync
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js";
-import { getFirestore, collection, doc, setDoc, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-firestore.js";
+import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDnfIJQxO6mi2_NEGqXRGH5EAxeaNcb7qc",
@@ -139,3 +139,144 @@ window.deleteSharedCourse = deleteSharedCourse;
 window.syncSharedCourses = syncSharedCourses;
 window.getSharedAnnouncements = getSharedAnnouncements;
 window.addSharedAnnouncement = addSharedAnnouncement;
+
+// =====================
+// Shared Users (Role Mgmt)
+// =====================
+
+const SUPERADMIN_EMAIL = 'ravikiran@oneorigin.us';
+
+function normalizeEmail(email) {
+    return String(email || '').trim().toLowerCase();
+}
+
+function userDocIdFromEmail(email) {
+    // Firestore doc IDs can include '@' and '.', but not '/'
+    return normalizeEmail(email);
+}
+
+async function getSharedUserByEmail(email) {
+    try {
+        const docId = userDocIdFromEmail(email);
+        if (!docId) return null;
+        const ref = doc(db, 'users', docId);
+        const snap = await getDoc(ref);
+        if (!snap.exists()) return null;
+        return { id: snap.id, ...snap.data() };
+    } catch (error) {
+        console.error('❌ Error getting user by email from Firestore:', error);
+        return null;
+    }
+}
+
+async function upsertSharedUser(userData) {
+    try {
+        const email = normalizeEmail(userData?.email);
+        if (!email) throw new Error('Email is required');
+
+        const docId = userDocIdFromEmail(email);
+        const ref = doc(db, 'users', docId);
+        const existing = await getSharedUserByEmail(email);
+
+        const now = new Date().toISOString();
+        const base = {
+            email,
+            name: userData?.name || existing?.name || email.split('@')[0],
+            employeeId: existing?.employeeId || userData?.employeeId || `EMP-${Date.now()}`,
+            role: existing?.role || userData?.role || 'User',
+            lastActive: new Date().toLocaleString(),
+            updatedAt: now,
+            createdAt: existing?.createdAt || now,
+        };
+
+        // Superadmin is always Admin
+        if (email === normalizeEmail(SUPERADMIN_EMAIL)) {
+            base.role = 'Admin';
+            base.employeeId = existing?.employeeId || userData?.employeeId || 'SUPERADMIN';
+        }
+
+        // Preserve reset flag if present
+        if (existing && typeof existing.resetAssessmentFlag !== 'undefined') {
+            base.resetAssessmentFlag = existing.resetAssessmentFlag;
+        }
+
+        await setDoc(ref, base, { merge: true });
+        return await getSharedUserByEmail(email);
+    } catch (error) {
+        console.error('❌ Error upserting user in Firestore:', error);
+        return null;
+    }
+}
+
+async function getSharedUsers() {
+    try {
+        const usersCol = collection(db, 'users');
+        const snapshot = await getDocs(usersCol);
+        const users = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        users.sort((a, b) => String(a.email || '').localeCompare(String(b.email || '')));
+        return users;
+    } catch (error) {
+        console.error('❌ Error getting users from Firestore:', error);
+        // Fallback to localStorage for single-device mode
+        const local = localStorage.getItem('users');
+        return local ? JSON.parse(local) : [];
+    }
+}
+
+async function updateSharedUserRoleByEmail(email, newRole) {
+    try {
+        const normalized = normalizeEmail(email);
+        if (!normalized) throw new Error('Email is required');
+        if (normalized === normalizeEmail(SUPERADMIN_EMAIL)) {
+            throw new Error('Cannot change the Superadmin role');
+        }
+
+        const ref = doc(db, 'users', userDocIdFromEmail(normalized));
+        await updateDoc(ref, {
+            role: newRole,
+            updatedAt: new Date().toISOString(),
+        });
+        return { success: true };
+    } catch (error) {
+        console.error('❌ Error updating user role in Firestore:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+async function deleteSharedUserByEmail(email) {
+    try {
+        const normalized = normalizeEmail(email);
+        if (!normalized) throw new Error('Email is required');
+        if (normalized === normalizeEmail(SUPERADMIN_EMAIL)) {
+            throw new Error('Cannot delete the Superadmin');
+        }
+        await deleteDoc(doc(db, 'users', userDocIdFromEmail(normalized)));
+        return { success: true };
+    } catch (error) {
+        console.error('❌ Error deleting user in Firestore:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+async function setUserResetAssessmentFlag(email, flag) {
+    try {
+        const normalized = normalizeEmail(email);
+        if (!normalized) throw new Error('Email is required');
+        const ref = doc(db, 'users', userDocIdFromEmail(normalized));
+        await updateDoc(ref, {
+            resetAssessmentFlag: !!flag,
+            updatedAt: new Date().toISOString(),
+        });
+        return { success: true };
+    } catch (error) {
+        console.error('❌ Error setting resetAssessmentFlag:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+window.getSharedUsers = getSharedUsers;
+window.getSharedUserByEmail = getSharedUserByEmail;
+window.upsertSharedUser = upsertSharedUser;
+window.updateSharedUserRoleByEmail = updateSharedUserRoleByEmail;
+window.deleteSharedUserByEmail = deleteSharedUserByEmail;
+window.setUserResetAssessmentFlag = setUserResetAssessmentFlag;
