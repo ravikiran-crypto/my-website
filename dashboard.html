@@ -845,6 +845,43 @@ body.light-theme .user-badge {
                             <button class="btn-secondary" onclick="switchTab('hub-bot-view', null)">Go to Hub Bot</button>
                         </div>
                     </div>
+
+                    <div class="home-about-card">
+                        <h3>📈 My Progress</h3>
+                        <p>A single view of your course activity and assessment results, saved so you can track improvement over time.</p>
+                        <div class="home-about-kicker">How it works</div>
+                        <ul class="home-about-list">
+                            <li>Tracks when you open a course and when you attempt assessments.</li>
+                            <li>Shows your latest score and status (Not Started → In Progress → Passed).</li>
+                            <li>Progress is stored in shared storage when available, so it stays consistent across devices.</li>
+                        </ul>
+                        <div class="home-about-kicker">What you can do</div>
+                        <ul class="home-about-list">
+                            <li>Retake assessments to improve your score.</li>
+                            <li>Quickly resume any course from the table view.</li>
+                        </ul>
+                        <div class="home-about-actions">
+                            <button class="btn-secondary" onclick="switchTab('my-progress-view', null)">Go to My Progress</button>
+                        </div>
+                    </div>
+
+                    <div class="home-about-card">
+                        <h3>🏆 Leadership Board</h3>
+                        <p>See where you stand compared to other employees based on points earned from passing course assessments.</p>
+                        <div class="home-about-kicker">How it works</div>
+                        <ul class="home-about-list">
+                            <li>Points are awarded when you pass a course assessment (≥ 80%).</li>
+                            <li>Beginner: 2 • Intermediate: 5 • Advanced: 10.</li>
+                            <li>Shows all users registered in Role Management (including 0 points).</li>
+                        </ul>
+                        <div class="home-about-kicker">What you can do</div>
+                        <ul class="home-about-list">
+                            <li>Improve your rank by passing more courses and higher levels.</li>
+                        </ul>
+                        <div class="home-about-actions">
+                            <button class="btn-secondary" onclick="switchTab('leaderboard-view', null)">Go to Leadership Board</button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -1698,6 +1735,9 @@ function updateGreeting() {
 }
 
 function switchTab(viewId, element) {
+    try {
+        localStorage.setItem('lastViewId', String(viewId || 'home-view'));
+    } catch (_) {}
     // Hide all sections
     document.querySelectorAll('main > section').forEach(section => {
         section.style.display = 'none';
@@ -1914,9 +1954,28 @@ window.onload = async () => {
     Promise.resolve(loadUsers()).catch(() => {});
     Promise.resolve(loadRoles()).catch(() => {});
 
-    // Show Home view
-    const homeView = document.getElementById('home-view');
-    if (homeView) homeView.style.display = 'block';
+    // Restore last visited view (fallback to Home)
+    let initialViewId = 'home-view';
+    try {
+        const saved = String(localStorage.getItem('lastViewId') || '').trim();
+        if (saved) initialViewId = saved;
+    } catch (_) {}
+
+    // If the view doesn't exist, fallback
+    if (!document.getElementById(initialViewId)) {
+        initialViewId = 'home-view';
+    }
+
+    // If a non-admin tries to restore an admin-only view, fallback to Home
+    const SUPERADMIN_EMAIL = 'ravikiran@oneorigin.us';
+    const userEmail2 = (localStorage.getItem('userEmail') || '').trim();
+    const userRole2 = (localStorage.getItem('userRole') || '').toLowerCase();
+    const isAdmin2 = userRole2 === 'admin' || userEmail2.toLowerCase() === SUPERADMIN_EMAIL.toLowerCase();
+    if (!isAdmin2 && (initialViewId === 'role-mgmt-view' || initialViewId === 'course-mgmt-view' || initialViewId === 'user-mgmt-view')) {
+        initialViewId = 'home-view';
+    }
+
+    switchTab(initialViewId, null);
 };
 
 // Backup data to sessionStorage and restore if localStorage is cleared
