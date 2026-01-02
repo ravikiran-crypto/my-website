@@ -1986,36 +1986,43 @@ async function showInitialResults(score) {
 
 async function getVideoSuggestion(level, score) {
     const container = document.getElementById('videoSuggestionContainer');
-    container.innerHTML = '<p style="color:var(--text-secondary);">Finding a verified playable course...</p>';
+    container.innerHTML = '<p style="color:var(--text-secondary);">Selecting a course from our library...</p>';
 
-    try {
-        // Updated prompt to force high-reliability YouTube IDs
-        const prompt = `Use Google Search to find ONE specific, high-quality, and YouTube tutorial for a ${level} level student. 
-        STRICT RULES:
-        1. Source ONLY from: freeCodeCamp, Traversy Media, Fireship, or Programming with Mosh.
-        2. You MUST provide a REAL, 11-character Video ID that exists.
-        3. The video MUST have embedding enabled.
-        Return JSON ONLY: {"videoId": "REAL_ID", "topic": "Title", "definition": "Summary", "uses": "Applications"}.`;
+    // Get the courses you have already added in the Course Management tab
+    const availableCourses = JSON.parse(localStorage.getItem('courses') || '[]');
+    
+    // Filter courses that match the level (e.g., 'beginner', 'intermediate', 'advanced')
+    // Note: ensure your Course Management types match the assessment level strings
+    const matchedCourses = availableCourses.filter(c => c.type.toLowerCase() === level.toLowerCase());
 
-        const data = await callGeminiAPI(prompt, 'gemini-2.0-flash'); // Use grounding-capable model
+    if (matchedCourses.length > 0) {
+        // Pick the first available course or a random one from the library
+        const selectedCourse = matchedCourses[0];
         
-        if (data.error) throw new Error(data.error.message);
+        // Structure the data to match your 'assignedCourses' format
+        const courseData = {
+            videoId: selectedCourse.videoId,
+            topic: selectedCourse.name,
+            definition: `A comprehensive ${level} course on ${selectedCourse.name}.`,
+            uses: `Professional training and skill development in ${selectedCourse.name}.`
+        };
 
-        let textResponse = data.candidates[0].content.parts[0].text;
-        const cleanJson = textResponse.replace(/```json|```/g, "").trim();
-        const videoData = JSON.parse(cleanJson);
-
-        assignCourseToUser(videoData, level);
+        // Assign the existing course to the user
+        assignCourseToUser(courseData, level);
         
         container.innerHTML = `
             <div style="background:rgba(76,175,80,0.1); padding:15px; border-radius:8px; border:1px solid #4CAF50;">
-                <p style="color:#4CAF50; font-weight:bold; margin-bottom:10px;">✓ Verified Course Assigned!</p>
-                <p style="color:var(--text-secondary);">Your ${level} course on <strong>${videoData.topic}</strong> is ready below.</p>
+                <p style="color:#4CAF50; font-weight:bold; margin-bottom:10px;">✓ Course Assigned from Library!</p>
+                <p style="color:var(--text-main);">The course <strong>${selectedCourse.name}</strong> has been added to your training list.</p>
             </div>
         `;
-    } catch (error) {
-        console.error("Video suggestion error:", error);
-        container.innerHTML = '<p style="color:#f85149;">Search failed. Please try again to find a live video.</p>';
+    } else {
+        container.innerHTML = `
+            <div style="background:rgba(248,81,73,0.1); padding:15px; border-radius:8px; border:1px solid #f85149;">
+                <p style="color:#f85149; font-weight:bold;">No ${level} courses found.</p>
+                <p style="color:var(--text-secondary);">An Admin needs to add ${level} level courses in the Course Management tab first.</p>
+            </div>
+        `;
     }
 }
 
@@ -2301,28 +2308,21 @@ function resetAssessment() {
 }
 
 async function suggestNextLevelCourse(nextLevel, previousLevel) {
-    try {
-        const prompt = `The learner has successfully completed a ${previousLevel} level course and is now ready for ${nextLevel} level content. Suggest ONE highly relevant YouTube video for ${nextLevel} level learning. STRICT REQUIREMENTS: 1) Choose ONLY from verified embeddable channels: freeCodeCamp.org, Fireship, Tech With Tim, Traversy Media, Programming with Mosh, Corey Schafer, 2) Must be embeddable (no restrictions), 3) Complete course/tutorial, 4) High views (100k+). For ${nextLevel} level, suggest: Intermediate=React/Node/APIs/Python, Advanced=ML/AI/System Design/Cloud. Return JSON: {"videoId": "VERIFIED_YouTube_ID", "topic": "Topic", "definition": "2-3 sentences", "uses": "2-3 sentences"}. ONLY embeddable videos from listed channels.`;
+    const availableCourses = JSON.parse(localStorage.getItem('courses') || '[]');
+    const nextLevelCourses = availableCourses.filter(c => c.type.toLowerCase() === nextLevel.toLowerCase());
 
-        const data = await callGeminiAPI(prompt, 'gemini-2.0-flash-exp');
-        if (data.error) throw new Error(data.error.message);
-
-        let textResponse = data.candidates[0].content.parts[0].text;
-        const cleanJson = textResponse.replace(/```json|```/g, "").trim();
-        const videoData = JSON.parse(cleanJson);
-
-        // Store as upcoming course instead of assigning immediately
+    if (nextLevelCourses.length > 0) {
+        const nextCourse = nextLevelCourses[0];
+        
         localStorage.setItem('upcomingCourse', JSON.stringify({
-            videoId: videoData.videoId,
-            topic: videoData.topic,
-            definition: videoData.definition,
-            uses: videoData.uses,
+            videoId: nextCourse.videoId,
+            topic: nextCourse.name,
+            definition: `Advance your skills with this ${nextLevel} tutorial.`,
+            uses: `Mastering complex concepts in ${nextCourse.name}.`,
             level: nextLevel
         }));
         
         loadAssignedCourses();
-    } catch (error) {
-        console.error("Next level suggestion error:", error);
     }
 }
 
