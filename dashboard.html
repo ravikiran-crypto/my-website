@@ -1741,8 +1741,20 @@ async function deleteCourse(id) {
         }
 
         console.log('🗑️ Deleting course with key:', id);
+        const key = String(id).trim();
+
         // Delete from shared storage (Firestore/localStorage)
-        await deleteSharedCourse(id);
+        if (window.deleteSharedCourse) {
+            await window.deleteSharedCourse(key);
+        } else if (window.firestoreDB && typeof window.firestoreDB.deleteCourse === 'function') {
+            // Fallback to firestore-db helper (expects an id)
+            await window.firestoreDB.deleteCourse(key);
+        } else {
+            // Ultimate fallback: local delete
+            const courses = JSON.parse(localStorage.getItem('courses') || '[]')
+                .filter(c => String(c?.id ?? '') !== key && String(c?.videoId ?? '') !== key);
+            localStorage.setItem('courses', JSON.stringify(courses));
+        }
         console.log('✅ Course deleted successfully');
 
         // Keep session backup in sync so deleted items don't reappear
@@ -1763,7 +1775,7 @@ async function deleteCourse(id) {
 
 async function loadCourses() {
     // Sync shared courses from API first
-    const courses = await syncSharedCourses();
+    const courses = window.syncSharedCourses ? await window.syncSharedCourses() : (JSON.parse(localStorage.getItem('courses') || '[]'));
     
     const tbody = document.getElementById('courseMgmtTableBody');
     if (!tbody) return;
@@ -1779,7 +1791,10 @@ async function loadCourses() {
 
         // Legacy courses (added long back) may not have an id. Fall back to videoId so delete still works.
         const deleteKey = (course && (course.id ?? course.videoId)) ?? '';
-        deleteCell.innerHTML = `<button style="background:#f85149; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;" onclick="deleteCourse(${JSON.stringify(deleteKey)})">Delete</button>`;
+        const hasKey = String(deleteKey || '').trim().length > 0;
+        deleteCell.innerHTML = hasKey
+            ? `<button style="background:#f85149; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;" onclick="deleteCourse(${JSON.stringify(String(deleteKey))})">Delete</button>`
+            : `<button style="background:#555; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:not-allowed;" disabled>Delete</button>`;
     });
     loadRoles();
 }
