@@ -919,18 +919,27 @@ if (window.location.protocol === 'file:') {
 
 function displayNews(newsArray) {
     const newsContainer = document.getElementById('news-container');
-    newsContainer.innerHTML = newsArray.map(item => `
+    const safeItems = Array.isArray(newsArray) ? newsArray : [];
+    newsContainer.innerHTML = safeItems.map(item => {
+        const url = (item && item.url) ? String(item.url).trim() : '';
+        const hasGoodUrl = url && !isPlaceholderOrBadUrl(url);
+        const linkHtml = hasGoodUrl
+            ? `<a href="${url}" target="_blank" rel="noopener noreferrer" style="color: var(--primary-blue); font-size: 13px; text-decoration: none; font-weight: bold; display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; background: rgba(66,133,244,0.1); border-radius: 6px; border: 1px solid var(--primary-blue); transition: all 0.2s;">
+                📰 Read Full Article →
+            </a>`
+            : `<div style="color:var(--text-secondary); font-size:12px; padding:6px 0;">Link unavailable (refreshing news...)</div>`;
+
+        return `
         <div class="news-item">
             <span class="item-date" style="color: var(--primary-blue); font-size: 11px; font-weight: bold;">${item.date}</span>
             <div style="font-weight: 700; margin: 4px 0; color: var(--text-main); font-size: 14px;">${item.headline}</div>
             <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.5; margin-bottom: 10px;">
                 ${item.summary}
             </div>
-            <a href="${item.url}" target="_blank" rel="noopener noreferrer" style="color: var(--primary-blue); font-size: 13px; text-decoration: none; font-weight: bold; display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; background: rgba(66,133,244,0.1); border-radius: 6px; border: 1px solid var(--primary-blue); transition: all 0.2s;">
-                📰 Read Full Article →
-            </a>
+            ${linkHtml}
         </div>
-    `).join('');
+    `;
+    }).join('');
 }
 
 function displayAIUpdates(items) {
@@ -1013,9 +1022,19 @@ async function fetchAINews() {
             // Use cached news if it's still fresh
             try {
                 const newsArray = JSON.parse(cachedNews);
-                displayNews(newsArray);
-                console.log('Displaying cached AI news');
-                return;
+                // Never show placeholder/bad links from cache (e.g., example.com)
+                const hasBad = Array.isArray(newsArray) && newsArray.some(n => {
+                    const u = (n && n.url) ? String(n.url).trim() : '';
+                    return !u || isPlaceholderOrBadUrl(u);
+                });
+                if (!hasBad) {
+                    displayNews(newsArray);
+                    console.log('Displaying cached AI news');
+                    return;
+                }
+                // Invalidate bad cache and fetch fresh
+                localStorage.removeItem(CACHE_KEY);
+                localStorage.removeItem(TIMESTAMP_KEY);
             } catch (e) {
                 console.error('Error parsing cached news:', e);
             }
@@ -1029,9 +1048,20 @@ async function fetchAINews() {
         const data = await callGeminiAPI(
             `Use Google Search to find exactly 10 REAL, ACCESSIBLE AI news articles published TODAY (January 2, 2026) or in the LAST 24 HOURS ONLY.
 
+Only use OPEN-ACCESS sources where employees can read the full article without paywall/login.
+
+Preferred open sources (pick from these first):
+- Official AI/company blogs (OpenAI, Google/DeepMind, Anthropic, Meta AI, Microsoft, NVIDIA)
+- Hugging Face blog
+- GitHub blog
+- arXiv (papers)
+- Major project release posts (PyTorch, TensorFlow, LangChain, etc.)
+
+Avoid paywalled sources (do NOT use): Bloomberg, WSJ, Financial Times, The Economist.
+
 CRITICAL REQUIREMENTS:
 1. Articles MUST be from the LAST 24 HOURS ONLY (today or yesterday)
-2. Sources MUST be reputable: TechCrunch, VentureBeat, The Verge, Wired, MIT Technology Review, Reuters Tech, Bloomberg Technology, or similar major tech news sites
+2. Sources MUST be reputable AND open-access. Prefer official blogs, arXiv, and release notes.
 3. The "url" field MUST be the COMPLETE, DIRECT URL to the specific article page (not homepage)
 4. URLs must be real, working links that users can click and read the full article WITHOUT login/paywall
 5. NEVER use placeholder links like example.com (do not fabricate URLs)
@@ -1061,6 +1091,8 @@ Return ONLY a valid JSON array with NO markdown formatting:
         if (!newsArray || newsArray.length === 0) {
             const fallback = await callGeminiAPI(
                 `Use Google Search to find up to 10 REAL, ACCESSIBLE AI news articles from the LAST 7 DAYS (including today: January 2, 2026).
+
+Only use OPEN-ACCESS sources (no paywalls/logins). Prefer official AI blogs, Hugging Face, GitHub blog, arXiv, and project release posts.
 
 CRITICAL REQUIREMENTS:
 1. Prefer articles from the last 24 hours, but allow up to 7 days if needed
@@ -3184,11 +3216,17 @@ function minimizeHubBotWidget() {
 function closeHubBotWidget() {
     const panel = document.getElementById('hubBotWidget');
     if (!panel) return;
-    // Clear chat history and hide
-    localStorage.removeItem(HUB_BOT_HISTORY_KEY);
-    renderHubBotMessages('hubBotMessages');
-    renderHubBotMessages('hubBotPageMessages');
+    // Hide only (keep history like Gemini)
     panel.style.display = 'none';
+}
+
+function escapeHtml(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 }
 
 function renderHubBotMessages(targetId) {
@@ -3200,7 +3238,7 @@ function renderHubBotMessages(targetId) {
         const bg = msg.role === 'assistant' ? 'rgba(66,133,244,0.12)' : 'rgba(76,175,80,0.12)';
         const border = msg.role === 'assistant' ? '1px solid var(--border-color)' : '1px solid #4CAF50';
         return `<div style="display:flex; justify-content:${align}; margin:6px 0;">
-            <div style="max-width:90%; background:${bg}; border:${border}; color:var(--text-main); padding:10px; border-radius:10px; white-space:pre-wrap;">${msg.content}</div>
+            <div style="max-width:90%; background:${bg}; border:${border}; color:var(--text-main); padding:10px; border-radius:10px; white-space:pre-wrap;">${escapeHtml(msg.content)}</div>
         </div>`;
     }).join('');
     container.scrollTop = container.scrollHeight;
@@ -3230,7 +3268,13 @@ async function sendHubBotMessage(source) {
 
     try {
         const context = getCoursesContext();
-        const fullPrompt = `${HUB_BOT_SYSTEM_PROMPT}\n\nCourse data:\n${context}\n\nQuestion: ${question}\nAnswer as Hub Bot.`;
+
+        // Include conversation history so follow-ups like "Can you teach me that" work.
+        const allHistory = JSON.parse(localStorage.getItem(HUB_BOT_HISTORY_KEY) || '[]');
+        const recent = allHistory.slice(-20);
+        const convo = recent.map(m => `${m.role === 'assistant' ? 'Assistant' : 'User'}: ${m.content}`).join('\n');
+
+        const fullPrompt = `${HUB_BOT_SYSTEM_PROMPT}\n\nConversation so far:\n${convo}\n\nCourse data (only if needed):\n${context}\n\nContinue the conversation. Respond to the user's last message as Hub Bot.`;
         console.log('🤖 Hub Bot: Sending request to Gemini API...');
         const data = await callGeminiAPI(fullPrompt, 'gemini-2.0-flash-exp');
         console.log('🤖 Hub Bot: Received response:', data);
