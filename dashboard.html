@@ -2577,6 +2577,42 @@ async function loadLeaderboard() {
     // Ensure current user's points are up-to-date (best effort)
     await updateMyLeaderboardPoints();
 
+    // 1) Load ALL registered users (Role Mgmt source)
+    let users = [];
+    try {
+        if (typeof window.getSharedUsers === 'function') {
+            const list = await window.getSharedUsers();
+            users = Array.isArray(list) ? list : [];
+        }
+    } catch (e) {
+        console.warn('Failed loading shared users for leaderboard:', e);
+    }
+
+    if (!Array.isArray(users) || users.length === 0) {
+        // Local fallback (single-device)
+        try {
+            users = JSON.parse(localStorage.getItem('users') || '[]');
+        } catch (_) {
+            users = [];
+        }
+    }
+
+    // Normalize users by email
+    const registered = (Array.isArray(users) ? users : [])
+        .filter(u => u && u.email)
+        .map(u => ({
+            email: String(u.email || '').trim().toLowerCase(),
+            name: String(u.name || '').trim(),
+            employeeId: String(u.employeeId || '').trim()
+        }))
+        .filter(u => u.email);
+
+    if (registered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="color:var(--text-secondary);">No users found in Role Management yet.</td></tr>';
+        return;
+    }
+
+    // 2) Load leaderboard points (may be empty). Merge onto registered users.
     let entries = [];
     try {
         if (window.firestoreDB && typeof window.firestoreDB.getLeaderboardEntries === 'function') {
@@ -2586,22 +2622,27 @@ async function loadLeaderboard() {
         console.warn('Failed loading leaderboard entries:', e);
     }
 
-    if (!Array.isArray(entries) || entries.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" style="color:var(--text-secondary);">No leaderboard data yet. Pass a course assessment to earn points.</td></tr>';
-        return;
+    const entryByEmail = new Map();
+    for (const e of (Array.isArray(entries) ? entries : [])) {
+        const email = String(e?.email || e?.id || '').trim().toLowerCase();
+        if (!email) continue;
+        entryByEmail.set(email, {
+            points: Number(e?.points || 0),
+            updatedAt: e?.updatedAt || ''
+        });
     }
 
-    const sorted = entries
-        .filter(e => e && (e.email || e.id))
-        .map(e => ({
-            email: String(e.email || e.id || '').trim(),
-            name: String(e.name || '').trim(),
-            points: Number(e.points || 0),
-            updatedAt: e.updatedAt || ''
-        }))
-        .sort((a, b) => (b.points - a.points) || a.email.localeCompare(b.email));
+    const merged = registered.map(u => {
+        const entry = entryByEmail.get(u.email);
+        return {
+            email: u.email,
+            name: u.name,
+            points: entry ? entry.points : 0,
+            updatedAt: entry ? entry.updatedAt : ''
+        };
+    }).sort((a, b) => (b.points - a.points) || a.email.localeCompare(b.email));
 
-    tbody.innerHTML = sorted.map((e, idx) => {
+    tbody.innerHTML = merged.map((e, idx) => {
         const rank = idx + 1; // ascending rank numbers
         const last = e.updatedAt ? new Date(e.updatedAt).toLocaleDateString() : '—';
         const displayName = e.name || (e.email ? e.email.split('@')[0] : 'User');
