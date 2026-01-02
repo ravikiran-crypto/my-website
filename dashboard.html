@@ -384,6 +384,93 @@
     margin-top: 14px;
 }
 
+/* My Progress (employee) */
+.progress-wrap {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 18px;
+    width: 100%;
+}
+
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    border: 1px solid var(--border-color);
+    background: rgba(255,255,255,0.03);
+    color: var(--text-main);
+    white-space: nowrap;
+}
+
+.status-badge.good {
+    border-color: rgba(76,175,80,0.55);
+    background: rgba(76,175,80,0.12);
+}
+
+.status-badge.warn {
+    border-color: rgba(240,173,78,0.6);
+    background: rgba(240,173,78,0.14);
+}
+
+.status-badge.bad {
+    border-color: rgba(248,81,73,0.6);
+    background: rgba(248,81,73,0.12);
+}
+
+/* Course assessment overlay */
+.assessment-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.8);
+    z-index: 4200;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 22px;
+}
+
+.assessment-modal {
+    width: 100%;
+    max-width: 880px;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    overflow: hidden;
+}
+
+.assessment-modal-head {
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap: 12px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.assessment-modal-title {
+    display:flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.assessment-modal-title b {
+    color: var(--text-main);
+    font-size: 14px;
+}
+
+.assessment-modal-title span {
+    color: var(--text-secondary);
+    font-size: 12px;
+}
+
+.assessment-modal-body {
+    padding: 16px;
+}
+
 .home-about-head {
     display: flex;
     flex-direction: column;
@@ -672,6 +759,8 @@ body.light-theme .user-badge {
             <div class="sidebar-item active" onclick="switchTab('home-view', this)">🏠 <span class="sidebar-text">Home</span></div>
             <div class="sidebar-item" onclick="switchTab('courses-view', this)">📚 <span class="sidebar-text">Courses</span></div>
             <div class="sidebar-item" onclick="switchTab('measure-master-view', this)">📊 <span class="sidebar-text">Measure & Master</span></div>
+            <div class="sidebar-item" onclick="switchTab('my-progress-view', this)">📈 <span class="sidebar-text">My Progress</span></div>
+            <div class="sidebar-item" onclick="switchTab('leaderboard-view', this)">🏆 <span class="sidebar-text">Leadership Board</span></div>
             <div class="sidebar-item" onclick="switchTab('hub-bot-view', this)">🤖 <span class="sidebar-text">Hub Bot</span></div>
         </div>
         <div class="sidebar-footer">
@@ -981,6 +1070,67 @@ body.light-theme .user-badge {
             </div>
         </section>
 
+        <section id="my-progress-view" style="display: none;">
+            <h2 style="color: var(--primary-blue); margin-top: 0;">My Progress</h2>
+            <div class="progress-wrap">
+                <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom: 14px;">
+                    <div>
+                        <div style="color:var(--text-main); font-size:14px;">Track your course activity and assessment results.</div>
+                        <div style="color:var(--text-secondary); font-size:12px; margin-top:4px;">Assessments have <b>10 questions</b> for Beginner/Intermediate and <b>20 questions</b> for Advanced.</div>
+                    </div>
+                    <button class="btn-secondary" onclick="loadMyProgress()">Refresh</button>
+                </div>
+
+                <table class="admin-table" style="margin-top: 0;">
+                    <thead>
+                        <tr>
+                            <th>Course</th>
+                            <th style="width:120px;">Level</th>
+                            <th style="width:210px;">Status</th>
+                            <th style="width:120px;">Last Score</th>
+                            <th style="width:150px;">Last Activity</th>
+                            <th style="width:230px; text-align:right;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="myProgressTableBody">
+                        <tr>
+                            <td colspan="6" style="color:var(--text-secondary);">Loading…</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="leaderboard-view" style="display: none;">
+            <h2 style="color: var(--primary-blue); margin-top: 0;">Leadership Board</h2>
+            <div class="progress-wrap">
+                <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom: 14px;">
+                    <div>
+                        <div style="color:var(--text-main); font-size:14px;">Points are awarded when a course is <b>Passed</b>.</div>
+                        <div style="color:var(--text-secondary); font-size:12px; margin-top:4px;">Beginner: <b>2</b> points • Intermediate: <b>5</b> points • Advanced: <b>10</b> points</div>
+                    </div>
+                    <button class="btn-secondary" onclick="loadLeaderboard()">Refresh</button>
+                </div>
+
+                <table class="admin-table" style="margin-top: 0;">
+                    <thead>
+                        <tr>
+                            <th style="width:90px;">Rank</th>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th style="width:140px;">Points</th>
+                            <th style="width:170px;">Last Updated</th>
+                        </tr>
+                    </thead>
+                    <tbody id="leaderboardTableBody">
+                        <tr>
+                            <td colspan="5" style="color:var(--text-secondary);">Loading…</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
         <section id="settings-view" style="display: none;">
             <h2 style="color: var(--primary-blue);">Settings</h2>
             <div style="padding: 20px; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; max-width: 400px;">
@@ -1076,7 +1226,8 @@ import {
     saveCourse, getAllCourses, deleteCourse,
     saveUserCourse, getUserCourses, deleteUserCourse,
     saveAnnouncement, getAllAnnouncements,
-    migrateLocalStorageToFirestore
+    migrateLocalStorageToFirestore,
+    upsertLeaderboardEntry, getLeaderboardEntries
 } from './firestore-db.js';
 
 // Make functions globally available
@@ -1085,7 +1236,8 @@ window.firestoreDB = {
     saveCourse, getAllCourses, deleteCourse,
     saveUserCourse, getUserCourses, deleteUserCourse,
     saveAnnouncement, getAllAnnouncements,
-    migrateLocalStorageToFirestore
+    migrateLocalStorageToFirestore,
+    upsertLeaderboardEntry, getLeaderboardEntries
 };
 
 // Auto-migrate on first load
@@ -1566,6 +1718,10 @@ function switchTab(viewId, element) {
         loadCoursesView();
     } else if (viewId === 'role-mgmt-view') {
         loadRoles();
+    } else if (viewId === 'my-progress-view') {
+        loadMyProgress();
+    } else if (viewId === 'leaderboard-view') {
+        loadLeaderboard();
     }
 }
 
@@ -1811,6 +1967,26 @@ function backupAndRestoreData() {
             <div style="font-size: 11px; color: var(--text-secondary); font-family: monospace;">
                 Video ID: <span id="coursePlayerVideoId" style="color: var(--primary-blue); font-weight: bold;">-</span>
             </div>
+
+            <div style="margin-top: 12px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+                <button class="btn-secondary" onclick="startCatalogAssessmentFromPlayer()">Take Assessment</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Course assessment overlay (Courses catalog) -->
+<div id="courseAssessmentOverlay" class="assessment-overlay" onclick="courseAssessmentBackdropClick(event)">
+    <div class="assessment-modal">
+        <div class="assessment-modal-head">
+            <div class="assessment-modal-title">
+                <b id="courseAssessmentTitle">Course Assessment</b>
+                <span id="courseAssessmentMeta">—</span>
+            </div>
+            <button class="course-player-close" onclick="closeCourseAssessment()">✕</button>
+        </div>
+        <div class="assessment-modal-body">
+            <div id="courseAssessmentBody" style="color:var(--text-secondary);">Loading…</div>
         </div>
     </div>
 </div>
@@ -1975,8 +2151,164 @@ async function loadCourses() {
 
 let currentCourseVideoId = '';
 let currentCourseTitle = '';
+let currentCourseType = '';
 
-function openCoursePlayer(videoId, title) {
+// ============ Catalog Course Progress + Assessments ============
+const COURSE_PROGRESS_LOCAL_KEY = 'catalogCourseProgress'; // local fallback map { [videoId]: progress }
+
+function prettyLevel(type) {
+    const t = String(type || '').toLowerCase();
+    if (t === 'advanced') return 'Advanced';
+    if (t === 'intermediate') return 'Intermediate';
+    return 'Beginner';
+}
+
+function questionCountForType(type) {
+    const t = String(type || '').toLowerCase();
+    return t === 'advanced' ? 20 : 10;
+}
+
+function pointsForType(type) {
+    const t = String(type || '').toLowerCase();
+    if (t === 'advanced') return 10;
+    if (t === 'intermediate') return 5;
+    return 2;
+}
+
+function deriveDisplayName() {
+    const stored = (localStorage.getItem('userName') || '').trim();
+    const email = safeUserEmail();
+    if (stored) return stored;
+    try {
+        if (!email) return 'User';
+        const local = email.split('@')[0] || '';
+        const parts = local.split(/[._]/).filter(Boolean);
+        if (parts.length === 0) return email;
+        return parts.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+    } catch (_) {
+        return 'User';
+    }
+}
+
+async function computeMyPoints() {
+    const courses = window.syncSharedCourses ? await window.syncSharedCourses() : JSON.parse(localStorage.getItem('courses') || '[]');
+    const progressMap = await getAllProgressMap();
+
+    let points = 0;
+    for (const c of (Array.isArray(courses) ? courses : [])) {
+        const vid = String(c?.videoId || '').trim();
+        if (!vid) continue;
+        const p = progressMap[vid] || {};
+        const passed = Boolean(p?.assessment?.passed);
+        if (!passed) continue;
+        points += pointsForType(c?.type || p?.courseType || 'beginner');
+    }
+    return points;
+}
+
+async function updateMyLeaderboardPoints() {
+    const email = safeUserEmail();
+    if (!email) return;
+    const points = await computeMyPoints();
+    try {
+        if (window.firestoreDB && typeof window.firestoreDB.upsertLeaderboardEntry === 'function') {
+            await window.firestoreDB.upsertLeaderboardEntry(email, {
+                name: deriveDisplayName(),
+                points
+            });
+        }
+    } catch (e) {
+        console.warn('Failed updating leaderboard:', e);
+    }
+}
+
+function safeUserEmail() {
+    return (localStorage.getItem('userEmail') || '').trim();
+}
+
+function loadCatalogProgressLocal() {
+    try {
+        const raw = localStorage.getItem(COURSE_PROGRESS_LOCAL_KEY);
+        const parsed = raw ? JSON.parse(raw) : {};
+        return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch (_) {
+        return {};
+    }
+}
+
+function saveCatalogProgressLocal(map) {
+    try {
+        localStorage.setItem(COURSE_PROGRESS_LOCAL_KEY, JSON.stringify(map || {}));
+    } catch (_) {}
+}
+
+async function upsertCourseProgress(videoId, patch) {
+    const email = safeUserEmail();
+    const key = String(videoId || '').trim();
+    if (!key) return;
+
+    // Local fallback
+    const map = loadCatalogProgressLocal();
+    const existing = map[key] && typeof map[key] === 'object' ? map[key] : {};
+    const next = { ...existing, ...patch, videoId: key };
+    map[key] = next;
+    saveCatalogProgressLocal(map);
+
+    // Firestore (best effort)
+    try {
+        if (email && window.firestoreDB && typeof window.firestoreDB.saveUserCourse === 'function') {
+            await window.firestoreDB.saveUserCourse(email, next);
+        }
+    } catch (e) {
+        console.warn('Failed saving progress to Firestore, using local fallback only:', e);
+    }
+}
+
+async function getAllProgressMap() {
+    const email = safeUserEmail();
+    const merged = loadCatalogProgressLocal();
+
+    try {
+        if (email && window.firestoreDB && typeof window.firestoreDB.getUserCourses === 'function') {
+            const rows = await window.firestoreDB.getUserCourses(email);
+            if (Array.isArray(rows)) {
+                for (const r of rows) {
+                    const vid = String(r?.videoId || '').trim();
+                    if (!vid) continue;
+                    merged[vid] = { ...(merged[vid] || {}), ...r };
+                }
+            }
+        }
+    } catch (e) {
+        console.warn('Failed loading progress from Firestore; falling back to local only:', e);
+    }
+
+    return merged;
+}
+
+async function inferCourseTypeByVideoId(videoId) {
+    const vid = String(videoId || '').trim();
+    if (!vid) return '';
+    try {
+        const list = window.syncSharedCourses ? await window.syncSharedCourses() : JSON.parse(localStorage.getItem('courses') || '[]');
+        const match = Array.isArray(list) ? list.find(c => String(c?.videoId || '').trim() === vid) : null;
+        return match?.type || '';
+    } catch (_) {
+        return '';
+    }
+}
+
+async function recordCourseOpened(videoId, title, type) {
+    const nowIso = new Date().toISOString();
+    await upsertCourseProgress(videoId, {
+        courseName: String(title || '').trim() || 'Untitled',
+        courseType: String(type || '').toLowerCase() || '',
+        lastOpenedAt: nowIso,
+        startedAt: nowIso
+    });
+}
+
+function openCoursePlayer(videoId, title, type = '') {
     const overlay = document.getElementById('coursePlayerOverlay');
     const frame = document.getElementById('coursePlayerFrame');
     const titleEl = document.getElementById('coursePlayerTitle');
@@ -1986,6 +2318,7 @@ function openCoursePlayer(videoId, title) {
     
     currentCourseVideoId = videoId;
     currentCourseTitle = title || '';
+    currentCourseType = type || '';
     
     if (overlay && frame && titleEl) {
         titleEl.textContent = title || 'Now Playing';
@@ -2005,6 +2338,347 @@ function openCoursePlayer(videoId, title) {
         // Do not autoplay; wait for explicit play click
         frame.src = '';
     }
+
+    // Best-effort progress tracking
+    (async () => {
+        let courseType = String(currentCourseType || '').trim();
+        if (!courseType) courseType = await inferCourseTypeByVideoId(videoId);
+        currentCourseType = courseType;
+        await recordCourseOpened(videoId, title, courseType);
+    })();
+}
+
+// ===== Catalog Course Assessment Overlay =====
+let catalogAssessmentQuestions = [];
+let catalogAssessmentIndex = 0;
+let catalogAssessmentAnswers = [];
+let catalogAssessmentMeta = null; // { videoId, title, type, questionCount }
+
+function courseAssessmentBackdropClick(event) {
+    if (event.target && event.target.id === 'courseAssessmentOverlay') closeCourseAssessment();
+}
+
+function closeCourseAssessment() {
+    const overlay = document.getElementById('courseAssessmentOverlay');
+    if (overlay) overlay.style.display = 'none';
+    catalogAssessmentQuestions = [];
+    catalogAssessmentIndex = 0;
+    catalogAssessmentAnswers = [];
+    catalogAssessmentMeta = null;
+}
+
+function startCatalogAssessmentFromPlayer() {
+    const vid = String(currentCourseVideoId || '').trim();
+    const title = String(currentCourseTitle || '').trim();
+    const type = String(currentCourseType || '').trim();
+    if (!vid) {
+        alert('No course selected.');
+        return;
+    }
+    startCatalogAssessment(vid, title, type);
+}
+
+async function startCatalogAssessment(videoId, title, type = '') {
+    const vid = String(videoId || '').trim();
+    if (!vid) return;
+
+    let courseType = String(type || '').trim();
+    if (!courseType) courseType = await inferCourseTypeByVideoId(vid);
+    const qCount = questionCountForType(courseType);
+
+    catalogAssessmentMeta = {
+        videoId: vid,
+        title: String(title || '').trim() || currentCourseTitle || 'Course',
+        type: String(courseType || '').toLowerCase() || 'beginner',
+        questionCount: qCount
+    };
+
+    const overlay = document.getElementById('courseAssessmentOverlay');
+    const titleEl = document.getElementById('courseAssessmentTitle');
+    const metaEl = document.getElementById('courseAssessmentMeta');
+    const body = document.getElementById('courseAssessmentBody');
+    if (!overlay || !titleEl || !metaEl || !body) return;
+
+    titleEl.textContent = `${catalogAssessmentMeta.title} — Assessment`;
+    metaEl.textContent = `${prettyLevel(catalogAssessmentMeta.type)} • ${qCount} questions • Pass: 80%`;
+    body.innerHTML = '<div style="color:var(--text-secondary); text-align:center; padding: 10px;">Generating questions…</div>';
+    overlay.style.display = 'flex';
+
+    await generateCatalogAssessmentQuestions();
+    renderCatalogAssessmentQuestion();
+}
+
+async function generateCatalogAssessmentQuestions() {
+    try {
+        const meta = catalogAssessmentMeta;
+        if (!meta) throw new Error('Missing assessment metadata');
+
+        const prompt = `Generate exactly ${meta.questionCount} multiple-choice questions for a ${prettyLevel(meta.type)} learner based on the course topic "${meta.title}".
+
+Rules:
+- Each question must have 4 options labeled A) B) C) D)
+- Exactly one correct answer
+- Mix practical + conceptual questions
+- Keep questions relevant to the course topic
+
+Return ONLY valid JSON array (no markdown):
+[{"question":"...","options":["A) ...","B) ...","C) ...","D) ..."],"correctAnswer":"A"}]`;
+
+        const data = await callGeminiAPI(prompt, 'gemini-2.0-flash-exp');
+        if (data.error) throw new Error(data.error.message);
+
+        const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        const clean = String(textResponse).replace(/```json|```/g, '').trim();
+        const match = clean.match(/\[[\s\S]*\]/);
+        const jsonStr = match ? match[0] : clean;
+
+        const parsed = JSON.parse(jsonStr);
+        if (!Array.isArray(parsed) || parsed.length === 0) throw new Error('Invalid questions format');
+
+        catalogAssessmentQuestions = parsed;
+        catalogAssessmentIndex = 0;
+        catalogAssessmentAnswers = [];
+    } catch (e) {
+        console.error('Catalog assessment generation failed:', e);
+        const body = document.getElementById('courseAssessmentBody');
+        if (body) {
+            body.innerHTML = `
+                <div style="background:rgba(248,81,73,0.1); border:1px solid #f85149; border-radius:10px; padding:14px;">
+                    <div style="color:#f85149; font-weight:800; margin-bottom:6px;">Failed to generate assessment</div>
+                    <div style="color:var(--text-main); font-size:13px;">${String(e?.message || e)}</div>
+                    <button class="btn-secondary" style="margin-top:12px;" onclick="startCatalogAssessment('${catalogAssessmentMeta?.videoId || ''}', '${String(catalogAssessmentMeta?.title || '').replace(/'/g, "\\'")}', '${catalogAssessmentMeta?.type || ''}')">Try again</button>
+                </div>
+            `;
+        }
+    }
+}
+
+function renderCatalogAssessmentQuestion() {
+    const body = document.getElementById('courseAssessmentBody');
+    if (!body) return;
+    if (catalogAssessmentIndex >= catalogAssessmentQuestions.length) return;
+
+    const q = catalogAssessmentQuestions[catalogAssessmentIndex];
+    const total = catalogAssessmentQuestions.length;
+
+    body.innerHTML = `
+        <div style="display:flex; justify-content:space-between; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:12px;">
+            <div style="color:var(--text-secondary);">Question ${catalogAssessmentIndex + 1} of ${total}</div>
+            <div style="color:var(--text-secondary); font-size:12px;">Select one option</div>
+        </div>
+        <div style="background:var(--card-bg); padding:16px; border:1px solid var(--border-color); border-radius:10px; margin-bottom:12px;">
+            <div style="color:var(--text-main); font-size:15px; margin-bottom:12px;">${q.question}</div>
+            <div>
+                ${(Array.isArray(q.options) ? q.options : []).map((opt, idx) => `
+                    <div class="quiz-option" onclick="catalogAssessmentSelect(${idx})" data-ca="${idx}">${opt}</div>
+                `).join('')}
+            </div>
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:10px;">
+            ${catalogAssessmentIndex < total - 1
+                ? '<button class="btn-secondary" onclick="catalogAssessmentNext()">Next</button>'
+                : '<button class="btn-secondary" onclick="catalogAssessmentSubmit()" style="border-color: rgba(76,175,80,0.7);">Submit</button>'}
+        </div>
+    `;
+}
+
+function catalogAssessmentSelect(optionIndex) {
+    document.querySelectorAll('[data-ca]').forEach(el => el.classList.remove('selected'));
+    const selected = document.querySelector(`[data-ca="${optionIndex}"]`);
+    if (selected) selected.classList.add('selected');
+    catalogAssessmentAnswers[catalogAssessmentIndex] = String.fromCharCode(65 + optionIndex);
+}
+
+function catalogAssessmentNext() {
+    if (!catalogAssessmentAnswers[catalogAssessmentIndex]) {
+        alert('Please select an answer before proceeding.');
+        return;
+    }
+    catalogAssessmentIndex++;
+    renderCatalogAssessmentQuestion();
+}
+
+function catalogAssessmentScore() {
+    let correct = 0;
+    catalogAssessmentQuestions.forEach((q, idx) => {
+        if (catalogAssessmentAnswers[idx] === q.correctAnswer) correct++;
+    });
+    return correct;
+}
+
+async function catalogAssessmentSubmit() {
+    if (!catalogAssessmentAnswers[catalogAssessmentIndex]) {
+        alert('Please select an answer before submitting.');
+        return;
+    }
+
+    const correct = catalogAssessmentScore();
+    const total = catalogAssessmentQuestions.length;
+    const percent = Math.round((correct / total) * 100);
+    const passed = percent >= 80;
+    const nowIso = new Date().toISOString();
+    const meta = catalogAssessmentMeta;
+
+    // Update persisted progress
+    const progressPatch = {
+        courseName: meta?.title || 'Course',
+        courseType: String(meta?.type || '').toLowerCase(),
+        lastActivityAt: nowIso,
+        assessment: {
+            questionCount: total,
+            correct,
+            percent,
+            passed,
+            lastAttemptedAt: nowIso
+        }
+    };
+
+    // Increment attempts
+    const existingMap = await getAllProgressMap();
+    const existing = existingMap[String(meta?.videoId || '').trim()] || {};
+    const attempts = (existing?.assessment?.attempts || existing?.attempts || 0) + 1;
+    progressPatch.assessment.attempts = attempts;
+
+    await upsertCourseProgress(meta.videoId, progressPatch);
+
+    // Update leaderboard only when passed
+    if (passed) {
+        await updateMyLeaderboardPoints();
+    }
+
+    const body = document.getElementById('courseAssessmentBody');
+    if (body) {
+        body.innerHTML = `
+            <div style="background:rgba(${passed ? '76,175,80' : '248,81,73'},0.1); border:1px solid ${passed ? '#4CAF50' : '#f85149'}; border-radius:12px; padding:16px;">
+                <div style="color:${passed ? '#4CAF50' : '#f85149'}; font-weight:900; font-size:16px; margin-bottom:6px;">${passed ? '✓ Assessment Passed' : '✗ Assessment Not Passed'}</div>
+                <div style="color:var(--text-main);">Score: <b>${correct}/${total}</b> (${percent}%)</div>
+                <div style="color:var(--text-secondary); font-size:12px; margin-top:6px;">Attempts: ${attempts} • Saved to My Progress</div>
+                <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:14px; flex-wrap:wrap;">
+                    <button class="btn-secondary" onclick="closeCourseAssessment()">Close</button>
+                    <button class="btn-secondary" onclick="loadMyProgress(); switchTab('my-progress-view', null)">View My Progress</button>
+                </div>
+            </div>
+        `;
+    }
+
+    // Soft-refresh progress table if open
+    const currentView = document.querySelector('section[style*="display: block"], section[style*="display:block"]');
+    if (currentView && currentView.id === 'my-progress-view') {
+        loadMyProgress();
+    }
+}
+
+async function loadLeaderboard() {
+    const tbody = document.getElementById('leaderboardTableBody');
+    if (!tbody) return;
+
+    tbody.innerHTML = '<tr><td colspan="5" style="color:var(--text-secondary);">Loading…</td></tr>';
+
+    // Ensure current user's points are up-to-date (best effort)
+    await updateMyLeaderboardPoints();
+
+    let entries = [];
+    try {
+        if (window.firestoreDB && typeof window.firestoreDB.getLeaderboardEntries === 'function') {
+            entries = await window.firestoreDB.getLeaderboardEntries();
+        }
+    } catch (e) {
+        console.warn('Failed loading leaderboard entries:', e);
+    }
+
+    if (!Array.isArray(entries) || entries.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="color:var(--text-secondary);">No leaderboard data yet. Pass a course assessment to earn points.</td></tr>';
+        return;
+    }
+
+    const sorted = entries
+        .filter(e => e && (e.email || e.id))
+        .map(e => ({
+            email: String(e.email || e.id || '').trim(),
+            name: String(e.name || '').trim(),
+            points: Number(e.points || 0),
+            updatedAt: e.updatedAt || ''
+        }))
+        .sort((a, b) => (b.points - a.points) || a.email.localeCompare(b.email));
+
+    tbody.innerHTML = sorted.map((e, idx) => {
+        const rank = idx + 1; // ascending rank numbers
+        const last = e.updatedAt ? new Date(e.updatedAt).toLocaleDateString() : '—';
+        const displayName = e.name || (e.email ? e.email.split('@')[0] : 'User');
+        return `
+            <tr>
+                <td>${rank}</td>
+                <td>${displayName}</td>
+                <td>${e.email}</td>
+                <td><b>${e.points}</b></td>
+                <td>${last}</td>
+            </tr>
+        `;
+    }).join('');
+}
+
+async function loadMyProgress() {
+    const tbody = document.getElementById('myProgressTableBody');
+    if (!tbody) return;
+
+    tbody.innerHTML = '<tr><td colspan="6" style="color:var(--text-secondary);">Loading…</td></tr>';
+    const courses = window.syncSharedCourses ? await window.syncSharedCourses() : JSON.parse(localStorage.getItem('courses') || '[]');
+    const progressMap = await getAllProgressMap();
+
+    const list = Array.isArray(courses) ? courses : [];
+    if (list.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="color:var(--text-secondary);">No courses available.</td></tr>';
+        return;
+    }
+
+    const rows = list
+        .slice()
+        .sort((a, b) => String(a?.type || '').localeCompare(String(b?.type || '')) || String(a?.name || '').localeCompare(String(b?.name || '')))
+        .map(course => {
+            const vid = String(course?.videoId || '').trim();
+            const name = String(course?.name || 'Untitled');
+            const type = String(course?.type || '').toLowerCase();
+            const p = vid ? (progressMap[vid] || {}) : {};
+
+            const assessment = p?.assessment || {};
+            const hasOpened = Boolean(p?.lastOpenedAt || p?.startedAt);
+            const hasAssessment = typeof assessment?.percent === 'number' || typeof assessment?.correct === 'number';
+            const passed = Boolean(assessment?.passed);
+
+            let statusHtml = '';
+            if (passed) statusHtml = '<span class="status-badge good">✓ Passed</span>';
+            else if (hasAssessment) statusHtml = '<span class="status-badge warn">📝 Assessment Taken</span>';
+            else if (hasOpened) statusHtml = '<span class="status-badge">▶ In Progress</span>';
+            else statusHtml = '<span class="status-badge bad">• Not Started</span>';
+
+            const scoreText = hasAssessment
+                ? (typeof assessment.percent === 'number'
+                    ? `${assessment.percent}%`
+                    : `${assessment.correct || 0}/${assessment.questionCount || questionCountForType(type)}`)
+                : '—';
+
+            const lastActivity = p?.lastActivityAt || assessment?.lastAttemptedAt || p?.lastOpenedAt || '';
+            const lastDate = lastActivity ? new Date(lastActivity).toLocaleDateString() : '—';
+
+            const safeName = name.replace(/'/g, "\\'").replace(/\"/g, '&quot;');
+            const safeType = String(type).replace(/'/g, "\\'");
+
+            return `
+                <tr>
+                    <td>${name}</td>
+                    <td>${prettyLevel(type)}</td>
+                    <td>${statusHtml}</td>
+                    <td>${scoreText}</td>
+                    <td>${lastDate}</td>
+                    <td style="text-align:right;">
+                        <button class="btn-secondary" onclick="openCoursePlayer('${vid}', '${safeName}', '${safeType}')">Open</button>
+                        <button class="btn-secondary" onclick="startCatalogAssessment('${vid}', '${safeName}', '${safeType}')">${hasAssessment ? 'Retake' : 'Assessment'}</button>
+                    </td>
+                </tr>
+            `;
+        });
+
+    tbody.innerHTML = rows.join('');
 }
 
 // ===== User Management JS =====
@@ -2607,13 +3281,19 @@ async function loadCoursesView(searchTerm = '') {
         .forEach(course => {
         const card = document.createElement('div');
         card.className = 'course-card';
+        const safeName = String(course.name || '').replace(/'/g, "\\'").replace(/\"/g, '&quot;');
+        const safeType = String(course.type || '').replace(/'/g, "\\'");
         card.innerHTML = `
-            <div onclick="openCoursePlayer('${course.videoId}', '${course.name.replace(/'/g, "\'")}')">
+            <div onclick="openCoursePlayer('${course.videoId}', '${safeName}', '${safeType}')">
                 <img src="https://img.youtube.com/vi/${course.videoId}/hqdefault.jpg" alt="${course.name}" style="width: 100%; height: auto; border-radius:8px; margin-bottom: 10px; display: block;">
             </div>
             <p style="margin:10px 0 5px 0; text-align:center; color:var(--text-main); font-weight:500;">${course.name}</p>
             <small style="color:var(--text-secondary); text-align:center; display:block;">Uploaded: ${course.uploadDate}</small>
             <small style="color:var(--text-secondary); text-align:center; display:block;">Uploaded by: Admin</small>
+            <div style="display:flex; justify-content:center; gap:10px; margin-top:12px;">
+                <button class="btn-secondary" onclick="event.stopPropagation(); openCoursePlayer('${course.videoId}', '${safeName}', '${safeType}')">Open</button>
+                <button class="btn-secondary" onclick="event.stopPropagation(); startCatalogAssessment('${course.videoId}', '${safeName}', '${safeType}')">Assessment</button>
+            </div>
         `;
         const targetSection = sections[course.type];
         if (targetSection) {
@@ -3418,6 +4098,20 @@ window.startVideoAssessment = startVideoAssessment;
 window.resetAssessment = resetAssessment;
 window.loadAssignedCourses = loadAssignedCourses;
 window.updateInitialAssessmentStatus = updateInitialAssessmentStatus;
+
+// My Progress + catalog assessments
+window.loadMyProgress = loadMyProgress;
+window.startCatalogAssessment = startCatalogAssessment;
+window.startCatalogAssessmentFromPlayer = startCatalogAssessmentFromPlayer;
+window.closeCourseAssessment = closeCourseAssessment;
+window.courseAssessmentBackdropClick = courseAssessmentBackdropClick;
+window.catalogAssessmentSelect = catalogAssessmentSelect;
+window.catalogAssessmentNext = catalogAssessmentNext;
+window.catalogAssessmentSubmit = catalogAssessmentSubmit;
+
+// Leadership Board
+window.loadLeaderboard = loadLeaderboard;
+window.updateMyLeaderboardPoints = updateMyLeaderboardPoints;
 window.loadRoles = loadRoles;
 window.resetUserAssessment = resetUserAssessment;
 window.toggleAllRoleChecks = toggleAllRoleChecks;

@@ -192,6 +192,36 @@ export async function getAllAnnouncements() {
     }
 }
 
+// ============ LEADERBOARD ============
+
+export async function upsertLeaderboardEntry(email, entry) {
+    try {
+        const safeEmail = String(email || '').trim();
+        if (!safeEmail) throw new Error('Missing email');
+        const ref = doc(db, 'leaderboard', safeEmail);
+        await setDoc(ref, {
+            email: safeEmail,
+            ...entry,
+            updatedAt: new Date().toISOString()
+        }, { merge: true });
+        return { success: true };
+    } catch (error) {
+        console.error('Error upserting leaderboard entry:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+export async function getLeaderboardEntries() {
+    try {
+        const col = collection(db, 'leaderboard');
+        const snapshot = await getDocs(col);
+        return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    } catch (error) {
+        console.error('Error getting leaderboard entries:', error);
+        return [];
+    }
+}
+
 // ============ MIGRATION from localStorage ============
 
 export async function migrateLocalStorageToFirestore(userEmail) {
