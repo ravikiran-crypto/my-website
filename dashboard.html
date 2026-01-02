@@ -1991,10 +1991,17 @@ async function showInitialResults(score) {
     else if (scoreOutOf10 <= 8) level = 'Intermediate';
     else level = 'Advanced';
 
+    // Persist the results
+    localStorage.setItem('initialAssessmentScore', scoreOutOf10);
+    localStorage.setItem('userLevel', level);
+
     const resultsDiv = document.getElementById('assessmentResults');
     resultsDiv.style.display = 'block';
     document.getElementById('scoreDisplay').textContent = `${scoreOutOf10}/10`;
     document.getElementById('levelDisplay').innerHTML = `Level: <span style="color:var(--primary-blue);">${level}</span>`;
+
+    // Refresh the top status UI
+    updateInitialAssessmentStatus();
 
     // Get video suggestion from Gemini
     await getVideoSuggestion(level, scoreOutOf10);
@@ -2049,35 +2056,31 @@ function assignCourseToUser(videoData, level) {
 }
 
 function updateInitialAssessmentStatus() {
-    const assignedCourses = JSON.parse(localStorage.getItem('assignedCourses') || '[]');
     const initialScore = localStorage.getItem('initialAssessmentScore');
+    const userLevel = localStorage.getItem('userLevel');
     const statusDiv = document.getElementById('initialAssessmentStatus');
     const startBtn = document.getElementById('startAssessmentBtn');
+    const container = document.getElementById('initialAssessmentContainer');
     
     if (!statusDiv || !startBtn) return;
     
-    // If courses are assigned or assessment is completed, hide button and show status
-    if (assignedCourses.length > 0 || initialScore) {
+    if (initialScore) {
+        // Hide the start button and instructions
         startBtn.style.display = 'none';
+        container.querySelector('p').style.display = 'none';
         
-        if (initialScore) {
-            statusDiv.innerHTML = `
-                <div style="padding:20px; background:rgba(76,175,80,0.1); border:1px solid #4CAF50; border-radius:8px; margin-bottom:15px;">
-                    <div style="color:#4CAF50; font-weight:bold; font-size:18px; margin-bottom:10px;">✓ Assessment Completed</div>
-                    <div style="color:var(--text-main); font-size:16px;">Your Score: ${initialScore}</div>
-                    <div style="color:var(--text-secondary); font-size:14px; margin-top:8px;">Courses have been assigned based on your performance</div>
-                </div>
-            `;
-        } else {
-            statusDiv.innerHTML = `
-                <div style="padding:15px; background:rgba(66,133,244,0.1); border:1px solid var(--primary-blue); border-radius:8px; margin-bottom:15px;">
-                    <div style="color:var(--primary-blue); font-weight:bold;">Courses Assigned</div>
-                    <div style="color:var(--text-secondary); font-size:14px; margin-top:5px;">Check your assigned courses below</div>
-                </div>
-            `;
-        }
+        // Show the persistent result card
+        statusDiv.innerHTML = `
+            <div style="padding:25px; background:rgba(66, 133, 244, 0.1); border:2px solid var(--primary-blue); border-radius:12px; max-width:500px; margin: 0 auto;">
+                <h3 style="color:var(--primary-blue); margin-top:0;">Your Gateway Results</h3>
+                <div style="font-size:36px; font-weight:bold; color:var(--text-main); margin:15px 0;">${initialScore}/10</div>
+                <div style="font-size:18px; margin-bottom:10px;">Assigned Level: <span style="color:var(--primary-blue); font-weight:800;">${userLevel}</span></div>
+                <p style="font-size:13px; color:var(--text-secondary); margin-bottom:0;">Assessment locked. Courses below are tailored to this result.</p>
+            </div>
+        `;
     } else {
         startBtn.style.display = 'block';
+        container.querySelector('p').style.display = 'block';
         statusDiv.innerHTML = '';
     }
 }
@@ -2198,18 +2201,24 @@ function openCoursePlayerAndEnableAssessment(courseId, videoId, topic) {
 }
 
 function resetAllAssessments() {
-    if (confirm('Are you sure you want to reset all assessments and assigned courses? This will clear all your progress.')) {
+    if (confirm('Are you sure you want to reset all progress? This will clear your score and assigned courses.')) {
         localStorage.removeItem('assignedCourses');
+        localStorage.removeItem('initialAssessmentScore');
+        localStorage.removeItem('userLevel');
+        localStorage.removeItem('initialAssessmentStarted');
+        localStorage.removeItem('upcomingCourse');
+        
         document.getElementById('assessmentResults').style.display = 'none';
         document.getElementById('assessmentQuizContainer').style.display = 'none';
         document.getElementById('initialAssessmentContainer').style.display = 'block';
+        
         assessmentQuestions = [];
         currentQuestionIndex = 0;
         userAnswers = [];
-        currentAssessmentType = 'initial';
-        currentVideoAssessmentCourse = null;
+        
         loadAssignedCourses();
-        alert('All assessments have been reset. You can start fresh!');
+        updateInitialAssessmentStatus();
+        alert('Profile reset successfully.');
     }
 }
 
