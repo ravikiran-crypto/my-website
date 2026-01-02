@@ -379,6 +379,65 @@
     gap: 10px;
 }
 
+/* About the Hub cards (Home) */
+.home-about {
+    margin-top: 14px;
+}
+
+.home-about-head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.home-about-title {
+    margin: 0;
+    color: var(--primary-blue);
+    font-size: 18px;
+}
+
+.home-about-subtitle {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 13px;
+    line-height: 1.5;
+    max-width: 700px;
+}
+
+.home-about-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+    margin-top: 14px;
+}
+
+.home-about-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 16px;
+}
+
+.home-about-card h3 {
+    margin: 0 0 8px 0;
+    color: var(--text-main);
+    font-size: 15px;
+}
+
+.home-about-card p {
+    margin: 0 0 12px 0;
+    color: var(--text-secondary);
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.home-about-actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
 .news-item, .announcement-item {
     font-size: 14px;
     margin-bottom: 12px;
@@ -577,6 +636,40 @@ body.light-theme .user-badge {
     <main class="main-content">
         <section id="home-view">
             <h1 id="timeGreeting"></h1>
+
+            <div class="home-about">
+                <div class="home-about-head">
+                    <h2 class="home-about-title">About the Hub</h2>
+                    <p class="home-about-subtitle">A single place to learn, track progress, and get help — designed to keep your growth consistent and measurable.</p>
+                </div>
+
+                <div class="home-about-grid">
+                    <div class="home-about-card">
+                        <h3>📚 Courses</h3>
+                        <p>Assigned learning paths with embeddable tutorials so you can start immediately and keep momentum.</p>
+                        <div class="home-about-actions">
+                            <button class="btn-secondary" onclick="switchTab('courses-view', null)">Go to Courses</button>
+                        </div>
+                    </div>
+
+                    <div class="home-about-card">
+                        <h3>📊 Measure &amp; Master</h3>
+                        <p>Track your understanding, practice consistently, and reinforce key concepts through structured progress.</p>
+                        <div class="home-about-actions">
+                            <button class="btn-secondary" onclick="switchTab('measure-master-view', null)">Go to Measure &amp; Master</button>
+                        </div>
+                    </div>
+
+                    <div class="home-about-card">
+                        <h3>🤖 Hub Bot</h3>
+                        <p>Your assistant for course summaries, troubleshooting, and practice plans — with chat history to continue where you left off.</p>
+                        <div class="home-about-actions">
+                            <button class="btn-secondary" onclick="switchTab('hub-bot-view', null)">Go to Hub Bot</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="home-grid">
                 <div class="home-card">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
@@ -983,8 +1076,9 @@ async function checkUrlAccessible(url) {
         if (!resp.ok) return { ok: false, status: resp.status };
         return await resp.json();
     } catch (_) {
-        // If the validator endpoint is unreachable (e.g., server not running), don't block showing news.
-        return { ok: null, skipped: true };
+        // If the validator endpoint is unreachable, treat as NOT accessible.
+        // This prevents users being sent to 404/error pages (hallucinated links).
+        return { ok: false, reason: 'validator_unreachable' };
     }
 }
 
@@ -1042,11 +1136,6 @@ async function filterAccessibleItems(items, urlField = 'url') {
         if (isLikelyHomepage(url)) continue;
         const check = await checkUrlAccessible(url);
         const finalUrl = (check && check.finalUrl) ? String(check.finalUrl) : url;
-        // If validator is unavailable, allow non-placeholder, non-paywalled links so users still see news.
-        if (check && check.ok === null && check.skipped) {
-            filtered.push({ ...item, [urlField]: url });
-            continue;
-        }
         if (check && check.ok && !isPlaceholderOrBadUrl(finalUrl) && !isBlockedNewsDomain(finalUrl)) {
             filtered.push({ ...item, [urlField]: finalUrl });
         }
@@ -1378,7 +1467,11 @@ function switchTab(viewId, element) {
     document.querySelectorAll('.sidebar-item').forEach(item => {
         item.classList.remove('active');
     });
-    element.classList.add('active');
+
+    const safeElement = element || document.querySelector(`.sidebar-item[onclick*="'${viewId}'"]`);
+    if (safeElement) {
+        safeElement.classList.add('active');
+    }
     // Load content if needed
     if (viewId === 'courses-view') {
         loadCoursesView();

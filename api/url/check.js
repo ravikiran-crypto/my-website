@@ -25,6 +25,24 @@ export default async function handler(req, res) {
     return false;
   };
 
+  const looksLikeSoft404 = (htmlSnippet) => {
+    if (!htmlSnippet) return false;
+    const s = String(htmlSnippet).toLowerCase();
+    const patterns = [
+      'page not found',
+      'error 404',
+      '404 not found',
+      'the page you are looking for',
+      'does not exist',
+      'this blog post does not exist',
+      "we can't find the page",
+      "we can’t find the page",
+      '>404<',
+      'status code 404',
+    ];
+    return patterns.some((p) => s.includes(p));
+  };
+
   try {
     const url = String(req.query.url || '').trim();
     if (!url) {
@@ -56,31 +74,48 @@ export default async function handler(req, res) {
       return;
     }
 
-    let resp = await fetch(parsed.toString(), {
-      method: 'HEAD',
-      redirect: 'follow',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; OneOriginHub/1.0)',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      },
-    });
-
-    if (!resp.ok || resp.status === 405) {
-      resp = await fetch(parsed.toString(), {
-        method: 'GET',
+    // Probe with HEAD (optional), but always do a small GET to detect soft-404 pages.
+    let headResp;
+    try {
+      headResp = await fetch(parsed.toString(), {
+        method: 'HEAD',
         redirect: 'follow',
         headers: {
           'User-Agent': 'Mozilla/5.0 (compatible; OneOriginHub/1.0)',
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'Range': 'bytes=0-2048',
         },
       });
+    } catch (_) {
+      headResp = null;
     }
 
-    const contentType = resp.headers.get('content-type') || '';
-    const ok = resp.status >= 200 && resp.status < 400 && /text\/html|application\/xhtml\+xml/i.test(contentType);
+    const resp = await fetch(parsed.toString(), {
+      method: 'GET',
+      redirect: 'follow',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; OneOriginHub/1.0)',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Range': 'bytes=0-4095',
+      },
+    });
 
-    res.status(200).json({ ok, status: resp.status, contentType, finalUrl: resp.url });
+    const contentType = resp.headers.get('content-type') || '';
+    const statusOk = resp.status >= 200 && resp.status < 400;
+    const isHtml = /text\/html|application\/xhtml\+xml/i.test(contentType);
+
+    let snippet = '';
+    if (statusOk && isHtml) {
+      try {
+        snippet = await resp.text();
+      } catch (_) {
+        snippet = '';
+      }
+    }
+
+    const ok = statusOk && isHtml && !looksLikeSoft404(snippet);
+    const reason = ok ? undefined : (!statusOk ? 'http_status' : (!isHtml ? 'non_html' : 'soft_404'));
+
+    res.status(200).json({ ok, status: resp.status, contentType, finalUrl: resp.url, reason, headStatus: headResp?.status });
   } catch (error) {
     res.status(500).json({ ok: false, reason: error?.message || 'Unknown error' });
   }
