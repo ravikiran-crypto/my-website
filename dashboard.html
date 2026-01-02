@@ -584,6 +584,10 @@ body.light-theme .user-badge {
                         <button id="adminRefreshNewsBtn" onclick="forceRefreshNews()" style="background:#111; color:white; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:bold;">🔄 Refresh News</button>
                     </div>
                     <div id="news-container"></div>
+                    <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border-color);">
+                        <h3 style="margin: 0 0 8px; color: var(--primary-blue); font-size: 14px;">🚀 AI Updates (Last 24 Hours)</h3>
+                        <div id="ai-updates-container"></div>
+                    </div>
                 </div>
                 <div class="home-card">
                     <h2>📢 Announcements</h2>
@@ -926,6 +930,53 @@ function displayNews(newsArray) {
     `).join('');
 }
 
+function displayAIUpdates(items) {
+    const container = document.getElementById('ai-updates-container');
+    if (!container) return;
+
+    if (!Array.isArray(items) || items.length === 0) {
+        container.innerHTML = '<div class="news-item" style="color:var(--text-secondary);">No updates found.</div>';
+        return;
+    }
+
+    container.innerHTML = items.map(item => `
+        <div class="news-item">
+            <span class="item-date" style="color: var(--primary-blue); font-size: 11px; font-weight: bold;">${item.date}</span>
+            <div style="font-weight: 700; margin: 4px 0; color: var(--text-main); font-size: 14px;">${item.title}</div>
+            <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.5; margin-bottom: 10px;">
+                ${item.summary}
+            </div>
+            <a href="${item.url}" target="_blank" rel="noopener noreferrer" style="color: var(--primary-blue); font-size: 13px; text-decoration: none; font-weight: bold; display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; background: rgba(66,133,244,0.1); border-radius: 6px; border: 1px solid var(--primary-blue); transition: all 0.2s;">
+                🔗 Open Update →
+            </a>
+        </div>
+    `).join('');
+}
+
+async function checkUrlAccessible(url) {
+    try {
+        const resp = await fetch(`/api/url/check?url=${encodeURIComponent(url)}`);
+        if (!resp.ok) return { ok: false };
+        return await resp.json();
+    } catch (_) {
+        return { ok: false };
+    }
+}
+
+async function filterAccessibleItems(items, urlField = 'url') {
+    if (!Array.isArray(items)) return [];
+    const filtered = [];
+    for (const item of items) {
+        const url = (item && item[urlField]) ? String(item[urlField]).trim() : '';
+        if (!url) continue;
+        const check = await checkUrlAccessible(url);
+        if (check && check.ok) {
+            filtered.push({ ...item, [urlField]: check.finalUrl || url });
+        }
+    }
+    return filtered;
+}
+
 async function fetchAINews() {
     const CACHE_KEY = 'aiNews';
     const TIMESTAMP_KEY = 'aiNewsTimestamp';
@@ -965,7 +1016,7 @@ CRITICAL REQUIREMENTS:
 1. Articles MUST be from the LAST 24 HOURS ONLY (today or yesterday)
 2. Sources MUST be reputable: TechCrunch, VentureBeat, The Verge, Wired, MIT Technology Review, Reuters Tech, Bloomberg Technology, or similar major tech news sites
 3. The "url" field MUST be the COMPLETE, DIRECT URL to the specific article page (not homepage)
-4. URLs must be real, working links that users can click and read the full article
+4. URLs must be real, working links that users can click and read the full article WITHOUT login/paywall
 5. Focus on TOP/TRENDING AI news stories only
 6. Each article must have the actual publication date in "MMM D, YYYY" format
 7. Summary should be 2-3 sentences about what the article covers
@@ -983,7 +1034,10 @@ Return ONLY a valid JSON array with NO markdown formatting:
         const jsonMatch = cleanJson.match(/\[\s*\{[\s\S]*\}\s*\]/);
         if (jsonMatch) cleanJson = jsonMatch[0];
         
-        const newsArray = JSON.parse(cleanJson);
+        const rawNewsArray = JSON.parse(cleanJson);
+
+        // Validate links via server so we don't show broken/blank articles
+        const newsArray = await filterAccessibleItems(rawNewsArray, 'url');
 
         // Validate that we got proper news data
         if (Array.isArray(newsArray) && newsArray.length > 0) {
@@ -1010,6 +1064,76 @@ Return ONLY a valid JSON array with NO markdown formatting:
         } else {
             newsContainer.innerHTML = `<div class="news-item" style="color:#f85149;">⚠️ Error loading news: ${error.message}<br><small>No cached news available.</small></div>`;
         }
+    }
+}
+
+async function fetchAIUpdates() {
+    const CACHE_KEY = 'aiUpdates';
+    const TIMESTAMP_KEY = 'aiUpdatesTimestamp';
+    const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
+    const now = Date.now();
+    const container = document.getElementById('ai-updates-container');
+    if (!container) return;
+
+    const cached = localStorage.getItem(CACHE_KEY);
+    const ts = localStorage.getItem(TIMESTAMP_KEY);
+    if (cached && ts) {
+        const age = now - parseInt(ts, 10);
+        if (!Number.isNaN(age) && age < CACHE_DURATION) {
+            try {
+                displayAIUpdates(JSON.parse(cached));
+                return;
+            } catch (_) {}
+        }
+    }
+
+    container.innerHTML = '<div class="news-item">Fetching AI updates...</div>';
+
+    try {
+        const data = await callGeminiAPI(
+            `Use Google Search to find exactly 8 REAL AI updates from TODAY (January 2, 2026) or the LAST 24 HOURS ONLY.
+
+These are NOT general news headlines—focus on releases/updates such as:
+- New AI model releases or updates (OpenAI, Google, Anthropic, Meta, etc.)
+- Framework/library releases (PyTorch, TensorFlow, Transformers, LangChain, etc.)
+- Product feature launches (Copilots, assistants, API updates)
+- Security/patch releases related to AI tooling
+
+CRITICAL REQUIREMENTS:
+1. Items MUST be from the last 24 hours only
+2. Provide DIRECT, WORKING URLs (no homepages)
+3. Avoid paywalls/login-only links
+4. Each item must have a date "MMM D, YYYY"
+5. Summary must be 1-2 sentences describing what changed/released
+
+Return ONLY a valid JSON array with NO markdown:
+[{"date":"Jan 2, 2026","title":"Release title","summary":"What changed","url":"https://direct-url"}]`,
+            'gemini-2.0-flash-exp'
+        );
+        if (data.error) throw new Error(data.error.message);
+
+        let textResponse = data.candidates[0].content.parts[0].text;
+        let cleanJson = textResponse.trim().replace(/```json\s*|```/g, '');
+        const jsonMatch = cleanJson.match(/\[\s*\{[\s\S]*\}\s*\]/);
+        if (jsonMatch) cleanJson = jsonMatch[0];
+
+        const raw = JSON.parse(cleanJson);
+        const filtered = await filterAccessibleItems(raw, 'url');
+
+        localStorage.setItem(CACHE_KEY, JSON.stringify(filtered));
+        localStorage.setItem(TIMESTAMP_KEY, now.toString());
+        displayAIUpdates(filtered);
+    } catch (error) {
+        console.error('AI Updates fetch error:', error);
+        const cached = localStorage.getItem(CACHE_KEY);
+        if (cached) {
+            try {
+                displayAIUpdates(JSON.parse(cached));
+                container.innerHTML += '<div class="news-item" style="color:#f85149; font-size:12px; margin-top:10px;">⚠️ Showing cached updates due to API error.</div>';
+                return;
+            } catch (_) {}
+        }
+        container.innerHTML = `<div class="news-item" style="color:#f85149;">⚠️ Error loading updates: ${error.message}</div>`;
     }
 }
 
@@ -1230,6 +1354,7 @@ window.onload = async () => {
 
     // Fetch AI News
     fetchAINews();
+    fetchAIUpdates();
 
     // Load saved theme
     const savedTheme = localStorage.getItem('hubTheme') || 'dark';
@@ -2210,8 +2335,11 @@ function forceRefreshNews() {
         // Clear the cache
         localStorage.removeItem('aiNews');
         localStorage.removeItem('aiNewsTimestamp');
+        localStorage.removeItem('aiUpdates');
+        localStorage.removeItem('aiUpdatesTimestamp');
         // Fetch fresh news
         fetchAINews();
+        fetchAIUpdates();
         alert('News refreshed successfully! All users will see the updated news.');
     }
 }
@@ -2360,17 +2488,30 @@ async function getVideoSuggestion(level, score) {
 
     console.log('Getting video suggestion for level:', level);
 
+    async function checkYouTubeVideo(videoId) {
+        try {
+            const resp = await fetch(`/api/youtube/check?videoId=${encodeURIComponent(videoId)}`);
+            if (!resp.ok) return { ok: false, reason: `HTTP ${resp.status}` };
+            return await resp.json();
+        } catch (e) {
+            return { ok: false, reason: e && e.message ? e.message : 'Network error' };
+        }
+    }
+
     // Directly fetch from YouTube using AI with Google Search grounding
-    const prompt = `Use Google Search to find ONE REAL, PUBLICLY AVAILABLE, EMBEDDABLE YouTube tutorial video for a ${level} level learner.
+    function buildPrompt(extraConstraints = '') {
+        return `Use Google Search to find ONE REAL, PUBLICLY AVAILABLE, EMBEDDABLE YouTube tutorial video for a ${level} level learner.
 
 CRITICAL REQUIREMENTS:
 1. Video MUST be from verified educational channels: freeCodeCamp, Traversy Media, Programming with Mosh, Academind, The Net Ninja, Web Dev Simplified, or Fireship
-2. Video MUST be PUBLIC and EMBEDDABLE (not private, unlisted, or embed-disabled)
+2. Video MUST be PUBLIC and EMBEDDABLE (playable in YouTube embed iframe; not private, unlisted, age-restricted, region-blocked, or embed-disabled)
 3. Video MUST be a FULL TUTORIAL (not a trailer, promo, or unavailable video)
 4. Verify the video ID is correct - test URL: https://www.youtube.com/watch?v={videoId}
 5. Extract ONLY the 11-character YouTube video ID (e.g., "dQw4w9WgXcQ")
 6. Video should be for ${level === 'Beginner' ? 'beginners with no prior experience' : level === 'Intermediate' ? 'intermediate learners with basic knowledge' : 'advanced developers'}
 7. Topics: Web Development (HTML/CSS/JavaScript/React), Python, AI/ML, or general programming
+
+${extraConstraints}
 
 Return ONLY valid JSON (no markdown):
 {
@@ -2381,37 +2522,60 @@ Return ONLY valid JSON (no markdown):
 }
 
 DO NOT return videos that show gray thumbnails or have embedding disabled.`;
+    }
 
     try {
-        const data = await callGeminiAPI(prompt, 'gemini-2.0-flash-exp');
-        if (data.error) throw new Error(data.error.message);
-        
-        let textResponse = data.candidates[0].content.parts[0].text;
-        let cleanJson = textResponse.replace(/```json|```/g, "").trim();
-        
-        // Extract JSON from response
-        const jsonMatch = cleanJson.match(/\{[\s\S]*\}/);
-        if (jsonMatch) cleanJson = jsonMatch[0];
-        
-        const videoData = JSON.parse(cleanJson);
-        console.log('AI suggested course:', videoData);
-        
-        // Validate the response has required fields
-        if (!videoData.videoId || !videoData.topic) {
-            throw new Error('Invalid course data received from AI');
+        let lastReject = '';
+        let selected = null;
+
+        for (let attempt = 1; attempt <= 3; attempt++) {
+            container.innerHTML = `<p style="color:var(--text-secondary);">🔍 Searching YouTube for verified courses... (attempt ${attempt}/3)</p>`;
+
+            const extra = lastReject
+                ? `IMPORTANT: The previous candidate was rejected because: ${lastReject}. Pick a DIFFERENT video that is playable in embed.`
+                : `IMPORTANT: Prefer long-form tutorials (20+ minutes) from the listed channels.`;
+
+            const data = await callGeminiAPI(buildPrompt(extra), 'gemini-2.0-flash-exp');
+            if (data.error) throw new Error(data.error.message);
+
+            let textResponse = data.candidates[0].content.parts[0].text;
+            let cleanJson = textResponse.replace(/```json|```/g, "").trim();
+            const jsonMatch = cleanJson.match(/\{[\s\S]*\}/);
+            if (jsonMatch) cleanJson = jsonMatch[0];
+
+            const videoData = JSON.parse(cleanJson);
+            console.log('AI suggested course:', videoData);
+
+            if (!videoData.videoId || !videoData.topic) {
+                lastReject = 'missing videoId/topic';
+                continue;
+            }
+            if (String(videoData.videoId).length !== 11) {
+                lastReject = `invalid videoId format (${videoData.videoId})`;
+                continue;
+            }
+
+            const check = await checkYouTubeVideo(videoData.videoId);
+            if (!check.ok) {
+                lastReject = check.reason || check.status || 'video unavailable/unembeddable';
+                continue;
+            }
+
+            // Use verified title from check if available
+            if (check.title && !videoData.topic) videoData.topic = check.title;
+            selected = videoData;
+            break;
         }
-        
-        // Validate video ID format (should be 11 characters)
-        if (videoData.videoId.length !== 11) {
-            console.warn('Invalid video ID length:', videoData.videoId);
-            throw new Error('Invalid YouTube video ID format');
+
+        if (!selected) {
+            throw new Error('Could not find an embeddable YouTube tutorial after multiple attempts.');
         }
-        
-        assignCourseToUser(videoData, level);
+
+        assignCourseToUser(selected, level);
         container.innerHTML = `
             <div style="background:rgba(76,175,80,0.1); padding:15px; border-radius:8px; border:1px solid #4CAF50;">
                 <p style="color:#4CAF50; font-weight:bold; margin-bottom:10px;">✓ YouTube Course Assigned!</p>
-                <p style="color:var(--text-main);">The course <strong>${videoData.topic}</strong> has been assigned.</p>
+                <p style="color:var(--text-main);">The course <strong>${selected.topic}</strong> has been assigned.</p>
                 <p style="color:var(--text-secondary); font-size:12px; margin-top:8px;">📌 Scroll down to "My Assigned Courses" section to start learning</p>
             </div>
         `;
