@@ -675,6 +675,7 @@ body.light-theme .user-badge {
                         <th>Email ID</th>
                         <th>Role</th>
                         <th>Last active date&time</th>
+                        <th>Reset Assessment</th>
                         <th>Delete</th>
                     </tr>
                 </thead>
@@ -1155,6 +1156,23 @@ window.onload = () => {
     } else if (existingUserIndex !== -1) {
         // Update last active time and sync role
         users[existingUserIndex].lastActive = new Date().toLocaleString();
+        
+        // Check if user has reset assessment flag
+        if (users[existingUserIndex].resetAssessmentFlag === true) {
+            // Clear assessment data
+            localStorage.removeItem('initialAssessmentScore');
+            localStorage.removeItem('userLevel');
+            localStorage.removeItem('initialAssessmentStarted');
+            localStorage.setItem('assignedCourses', '[]');
+            localStorage.removeItem('upcomingCourse');
+            
+            // Remove the reset flag
+            delete users[existingUserIndex].resetAssessmentFlag;
+            localStorage.setItem('users', JSON.stringify(users));
+            
+            console.log('Assessment data cleared for user:', userEmail);
+        }
+        
         localStorage.setItem('users', JSON.stringify(users));
         // Sync the user's role from the users array
         localStorage.setItem('userRole', users[existingUserIndex].role || 'User');
@@ -1615,7 +1633,7 @@ function loadRoles() {
     if (users.length === 0) {
         const row = tbody.insertRow();
         const cell = row.insertCell(0);
-        cell.colSpan = 7;
+        cell.colSpan = 8;
         cell.style.color = 'var(--text-secondary)';
         cell.style.textAlign = 'center';
         cell.innerText = 'No users found. Users will be automatically registered when they log in.';
@@ -1649,7 +1667,10 @@ function loadRoles() {
         
         row.insertCell(5).innerText = u.lastActive || '';
         
-        const deleteCell = row.insertCell(6);
+        const resetCell = row.insertCell(6);
+        resetCell.innerHTML = '<button style="background:#f0ad4e; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer; font-weight:bold;" onclick="resetUserAssessment(\'' + (u.email || '') + '\')" title="Reset this user\'s assessment and assigned courses">🔄 Reset</button>';
+        
+        const deleteCell = row.insertCell(7);
         if (isSuperadmin) {
             deleteCell.innerHTML = '<div style="padding:5px 10px; color:var(--text-secondary); font-size:12px; text-align:center;">Protected</div>';
         } else {
@@ -1725,6 +1746,64 @@ function toggleSelectAllRoles(master) {
 function toggleAllRoleChecks(isChecked) {
     const checks = document.querySelectorAll('.role-row-check');
     checks.forEach(c => c.checked = isChecked);
+}
+
+function resetUserAssessment(userEmail) {
+    if (!userEmail) {
+        alert('Invalid user email');
+        return;
+    }
+    
+    const users = JSON.parse(localStorage.getItem('users') || '[]');
+    const user = users.find(u => u.email && u.email.toLowerCase() === userEmail.toLowerCase());
+    
+    if (!user) {
+        alert('User not found');
+        return;
+    }
+    
+    const confirmMsg = `Reset assessment for ${user.name}?
+
+This will:
+✓ Clear their initial assessment score and level
+✓ Remove all assigned courses
+✓ Allow them to retake the assessment
+
+Are you sure?`;
+    
+    if (!confirm(confirmMsg)) return;
+    
+    // Check if this is the current user
+    const currentUserEmail = localStorage.getItem('userEmail') || '';
+    const isCurrentUser = currentUserEmail.toLowerCase() === userEmail.toLowerCase();
+    
+    if (isCurrentUser) {
+        // Reset current user's data in localStorage
+        localStorage.removeItem('initialAssessmentScore');
+        localStorage.removeItem('userLevel');
+        localStorage.removeItem('initialAssessmentStarted');
+        localStorage.setItem('assignedCourses', '[]');
+        localStorage.removeItem('upcomingCourse');
+        
+        alert(`Assessment reset successfully for ${user.name}!\n\nYou will need to refresh the page to retake the assessment.`);
+        
+        // Refresh the page for current user
+        setTimeout(() => {
+            window.location.reload();
+        }, 1500);
+    } else {
+        // For other users, we need to clear their data when they next log in
+        // Store a flag in their user object
+        const userIndex = users.findIndex(u => u.email && u.email.toLowerCase() === userEmail.toLowerCase());
+        if (userIndex !== -1) {
+            users[userIndex].resetAssessmentFlag = true;
+            localStorage.setItem('users', JSON.stringify(users));
+        }
+        
+        alert(`Assessment reset flag set for ${user.name}!\n\nTheir assessment data will be cleared when they next log in.`);
+    }
+    
+    console.log('Assessment reset for user:', userEmail);
 }
 
 function handleRoleCSVUpload(event) {
@@ -2556,6 +2635,8 @@ window.resetAssessment = resetAssessment;
 window.loadAssignedCourses = loadAssignedCourses;
 window.updateInitialAssessmentStatus = updateInitialAssessmentStatus;
 window.loadRoles = loadRoles;
+window.resetUserAssessment = resetUserAssessment;
+window.toggleAllRoleChecks = toggleAllRoleChecks;
 
 </script>
 
