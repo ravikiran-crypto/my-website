@@ -2709,13 +2709,20 @@ async function loadLeaderboard() {
         };
     }).sort((a, b) => (b.points - a.points) || a.email.localeCompare(b.email));
 
-    tbody.innerHTML = merged.map((e, idx) => {
-        const rank = idx + 1; // ascending rank numbers
+    // Dense ranking: same points => same rank number
+    let currentRank = 0;
+    let lastPoints = null;
+    tbody.innerHTML = merged.map((e) => {
+        if (lastPoints === null || e.points !== lastPoints) {
+            currentRank += 1;
+            lastPoints = e.points;
+        }
+
         const last = e.updatedAt ? new Date(e.updatedAt).toLocaleDateString() : '—';
         const displayName = e.name || (e.email ? e.email.split('@')[0] : 'User');
         return `
             <tr>
-                <td>${rank}</td>
+                <td>${currentRank}</td>
                 <td>${displayName}</td>
                 <td>${e.email}</td>
                 <td><b>${e.points}</b></td>
