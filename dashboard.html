@@ -398,12 +398,39 @@
     font-size: 18px;
 }
 
+.home-about-hero {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    padding: 18px;
+}
+
 .home-about-subtitle {
     margin: 0;
     color: var(--text-secondary);
     font-size: 13px;
     line-height: 1.5;
     max-width: 980px;
+}
+
+.home-about-highlights {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.home-about-pill {
+    border: 1px solid var(--border-color);
+    background: rgba(255,255,255,0.03);
+    border-radius: 999px;
+    padding: 8px 12px;
+    font-size: 12px;
+    color: var(--text-main);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
 }
 
 .home-about-grid {
@@ -659,9 +686,17 @@ body.light-theme .user-badge {
             <h1 id="timeGreeting"></h1>
 
             <div class="home-about">
-                <div class="home-about-head">
-                    <h2 class="home-about-title">About the Hub</h2>
-                    <p class="home-about-subtitle">A single place to learn, track progress, and get help — designed to keep your growth consistent and measurable. Courses are assigned and validated so they stay playable (with safe fallbacks when embeds fail), your learning data stays consistent across devices using shared storage, and Hub Bot can continue conversations with saved chat history so you can pick up where you left off.</p>
+                <div class="home-about-hero">
+                    <div class="home-about-head">
+                        <h2 class="home-about-title">About the Hub</h2>
+                        <p class="home-about-subtitle">A single place to learn, track progress, and get help — designed to keep your growth consistent and measurable. Courses are assigned and validated so they stay playable (with safe fallbacks when embeds fail), your learning data stays consistent across devices using shared storage, and Hub Bot can continue conversations with saved chat history so you can pick up where you left off.</p>
+                    </div>
+
+                    <div class="home-about-highlights">
+                        <div class="home-about-pill">✅ Playable tutorials</div>
+                        <div class="home-about-pill">🔄 Shared progress</div>
+                        <div class="home-about-pill">🧠 Chat continuity</div>
+                    </div>
                 </div>
 
                 <div class="home-about-grid">
