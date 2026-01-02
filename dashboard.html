@@ -433,6 +433,27 @@
     line-height: 1.6;
 }
 
+.home-about-kicker {
+    margin: 0 0 6px 0;
+    font-size: 12px;
+    color: var(--text-main);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    opacity: 0.9;
+}
+
+.home-about-list {
+    margin: 0 0 12px 18px;
+    padding: 0;
+    color: var(--text-secondary);
+    font-size: 13px;
+    line-height: 1.7;
+}
+
+.home-about-list li {
+    margin: 4px 0;
+}
+
 .home-about-actions {
     display: flex;
     justify-content: flex-end;
@@ -640,13 +661,24 @@ body.light-theme .user-badge {
             <div class="home-about">
                 <div class="home-about-head">
                     <h2 class="home-about-title">About the Hub</h2>
-                    <p class="home-about-subtitle">A single place to learn, track progress, and get help — designed to keep your growth consistent and measurable.</p>
+                    <p class="home-about-subtitle">A single place to learn, track progress, and get help — designed to keep your growth consistent and measurable. Courses are assigned and validated so they are playable, progress is tracked across devices, and Hub Bot can continue conversations with chat history.</p>
                 </div>
 
                 <div class="home-about-grid">
                     <div class="home-about-card">
                         <h3>📚 Courses</h3>
-                        <p>Assigned learning paths with embeddable tutorials so you can start immediately and keep momentum.</p>
+                        <p>Start learning with assigned tutorials that are validated to be playable and easy to continue across devices.</p>
+                        <div class="home-about-kicker">How it works</div>
+                        <ul class="home-about-list">
+                            <li>You get courses assigned by your Admin (or automatically from curated sources).</li>
+                            <li>Assignments prefer embeddable videos; if a video can’t be embedded, the Hub provides a safe fallback and “Watch on YouTube”.</li>
+                            <li>Your assigned course list is stored in shared storage so it remains consistent after refresh or on another device.</li>
+                        </ul>
+                        <div class="home-about-kicker">What you can do</div>
+                        <ul class="home-about-list">
+                            <li>Open a course, watch it in the Hub, and continue where you left off.</li>
+                            <li>Stay aligned to your learning path with minimal friction.</li>
+                        </ul>
                         <div class="home-about-actions">
                             <button class="btn-secondary" onclick="switchTab('courses-view', null)">Go to Courses</button>
                         </div>
@@ -654,7 +686,18 @@ body.light-theme .user-badge {
 
                     <div class="home-about-card">
                         <h3>📊 Measure &amp; Master</h3>
-                        <p>Track your understanding, practice consistently, and reinforce key concepts through structured progress.</p>
+                        <p>Turn learning into measurable progress by practicing consistently and tracking your mastery.</p>
+                        <div class="home-about-kicker">How it works</div>
+                        <ul class="home-about-list">
+                            <li>Use structured checkpoints to measure understanding and identify gaps.</li>
+                            <li>Follow a repeatable practice rhythm (review → apply → reinforce).</li>
+                            <li>Focus on strengthening weak areas before moving to advanced topics.</li>
+                        </ul>
+                        <div class="home-about-kicker">What you can do</div>
+                        <ul class="home-about-list">
+                            <li>Build a practice plan and keep your learning on track.</li>
+                            <li>Improve retention with intentional repetition.</li>
+                        </ul>
                         <div class="home-about-actions">
                             <button class="btn-secondary" onclick="switchTab('measure-master-view', null)">Go to Measure &amp; Master</button>
                         </div>
@@ -662,7 +705,18 @@ body.light-theme .user-badge {
 
                     <div class="home-about-card">
                         <h3>🤖 Hub Bot</h3>
-                        <p>Your assistant for course summaries, troubleshooting, and practice plans — with chat history to continue where you left off.</p>
+                        <p>Your AI assistant for learning support: summaries, troubleshooting, and next-step guidance — with chat history for continuity.</p>
+                        <div class="home-about-kicker">How it works</div>
+                        <ul class="home-about-list">
+                            <li>Ask questions and Hub Bot responds with context from your ongoing conversation.</li>
+                            <li>Chat sessions are saved so you can revisit prior topics from the “Chat history” list.</li>
+                            <li>Use quick prompts to generate summaries, flashcards, practice plans, and debug help faster.</li>
+                        </ul>
+                        <div class="home-about-kicker">What you can do</div>
+                        <ul class="home-about-list">
+                            <li>Get explanations for errors and step-by-step troubleshooting.</li>
+                            <li>Create practice plans that match your current course work.</li>
+                        </ul>
                         <div class="home-about-actions">
                             <button class="btn-secondary" onclick="switchTab('hub-bot-view', null)">Go to Hub Bot</button>
                         </div>
