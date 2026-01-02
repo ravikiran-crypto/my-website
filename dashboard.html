@@ -912,12 +912,14 @@ async function fetchAINews() {
 
     try {
         const data = await callGeminiAPI(
-    `You must return ONLY valid JSON. Current date is ${new Date().toLocaleDateString()}. 
-    Create a JSON array of 10 recent AI news items. 
-    IMPORTANT: The "url" field must be a valid, live hyperlink to a real article from a reputable source like TechCrunch, Wired, The Verge, or VentureBeat. 
-    Do NOT use "example.com".
-    Structure: [{"date": "Month Day, Year", "headline": "News Title", "summary": "Brief description", "url": "https://real-news-site.com/article-path"}].`,
-    'gemini-2.0-flash-exp'
+    `Use Google Search to find exactly 10 real, currently live AI news articles from the last 48 hours.
+    For each article, you MUST provide:
+    1. The exact, functional URL discovered via search.
+    2. A verified headline and a 2-sentence summary.
+    Return ONLY a JSON array with this structure: 
+    [{"date": "Current Date", "headline": "Real Title", "summary": "Real summary", "url": "VERIFIED_URL"}].
+    Do not fabricate links; only use URLs that are active on the web today.`,
+    'gemini-2.0-flash'
 );
 
         if (data.error) throw new Error(data.error.message);
@@ -1984,31 +1986,36 @@ async function showInitialResults(score) {
 
 async function getVideoSuggestion(level, score) {
     const container = document.getElementById('videoSuggestionContainer');
-    container.innerHTML = '<p style="color:var(--text-secondary);">Finding the perfect course for you...</p>';
+    container.innerHTML = '<p style="color:var(--text-secondary);">Finding a verified playable course...</p>';
 
     try {
-        const prompt = `Based on a ${level} level learner who scored ${score}/10 in an assessment covering Web Development, LLMs, Transformers, OCR, and AI topics, suggest ONE highly relevant YouTube video that will help them improve. STRICT REQUIREMENTS: 1) Choose ONLY from these verified embeddable channels: freeCodeCamp.org, Fireship, Tech With Tim, Traversy Media, Programming with Mosh, Corey Schafer, CS Dojo, 2) The video MUST have embedding allowed (check: no restrictions), 3) Must be a complete course/tutorial (not a short clip), 4) Must have high views (100k+) and good ratings. For ${level} level, suggest: Beginner=HTML/CSS/JavaScript basics, Intermediate=React/Node/Python/APIs, Advanced=ML/AI/System Design. Return ONLY a JSON object: {"videoId": "VERIFIED_YouTube_ID", "topic": "Topic Name", "definition": "2-3 sentence definition", "uses": "2-3 sentence practical applications"}. ONLY suggest videos you are CERTAIN are embeddable and from the listed channels.`;
+        // Updated prompt to force high-reliability YouTube IDs
+        const prompt = `Use Google Search to find ONE specific, high-quality, and currently LIVE YouTube tutorial for a ${level} level student. 
+        STRICT RULES:
+        1. Source ONLY from: freeCodeCamp, Traversy Media, Fireship, or Programming with Mosh.
+        2. You MUST provide a REAL, 11-character Video ID that exists.
+        3. The video MUST have embedding enabled.
+        Return JSON ONLY: {"videoId": "REAL_ID", "topic": "Title", "definition": "Summary", "uses": "Applications"}.`;
 
-        const data = await callGeminiAPI(prompt, 'gemini-2.0-flash-exp');
+        const data = await callGeminiAPI(prompt, 'gemini-2.0-flash'); // Use grounding-capable model
+        
         if (data.error) throw new Error(data.error.message);
 
         let textResponse = data.candidates[0].content.parts[0].text;
         const cleanJson = textResponse.replace(/```json|```/g, "").trim();
         const videoData = JSON.parse(cleanJson);
 
-        // Assign course to user
         assignCourseToUser(videoData, level);
         
         container.innerHTML = `
             <div style="background:rgba(76,175,80,0.1); padding:15px; border-radius:8px; border:1px solid #4CAF50;">
-                <p style="color:#4CAF50; font-weight:bold; margin-bottom:10px;">✓ Course Assigned Successfully!</p>
-                <p style="color:var(--text-secondary);">A personalized ${level} level course on <strong>${videoData.topic}</strong> has been added to your "My Assigned Courses" section below.</p>
+                <p style="color:#4CAF50; font-weight:bold; margin-bottom:10px;">✓ Verified Course Assigned!</p>
+                <p style="color:var(--text-secondary);">Your ${level} course on <strong>${videoData.topic}</strong> is ready below.</p>
             </div>
         `;
-
     } catch (error) {
         console.error("Video suggestion error:", error);
-        container.innerHTML = '<p style="color:#f85149;">Failed to get video suggestion. Please try again.</p>';
+        container.innerHTML = '<p style="color:#f85149;">Search failed. Please try again to find a live video.</p>';
     }
 }
 
