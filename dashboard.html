@@ -963,15 +963,29 @@ async function checkUrlAccessible(url) {
     }
 }
 
+function isPlaceholderOrBadUrl(url) {
+    try {
+        const u = new URL(url);
+        const host = (u.hostname || '').toLowerCase();
+        if (!host) return true;
+        if (host === 'example.com' || host === 'example.org' || host === 'example.net') return true;
+        return false;
+    } catch (_) {
+        return true;
+    }
+}
+
 async function filterAccessibleItems(items, urlField = 'url') {
     if (!Array.isArray(items)) return [];
     const filtered = [];
     for (const item of items) {
         const url = (item && item[urlField]) ? String(item[urlField]).trim() : '';
         if (!url) continue;
+        if (isPlaceholderOrBadUrl(url)) continue;
         const check = await checkUrlAccessible(url);
-        if (check && check.ok) {
-            filtered.push({ ...item, [urlField]: check.finalUrl || url });
+        const finalUrl = (check && check.finalUrl) ? String(check.finalUrl) : url;
+        if (check && check.ok && !isPlaceholderOrBadUrl(finalUrl)) {
+            filtered.push({ ...item, [urlField]: finalUrl });
         }
     }
     return filtered;
@@ -1017,6 +1031,7 @@ CRITICAL REQUIREMENTS:
 2. Sources MUST be reputable: TechCrunch, VentureBeat, The Verge, Wired, MIT Technology Review, Reuters Tech, Bloomberg Technology, or similar major tech news sites
 3. The "url" field MUST be the COMPLETE, DIRECT URL to the specific article page (not homepage)
 4. URLs must be real, working links that users can click and read the full article WITHOUT login/paywall
+5. NEVER use placeholder links like example.com (do not fabricate URLs)
 5. Focus on TOP/TRENDING AI news stories only
 6. Each article must have the actual publication date in "MMM D, YYYY" format
 7. Summary should be 2-3 sentences about what the article covers
@@ -1037,7 +1052,30 @@ Return ONLY a valid JSON array with NO markdown formatting:
         const rawNewsArray = JSON.parse(cleanJson);
 
         // Validate links via server so we don't show broken/blank articles
-        const newsArray = await filterAccessibleItems(rawNewsArray, 'url');
+        let newsArray = await filterAccessibleItems(rawNewsArray, 'url');
+
+        // If filtering removed everything, fall back to latest (last 7 days) so users still see real links
+        if (!newsArray || newsArray.length === 0) {
+            const fallback = await callGeminiAPI(
+                `Use Google Search to find up to 10 REAL, ACCESSIBLE AI news articles from the LAST 7 DAYS (including today: January 2, 2026).
+
+CRITICAL REQUIREMENTS:
+1. Prefer articles from the last 24 hours, but allow up to 7 days if needed
+2. Provide COMPLETE, DIRECT article URLs (not homepages)
+3. Avoid paywalls/login-only links
+4. NEVER use placeholder links like example.com (do not fabricate URLs)
+
+Return ONLY valid JSON array:
+[{"date":"Jan 2, 2026","headline":"Title","summary":"2-3 sentences","url":"https://direct-url"}]`,
+                'gemini-2.0-flash-exp'
+            );
+            let txt = fallback.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            let cj = String(txt).trim().replace(/```json\s*|```/g, '');
+            const jm = cj.match(/\[\s*\{[\s\S]*\}\s*\]/);
+            if (jm) cj = jm[0];
+            const raw2 = JSON.parse(cj);
+            newsArray = await filterAccessibleItems(raw2, 'url');
+        }
 
         // Validate that we got proper news data
         if (Array.isArray(newsArray) && newsArray.length > 0) {
@@ -1089,8 +1127,24 @@ async function fetchAIUpdates() {
 
     container.innerHTML = '<div class="news-item">Fetching AI updates...</div>';
 
-    try {
+    async function fetchUpdatesWithPrompt(prompt) {
         const data = await callGeminiAPI(
+            prompt,
+            'gemini-2.0-flash-exp'
+        );
+        if (data.error) throw new Error(data.error.message);
+
+        let textResponse = data.candidates[0].content.parts[0].text;
+        let cleanJson = textResponse.trim().replace(/```json\s*|```/g, '');
+        const jsonMatch = cleanJson.match(/\[\s*\{[\s\S]*\}\s*\]/);
+        if (jsonMatch) cleanJson = jsonMatch[0];
+
+        const raw = JSON.parse(cleanJson);
+        return await filterAccessibleItems(raw, 'url');
+    }
+
+    try {
+        let filtered = await fetchUpdatesWithPrompt(
             `Use Google Search to find exactly 8 REAL AI updates from TODAY (January 2, 2026) or the LAST 24 HOURS ONLY.
 
 These are NOT general news headlines—focus on releases/updates such as:
@@ -1103,22 +1157,32 @@ CRITICAL REQUIREMENTS:
 1. Items MUST be from the last 24 hours only
 2. Provide DIRECT, WORKING URLs (no homepages)
 3. Avoid paywalls/login-only links
+4. NEVER use placeholder links like example.com (do not fabricate URLs)
 4. Each item must have a date "MMM D, YYYY"
 5. Summary must be 1-2 sentences describing what changed/released
 
 Return ONLY a valid JSON array with NO markdown:
-[{"date":"Jan 2, 2026","title":"Release title","summary":"What changed","url":"https://direct-url"}]`,
-            'gemini-2.0-flash-exp'
+[{"date":"Jan 2, 2026","title":"Release title","summary":"What changed","url":"https://direct-url"}]`
         );
-        if (data.error) throw new Error(data.error.message);
 
-        let textResponse = data.candidates[0].content.parts[0].text;
-        let cleanJson = textResponse.trim().replace(/```json\s*|```/g, '');
-        const jsonMatch = cleanJson.match(/\[\s*\{[\s\S]*\}\s*\]/);
-        if (jsonMatch) cleanJson = jsonMatch[0];
+        // If none found in last 24h, fall back to latest available updates (last 7 days)
+        if (!filtered || filtered.length === 0) {
+            filtered = await fetchUpdatesWithPrompt(
+                `Use Google Search to find exactly 8 REAL AI updates from the LAST 7 DAYS (including today: January 2, 2026).
 
-        const raw = JSON.parse(cleanJson);
-        const filtered = await filterAccessibleItems(raw, 'url');
+Focus on releases/updates such as model releases, library/framework releases, and product update notes.
+
+CRITICAL REQUIREMENTS:
+1. Provide DIRECT, WORKING URLs (no homepages)
+2. Avoid paywalls/login-only links
+3. NEVER use placeholder links like example.com (do not fabricate URLs)
+4. Each item must have a date "MMM D, YYYY"
+5. Summary must be 1-2 sentences describing what changed/released
+
+Return ONLY valid JSON array:
+[{"date":"Jan 2, 2026","title":"Release title","summary":"What changed","url":"https://direct-url"}]`
+            );
+        }
 
         localStorage.setItem(CACHE_KEY, JSON.stringify(filtered));
         localStorage.setItem(TIMESTAMP_KEY, now.toString());
@@ -2498,6 +2562,25 @@ async function getVideoSuggestion(level, score) {
         }
     }
 
+    // Guaranteed fallback list (known public tutorials). This ensures employees always get a course.
+    const FALLBACK_VIDEOS = {
+        Beginner: [
+            { videoId: 'PkZNo7MFNFg', topic: 'JavaScript Full Course (Beginner) - freeCodeCamp.org' },
+            { videoId: 'pQN-pnXPaVg', topic: 'Python for Beginners - freeCodeCamp.org' },
+            { videoId: 'kUMe1FH4CHE', topic: 'HTML Full Course - Build a Website Tutorial - freeCodeCamp.org' },
+        ],
+        Intermediate: [
+            { videoId: 'Ke90Tje7VS0', topic: 'React JS Crash Course - Traversy Media' },
+            { videoId: 'Oe421EPjeBE', topic: 'Node.js Crash Course - Traversy Media' },
+            { videoId: '8mAITcNt710', topic: 'Complete Python Course (Intermediate) - freeCodeCamp.org' },
+        ],
+        Advanced: [
+            { videoId: 'i_LwzRVP7bg', topic: 'Advanced JavaScript Concepts - freeCodeCamp.org' },
+            { videoId: 'aircAruvnKk', topic: 'Neural Networks / Deep Learning - 3Blue1Brown' },
+            { videoId: 'Z_ikDlimN6A', topic: 'System Design Interview Concepts - freeCodeCamp.org' },
+        ]
+    };
+
     // Directly fetch from YouTube using AI with Google Search grounding
     function buildPrompt(extraConstraints = '') {
         return `Use Google Search to find ONE REAL, PUBLICLY AVAILABLE, EMBEDDABLE YouTube tutorial video for a ${level} level learner.
@@ -2568,7 +2651,34 @@ DO NOT return videos that show gray thumbnails or have embedding disabled.`;
         }
 
         if (!selected) {
-            throw new Error('Could not find an embeddable YouTube tutorial after multiple attempts.');
+            // Fallback to curated list and validate; if validation fails, still assign the first fallback.
+            const candidates = FALLBACK_VIDEOS[level] || FALLBACK_VIDEOS.Beginner;
+            for (const c of candidates) {
+                const check = await checkYouTubeVideo(c.videoId);
+                if (check && check.ok) {
+                    selected = {
+                        videoId: c.videoId,
+                        topic: check.title || c.topic,
+                        definition: 'A curated tutorial selected as a reliable fallback when search results are unavailable.',
+                        uses: 'Build core practical skills with a long-form training video.'
+                    };
+                    break;
+                }
+            }
+
+            if (!selected && candidates.length > 0) {
+                // Absolute last resort: assign first fallback without validation.
+                selected = {
+                    videoId: candidates[0].videoId,
+                    topic: candidates[0].topic,
+                    definition: 'A curated tutorial selected as a reliable fallback when validation is unavailable.',
+                    uses: 'Build core practical skills with a long-form training video.'
+                };
+            }
+        }
+
+        if (!selected) {
+            throw new Error('Unable to assign a course at this time.');
         }
 
         assignCourseToUser(selected, level);

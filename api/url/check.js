@@ -45,6 +45,12 @@ export default async function handler(req, res) {
       return;
     }
 
+    const blockedDomains = new Set(['example.com', 'example.org', 'example.net']);
+    if (blockedDomains.has(String(parsed.hostname || '').toLowerCase())) {
+      res.status(200).json({ ok: false, status: 200, contentType: 'text/html', finalUrl: parsed.toString(), reason: 'Blocked placeholder domain' });
+      return;
+    }
+
     if (isPrivateHostname(parsed.hostname)) {
       res.status(400).json({ ok: false, reason: 'Blocked hostname' });
       return;

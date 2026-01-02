@@ -38,53 +38,74 @@ export default async function handler(req, res) {
       return;
     }
 
-    const watchUrl = `https://www.youtube.com/watch?v=${videoId}`;
-    const response = await fetch(watchUrl, {
-      method: 'GET',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
-        'Accept-Language': 'en-US,en;q=0.9',
-      },
-    });
+    const ua = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
+      'Accept-Language': 'en-US,en;q=0.9',
+    };
 
-    if (!response.ok) {
-      res.status(200).json({ ok: false, reason: `HTTP ${response.status} from YouTube` });
+    const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(`https://www.youtube.com/watch?v=${videoId}`)}&format=json`;
+    const oembedResp = await fetch(oembedUrl, { method: 'GET', headers: ua });
+    if (!oembedResp.ok) {
+      res.status(200).json({ ok: false, reason: `oEmbed ${oembedResp.status}` });
+      return;
+    }
+    const oembed = await oembedResp.json().catch(() => ({}));
+    const title = oembed?.title || '';
+
+    const embedUrl = `https://www.youtube.com/embed/${videoId}`;
+    const embedResp = await fetch(embedUrl, { method: 'GET', headers: ua });
+    if (!embedResp.ok) {
+      res.status(200).json({ ok: false, title, reason: `Embed HTTP ${embedResp.status}` });
+      return;
+    }
+    const embedHtml = await embedResp.text();
+    const lower = embedHtml.toLowerCase();
+    const blockedPhrases = [
+      'video unavailable',
+      'playback on other websites has been disabled',
+      'watch this video on youtube',
+      'this video is private',
+      'sign in to confirm your age',
+      'this video is not available',
+    ];
+    if (blockedPhrases.some(p => lower.includes(p))) {
+      res.status(200).json({ ok: false, title, reason: 'Video unavailable or embedding disabled' });
       return;
     }
 
-    const html = await response.text();
-    const jsonText =
-      extractJsonObjectAfterMarker(html, 'ytInitialPlayerResponse') ||
-      extractJsonObjectAfterMarker(html, 'var ytInitialPlayerResponse');
-
-    if (!jsonText) {
-      res.status(200).json({ ok: false, reason: 'Unable to parse YouTube player response' });
-      return;
-    }
-
-    let player;
+    // Best-effort parse for extra certainty
     try {
-      player = JSON.parse(jsonText);
-    } catch (e) {
-      res.status(200).json({ ok: false, reason: 'Invalid player JSON' });
-      return;
+      const watchUrl = `https://www.youtube.com/watch?v=${videoId}`;
+      const response = await fetch(watchUrl, { method: 'GET', headers: ua });
+      if (response.ok) {
+        const html = await response.text();
+        const jsonText =
+          extractJsonObjectAfterMarker(html, 'ytInitialPlayerResponse') ||
+          extractJsonObjectAfterMarker(html, 'var ytInitialPlayerResponse');
+        if (jsonText) {
+          const player = JSON.parse(jsonText);
+          const status = player?.playabilityStatus?.status;
+          const playableInEmbed = player?.playabilityStatus?.playableInEmbed;
+          const reason =
+            player?.playabilityStatus?.reason ||
+            player?.playabilityStatus?.errorScreen?.playerErrorMessageRenderer?.reason?.simpleText;
+
+          const ok = status === 'OK' && playableInEmbed !== false;
+          res.status(200).json({
+            ok,
+            status: status || 'UNKNOWN',
+            embeddable: playableInEmbed !== false,
+            title: player?.videoDetails?.title || title,
+            reason: ok ? '' : (reason || 'Video not playable or not embeddable'),
+          });
+          return;
+        }
+      }
+    } catch (_) {
+      // ignore
     }
 
-    const status = player?.playabilityStatus?.status;
-    const playableInEmbed = player?.playabilityStatus?.playableInEmbed;
-    const reason =
-      player?.playabilityStatus?.reason ||
-      player?.playabilityStatus?.errorScreen?.playerErrorMessageRenderer?.reason?.simpleText;
-    const title = player?.videoDetails?.title || '';
-
-    const ok = status === 'OK' && playableInEmbed !== false;
-    res.status(200).json({
-      ok,
-      status: status || 'UNKNOWN',
-      embeddable: playableInEmbed !== false,
-      title,
-      reason: ok ? '' : (reason || 'Video not playable or not embeddable'),
-    });
+    res.status(200).json({ ok: true, status: 'OK', embeddable: true, title, reason: '' });
   } catch (error) {
     res.status(500).json({ ok: false, reason: error?.message || 'Unknown error' });
   }

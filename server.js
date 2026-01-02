@@ -133,48 +133,73 @@ app.get('/api/youtube/check', async (req, res) => {
       return res.status(400).json({ ok: false, reason: 'Invalid videoId format' });
     }
 
-    const watchUrl = `https://www.youtube.com/watch?v=${videoId}`;
-    const response = await fetch(watchUrl, {
-      method: 'GET',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
-        'Accept-Language': 'en-US,en;q=0.9',
-      },
-    });
+    const ua = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
+      'Accept-Language': 'en-US,en;q=0.9',
+    };
 
-    if (!response.ok) {
-      return res.status(200).json({ ok: false, reason: `HTTP ${response.status} from YouTube` });
+    // 1) oEmbed is a lightweight existence/publicness check
+    const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(`https://www.youtube.com/watch?v=${videoId}`)}&format=json`;
+    const oembedResp = await fetch(oembedUrl, { method: 'GET', headers: ua });
+    if (!oembedResp.ok) {
+      return res.status(200).json({ ok: false, reason: `oEmbed ${oembedResp.status}` });
+    }
+    const oembed = await oembedResp.json().catch(() => ({}));
+    const title = oembed?.title || '';
+
+    // 2) Check embed page for common "unavailable" signals
+    const embedUrl = `https://www.youtube.com/embed/${videoId}`;
+    const embedResp = await fetch(embedUrl, { method: 'GET', headers: ua });
+    if (!embedResp.ok) {
+      return res.status(200).json({ ok: false, title, reason: `Embed HTTP ${embedResp.status}` });
     }
 
-    const html = await response.text();
-    const jsonText =
-      extractJsonObjectAfterMarker(html, 'ytInitialPlayerResponse') ||
-      extractJsonObjectAfterMarker(html, 'var ytInitialPlayerResponse');
-
-    if (!jsonText) {
-      return res.status(200).json({ ok: false, reason: 'Unable to parse YouTube player response' });
+    const embedHtml = await embedResp.text();
+    const lower = embedHtml.toLowerCase();
+    const blockedPhrases = [
+      'video unavailable',
+      'playback on other websites has been disabled',
+      'watch this video on youtube',
+      'this video is private',
+      'sign in to confirm your age',
+      'this video is not available',
+    ];
+    const blocked = blockedPhrases.some(p => lower.includes(p));
+    if (blocked) {
+      return res.status(200).json({ ok: false, title, reason: 'Video unavailable or embedding disabled' });
     }
 
-    let player;
+    // 3) Fallback to playerResponse parse for extra certainty (best-effort)
     try {
-      player = JSON.parse(jsonText);
-    } catch (e) {
-      return res.status(200).json({ ok: false, reason: 'Invalid player JSON' });
+      const watchUrl = `https://www.youtube.com/watch?v=${videoId}`;
+      const response = await fetch(watchUrl, { method: 'GET', headers: ua });
+      if (response.ok) {
+        const html = await response.text();
+        const jsonText =
+          extractJsonObjectAfterMarker(html, 'ytInitialPlayerResponse') ||
+          extractJsonObjectAfterMarker(html, 'var ytInitialPlayerResponse');
+        if (jsonText) {
+          const player = JSON.parse(jsonText);
+          const status = player?.playabilityStatus?.status;
+          const playableInEmbed = player?.playabilityStatus?.playableInEmbed;
+          const reason = player?.playabilityStatus?.reason || player?.playabilityStatus?.errorScreen?.playerErrorMessageRenderer?.reason?.simpleText;
+
+          const ok = status === 'OK' && playableInEmbed !== false;
+          return res.status(200).json({
+            ok,
+            status: status || 'UNKNOWN',
+            embeddable: playableInEmbed !== false,
+            title: player?.videoDetails?.title || title,
+            reason: ok ? '' : (reason || 'Video not playable or not embeddable'),
+          });
+        }
+      }
+    } catch (_) {
+      // ignore
     }
 
-    const status = player?.playabilityStatus?.status;
-    const playableInEmbed = player?.playabilityStatus?.playableInEmbed;
-    const reason = player?.playabilityStatus?.reason || player?.playabilityStatus?.errorScreen?.playerErrorMessageRenderer?.reason?.simpleText;
-    const title = player?.videoDetails?.title || '';
-
-    const ok = status === 'OK' && playableInEmbed !== false;
-    res.status(200).json({
-      ok,
-      status: status || 'UNKNOWN',
-      embeddable: playableInEmbed !== false,
-      title,
-      reason: ok ? '' : (reason || 'Video not playable or not embeddable'),
-    });
+    // If we got here, embed page looked OK and oEmbed succeeded
+    return res.status(200).json({ ok: true, status: 'OK', embeddable: true, title, reason: '' });
   } catch (error) {
     console.error('YouTube check error:', error);
     res.status(500).json({ ok: false, reason: error.message });
@@ -196,6 +221,12 @@ app.get('/api/url/check', async (req, res) => {
 
     if (!['http:', 'https:'].includes(parsed.protocol)) {
       return res.status(400).json({ ok: false, reason: 'Unsupported protocol' });
+    }
+
+    // Block obvious placeholder domains (prevents "Example Domain" issue)
+    const blockedDomains = new Set(['example.com', 'example.org', 'example.net']);
+    if (blockedDomains.has(String(parsed.hostname || '').toLowerCase())) {
+      return res.status(200).json({ ok: false, status: 200, contentType: 'text/html', finalUrl: parsed.toString(), reason: 'Blocked placeholder domain' });
     }
 
     if (isPrivateHostname(parsed.hostname)) {
