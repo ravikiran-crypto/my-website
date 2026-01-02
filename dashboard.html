@@ -939,7 +939,7 @@ async function fetchAINews() {
             3. Do NOT provide "example.com" or any fabricated links.
             4. Each article must have a real publication date.
             Return ONLY a JSON array: [{"date": "Jan 2, 2026", "headline": "Title", "summary": "Brief summary", "url": "VERIFIED_URL"}]`,
-            'gemini-2.0-flash-thinking-exp'
+            'gemini-2.0-flash-exp'
         );
 
         if (data.error) throw new Error(data.error.message);
