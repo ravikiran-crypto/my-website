@@ -657,7 +657,31 @@ body.light-theme .user-badge {
 
         <!-- Role Management Section -->
         <section id="role-mgmt-view" style="display: none;">
-            <h2 style="color: var(--primary-blue); margin: 0;">Role Management</h2>
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 20px;">
+                <h2 style="color: var(--primary-blue); margin: 0;">Role Management</h2>
+                <div style="display:flex; gap:10px;">
+                    <button style="background: var(--primary-blue); color: white; border: none; padding: 10px 16px; border-radius: 6px; cursor: pointer; font-weight: bold;" onclick="openAddUserModal()">+ Add User</button>
+                    <button style="background: #f85149; color: white; border: none; padding: 10px 16px; border-radius: 6px; cursor: pointer; font-weight: bold;" onclick="deleteSelectedRoles()">Delete Selected</button>
+                </div>
+            </div>
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th style="width:50px; text-align:center;">
+                            <input type="checkbox" id="selectAllRoles" onchange="toggleAllRoleChecks(this.checked)">
+                        </th>
+                        <th>Employee ID</th>
+                        <th>Employee name</th>
+                        <th>Email ID</th>
+                        <th>Role</th>
+                        <th>Last active date&time</th>
+                        <th>Delete</th>
+                    </tr>
+                </thead>
+                <tbody id="roleMgmtTableBody">
+                    <!-- Rows will be populated here -->
+                </tbody>
+            </table>
         </section>
         <section id="courses-view" style="display: none;">
             <h2 style="color: var(--primary-blue);">Courses</h2>
@@ -1227,6 +1251,18 @@ function backupAndRestoreData() {
             <iframe id="coursePlayerFrame" src="" allowfullscreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"></iframe>
             <button id="coursePlayerPlay" class="course-player-play" onclick="startCoursePlayer()">▶</button>
         </div>
+        <div style="margin-top: 15px; padding: 15px; background: rgba(66,133,244,0.1); border: 1px solid var(--primary-blue); border-radius: 8px; text-align: center;">
+            <div style="color: var(--text-secondary); font-size: 12px; margin-bottom: 8px;">Video not playing? Try watching directly on YouTube</div>
+            <a id="watchOnYouTubeLink" href="#" target="_blank" rel="noopener noreferrer" style="display: inline-flex; align-items: center; gap: 8px; background: #FF0000; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: bold; margin-bottom: 10px;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
+                    <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                </svg>
+                Watch on YouTube
+            </a>
+            <div style="font-size: 11px; color: var(--text-secondary); font-family: monospace;">
+                Video ID: <span id="coursePlayerVideoId" style="color: var(--primary-blue); font-weight: bold;">-</span>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -1375,12 +1411,27 @@ function openCoursePlayer(videoId, title) {
     const frame = document.getElementById('coursePlayerFrame');
     const titleEl = document.getElementById('coursePlayerTitle');
     const playBtn = document.getElementById('coursePlayerPlay');
+    const youtubeLink = document.getElementById('watchOnYouTubeLink');
+    const videoIdDisplay = document.getElementById('coursePlayerVideoId');
+    
     currentCourseVideoId = videoId;
     currentCourseTitle = title || '';
+    
     if (overlay && frame && titleEl) {
         titleEl.textContent = title || 'Now Playing';
         overlay.style.display = 'flex';
         if (playBtn) playBtn.style.display = 'flex';
+        
+        // Set YouTube direct link
+        if (youtubeLink) {
+            youtubeLink.href = `https://www.youtube.com/watch?v=${videoId}`;
+        }
+        
+        // Display Video ID
+        if (videoIdDisplay) {
+            videoIdDisplay.textContent = videoId;
+        }
+        
         // Do not autoplay; wait for explicit play click
         frame.src = '';
     }
@@ -1553,32 +1604,54 @@ function populateCourseOptions(selectEl, selectedId = '') {
 function loadRoles() {
     const tbody = document.getElementById('roleMgmtTableBody');
     if (!tbody) return;
+    
+    const SUPERADMIN_EMAIL = 'ravikiran@oneorigin.us';
     const users = JSON.parse(localStorage.getItem('users') || '[]');
+    
     tbody.innerHTML = '';
     if (users.length === 0) {
         const row = tbody.insertRow();
         const cell = row.insertCell(0);
         cell.colSpan = 7;
         cell.style.color = 'var(--text-secondary)';
-        cell.innerText = 'No users found. Add one to manage roles.';
+        cell.style.textAlign = 'center';
+        cell.innerText = 'No users found. Users will be automatically registered when they log in.';
         return;
     }
+    
     users.forEach((u, idx) => {
+        const isSuperadmin = u.email && u.email.toLowerCase() === SUPERADMIN_EMAIL.toLowerCase();
+        
         const row = tbody.insertRow();
         const selectCell = row.insertCell(0);
         selectCell.style.textAlign = 'center';
         selectCell.innerHTML = `<input type="checkbox" class="role-row-check" data-uidx="${idx}">`;
+        
         row.insertCell(1).innerText = u.employeeId || '';
         row.insertCell(2).innerText = u.name || '';
         row.insertCell(3).innerText = u.email || '';
+        
         const roleCell = row.insertCell(4);
-        roleCell.innerHTML = `<select onchange="handleRoleChange(${idx}, this.value)" style="padding:6px; background:var(--bg-dark); color:var(--text-main); border:1px solid var(--border-color); border-radius:6px;">
-            <option value="User" ${u.role === 'User' ? 'selected' : ''}>User</option>
-            <option value="Admin" ${u.role === 'Admin' ? 'selected' : ''}>Admin</option>
-        </select>`;
+        if (isSuperadmin) {
+            // For superadmin, show locked Admin role
+            roleCell.innerHTML = `<div style="padding:6px; background:rgba(66,133,244,0.1); color:var(--primary-blue); border:1px solid var(--primary-blue); border-radius:6px; font-weight:bold; display:flex; align-items:center; gap:5px; justify-content:center;">
+                <span>🔒 Admin (Superadmin)</span>
+            </div>`;
+        } else {
+            roleCell.innerHTML = `<select onchange="handleRoleChange(${idx}, this.value)" style="padding:6px; background:var(--bg-dark); color:var(--text-main); border:1px solid var(--border-color); border-radius:6px;">
+                <option value="User" ${u.role === 'User' ? 'selected' : ''}>User</option>
+                <option value="Admin" ${u.role === 'Admin' ? 'selected' : ''}>Admin</option>
+            </select>`;
+        }
+        
         row.insertCell(5).innerText = u.lastActive || '';
+        
         const deleteCell = row.insertCell(6);
-        deleteCell.innerHTML = '<button style="background:#f85149; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;" onclick="deleteRole(' + idx + ')">Delete</button>';
+        if (isSuperadmin) {
+            deleteCell.innerHTML = '<div style="padding:5px 10px; color:var(--text-secondary); font-size:12px; text-align:center;">Protected</div>';
+        } else {
+            deleteCell.innerHTML = '<button style="background:#f85149; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;" onclick="deleteRole(' + idx + ')">Delete</button>';
+        }
     });
 }
 
@@ -1644,6 +1717,11 @@ function deleteSelectedRoles() {
 function toggleSelectAllRoles(master) {
     const checks = document.querySelectorAll('.role-row-check');
     checks.forEach(c => c.checked = master.checked);
+}
+
+function toggleAllRoleChecks(isChecked) {
+    const checks = document.querySelectorAll('.role-row-check');
+    checks.forEach(c => c.checked = isChecked);
 }
 
 function handleRoleCSVUpload(event) {
