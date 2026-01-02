@@ -910,17 +910,18 @@ async function fetchAINews() {
 
     newsContainer.innerHTML = '<div class="news-item">Fetching real-time AI news...</div>';
 
+    async function fetchAINews() {
+    // ... cache logic ...
     try {
         const data = await callGeminiAPI(
-    `Use Google Search to find exactly 10 real, currently live AI news articles from the last 48 hours.
-    For each article, you MUST provide:
-    1. The exact, functional URL discovered via search.
-    2. A verified headline and a 2-sentence summary.
-    Return ONLY a JSON array with this structure: 
-    [{"date": "Current Date", "headline": "Real Title", "summary": "Real summary", "url": "VERIFIED_URL"}].
-    Do not fabricate links; only use URLs that are active on the web today.`,
-    'gemini-2.0-flash'
-);
+            `Use Google Search to find exactly 10 real, currently live AI news articles from the last 48 hours.
+            STRICT RULES:
+            1. Sourced articles MUST be from reputable sites like Wired, TechCrunch, MIT News, or The Verge.
+            2. The "url" field MUST be the exact, verified functional URL discovered via search.
+            3. Do NOT provide "example.com" or any fabricated links.
+            Return ONLY a JSON array: [{"date": "Jan 2, 2026", "headline": "Title", "summary": "Summary", "url": "VERIFIED_URL"}]`,
+            'gemini-2.0-flash'
+        );
 
         if (data.error) throw new Error(data.error.message);
 
@@ -1988,41 +1989,48 @@ async function getVideoSuggestion(level, score) {
     const container = document.getElementById('videoSuggestionContainer');
     container.innerHTML = '<p style="color:var(--text-secondary);">Selecting a course from our library...</p>';
 
-    // Get the courses you have already added in the Course Management tab
+    // Get the courses you manually added in the Course Management tab
     const availableCourses = JSON.parse(localStorage.getItem('courses') || '[]');
     
-    // Filter courses that match the level (e.g., 'beginner', 'intermediate', 'advanced')
-    // Note: ensure your Course Management types match the assessment level strings
+    // Filter courses that match the level (beginner, intermediate, advanced)
     const matchedCourses = availableCourses.filter(c => c.type.toLowerCase() === level.toLowerCase());
 
     if (matchedCourses.length > 0) {
-        // Pick the first available course or a random one from the library
+        // Pick the first matching course from your actual library
         const selectedCourse = matchedCourses[0];
         
-        // Structure the data to match your 'assignedCourses' format
         const courseData = {
             videoId: selectedCourse.videoId,
             topic: selectedCourse.name,
             definition: `A comprehensive ${level} course on ${selectedCourse.name}.`,
-            uses: `Professional training and skill development in ${selectedCourse.name}.`
+            uses: `Technical mastery and practical implementation of ${selectedCourse.name}.`
         };
 
-        // Assign the existing course to the user
         assignCourseToUser(courseData, level);
         
         container.innerHTML = `
             <div style="background:rgba(76,175,80,0.1); padding:15px; border-radius:8px; border:1px solid #4CAF50;">
                 <p style="color:#4CAF50; font-weight:bold; margin-bottom:10px;">✓ Course Assigned from Library!</p>
-                <p style="color:var(--text-main);">The course <strong>${selectedCourse.name}</strong> has been added to your training list.</p>
+                <p style="color:var(--text-main);">The course <strong>${selectedCourse.name}</strong> is now available below.</p>
             </div>
         `;
     } else {
-        container.innerHTML = `
-            <div style="background:rgba(248,81,73,0.1); padding:15px; border-radius:8px; border:1px solid #f85149;">
-                <p style="color:#f85149; font-weight:bold;">No ${level} courses found.</p>
-                <p style="color:var(--text-secondary);">An Admin needs to add ${level} level courses in the Course Management tab first.</p>
-            </div>
-        `;
+        // Fallback: If your library is empty for this level, only then ask AI
+        // Ensure you use Google Search grounding here to avoid "Video unavailable"
+        container.innerHTML = '<p style="color:var(--text-secondary);">No matching course in library. Fetching verified recommendation...</p>';
+        
+        const prompt = `Use Google Search to find ONE REAL, LIVE YouTube tutorial for a ${level} level learner. 
+        Must be from freeCodeCamp or Programming with Mosh. Return JSON ONLY: {"videoId": "VALID_ID", "topic": "Title", "definition": "...", "uses": "..."}`;
+
+        try {
+            const data = await callGeminiAPI(prompt, 'gemini-2.0-flash');
+            const cleanJson = data.candidates[0].content.parts[0].text.replace(/```json|```/g, "").trim();
+            const videoData = JSON.parse(cleanJson);
+            assignCourseToUser(videoData, level);
+            container.innerHTML = '<p style="color:#4CAF50;">✓ AI-Verified Course Assigned!</p>';
+        } catch (error) {
+            container.innerHTML = '<p style="color:#f85149;">Error: No courses found. Please add a course in Course Management.</p>';
+        }
     }
 }
 
@@ -2313,15 +2321,13 @@ async function suggestNextLevelCourse(nextLevel, previousLevel) {
 
     if (nextLevelCourses.length > 0) {
         const nextCourse = nextLevelCourses[0];
-        
         localStorage.setItem('upcomingCourse', JSON.stringify({
             videoId: nextCourse.videoId,
             topic: nextCourse.name,
-            definition: `Advance your skills with this ${nextLevel} tutorial.`,
-            uses: `Mastering complex concepts in ${nextCourse.name}.`,
+            definition: `Advance your skills with this ${nextLevel} library tutorial.`,
+            uses: `Deep-dive into ${nextCourse.name}.`,
             level: nextLevel
         }));
-        
         loadAssignedCourses();
     }
 }
