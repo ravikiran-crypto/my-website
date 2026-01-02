@@ -1,5 +1,6 @@
 // Shared Course Storage - Firebase Firestore for real multi-user sync
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js";
+import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js";
+import { getAuth } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-auth.js";
 import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -11,7 +12,10 @@ const firebaseConfig = {
   appId: "1:4168147692:web:43a1205a0af9770f633bc9"
 };
 
-const app = initializeApp(firebaseConfig, 'shared-storage-app');
+// Use the default app so we share Firebase Auth state from auth.js
+const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+// Ensure auth is initialized (for security rules that require request.auth)
+getAuth(app);
 const db = getFirestore(app);
 
 console.log('✅ Firestore initialized successfully');
@@ -215,9 +219,19 @@ function normalizeEmail(email) {
     return String(email || '').trim().toLowerCase();
 }
 
+function rawEmail(email) {
+    return String(email || '').trim();
+}
+
 function userDocIdFromEmail(email) {
     // Firestore doc IDs can include '@' and '.', but not '/'
     return normalizeEmail(email);
+}
+
+function userDocIdFromAuthEmail(email) {
+    // Matches the common rules pattern: users/{request.auth.token.email}
+    // (Firestore rules are case-sensitive; store a copy with this exact key)
+    return rawEmail(email);
 }
 
 async function getSharedUserByEmail(email) {
@@ -236,17 +250,21 @@ async function getSharedUserByEmail(email) {
 
 async function upsertSharedUser(userData) {
     try {
-        const email = normalizeEmail(userData?.email);
-        if (!email) throw new Error('Email is required');
+        const emailRaw = rawEmail(userData?.email);
+        const email = normalizeEmail(emailRaw);
+        if (!emailRaw || !email) throw new Error('Email is required');
 
-        const docId = userDocIdFromEmail(email);
-        const ref = doc(db, 'users', docId);
-        const existing = await getSharedUserByEmail(email);
+        const docIdNormalized = userDocIdFromEmail(emailRaw);
+        const docIdAuth = userDocIdFromAuthEmail(emailRaw);
+        const refNormalized = doc(db, 'users', docIdNormalized);
+        const refAuth = doc(db, 'users', docIdAuth);
+
+        const existing = await getSharedUserByEmail(emailRaw);
 
         const now = new Date().toISOString();
         const base = {
-            email,
-            name: userData?.name || existing?.name || email.split('@')[0],
+            email: emailRaw,
+            name: userData?.name || existing?.name || emailRaw.split('@')[0],
             employeeId: existing?.employeeId || userData?.employeeId || `EMP-${Date.now()}`,
             role: existing?.role || userData?.role || 'User',
             lastActive: new Date().toLocaleString(),
@@ -265,8 +283,13 @@ async function upsertSharedUser(userData) {
             base.resetAssessmentFlag = existing.resetAssessmentFlag;
         }
 
-        await setDoc(ref, base, { merge: true });
-        return await getSharedUserByEmail(email);
+        // Write both doc-id forms so security rules that use request.auth.token.email can resolve role
+        await Promise.all([
+            setDoc(refNormalized, base, { merge: true }),
+            (docIdAuth && docIdAuth !== docIdNormalized) ? setDoc(refAuth, base, { merge: true }) : Promise.resolve(),
+        ]);
+
+        return await getSharedUserByEmail(emailRaw);
     } catch (error) {
         console.error('❌ Error upserting user in Firestore:', error);
         return null;

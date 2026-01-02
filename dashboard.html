@@ -1757,6 +1757,21 @@ async function deleteCourse(id) {
         }
         console.log('✅ Course deleted successfully');
 
+        // Verify it was deleted from the shared source-of-truth (Firestore). If it still exists, it's likely rules/permissions.
+        try {
+            const after = window.syncSharedCourses ? await window.syncSharedCourses() : (JSON.parse(localStorage.getItem('courses') || '[]'));
+            const stillThere = Array.isArray(after) && after.some(c => {
+                const cid = String(c?.id ?? '').trim();
+                const vid = String(c?.videoId ?? '').trim();
+                return cid === key || vid === key;
+            });
+            if (stillThere) {
+                throw new Error('Delete was blocked (likely Firestore permissions). Please ensure the logged-in user is Admin in Firestore rules/users, and that Firestore rules allow Admin writes to /courses.');
+            }
+        } catch (verifyErr) {
+            console.warn('Delete verification failed:', verifyErr);
+        }
+
         // Keep session backup in sync so deleted items don't reappear
         try {
             const nowCourses = localStorage.getItem('courses');

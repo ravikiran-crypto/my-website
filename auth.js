@@ -22,20 +22,31 @@ function normalizeEmail(email) {
     return String(email || '').trim().toLowerCase();
 }
 
+function rawEmail(email) {
+    return String(email || '').trim();
+}
+
 function userDocIdFromEmail(email) {
     return normalizeEmail(email);
 }
 
-async function upsertUserInFirestore({ email, name }) {
-    const normalized = normalizeEmail(email);
-    if (!normalized) throw new Error('Missing email');
+function userDocIdFromAuthEmail(email) {
+    // Matches rules like users/{request.auth.token.email}
+    return rawEmail(email);
+}
 
-    const ref = doc(db, 'users', userDocIdFromEmail(normalized));
-    const snap = await getDoc(ref);
+async function upsertUserInFirestore({ email, name }) {
+    const emailRaw = rawEmail(email);
+    const normalized = normalizeEmail(emailRaw);
+    if (!emailRaw || !normalized) throw new Error('Missing email');
+
+    const refNormalized = doc(db, 'users', userDocIdFromEmail(emailRaw));
+    const refAuth = doc(db, 'users', userDocIdFromAuthEmail(emailRaw));
+    const snap = await getDoc(refNormalized);
     const nowIso = new Date().toISOString();
     const base = {
-        email: normalized,
-        name: name || (snap.exists() ? (snap.data().name || '') : '') || normalized.split('@')[0],
+        email: emailRaw,
+        name: name || (snap.exists() ? (snap.data().name || '') : '') || emailRaw.split('@')[0],
         employeeId: snap.exists() ? (snap.data().employeeId || '') : `EMP-${Date.now()}`,
         role: snap.exists() ? (snap.data().role || 'User') : 'User',
         lastActive: new Date().toLocaleString(),
@@ -49,8 +60,12 @@ async function upsertUserInFirestore({ email, name }) {
         base.employeeId = snap.exists() ? (snap.data().employeeId || 'SUPERADMIN') : 'SUPERADMIN';
     }
 
-    await setDoc(ref, base, { merge: true });
-    const refreshed = await getDoc(ref);
+    // Write both doc-id forms so rules can resolve role via request.auth.token.email
+    await Promise.all([
+        setDoc(refNormalized, base, { merge: true }),
+        (userDocIdFromAuthEmail(emailRaw) !== userDocIdFromEmail(emailRaw)) ? setDoc(refAuth, base, { merge: true }) : Promise.resolve(),
+    ]);
+    const refreshed = await getDoc(refNormalized);
     return refreshed.exists() ? { id: refreshed.id, ...refreshed.data() } : null;
 }
 

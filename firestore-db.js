@@ -1,5 +1,6 @@
 // Firebase Firestore Database - Permanent Storage
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js";
+import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js";
+import { getAuth } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-auth.js";
 import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, updateDoc, query, where } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -11,8 +12,9 @@ const firebaseConfig = {
   appId: "1:4168147692:web:43a1205a0af9770f633bc9"
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig, 'firestore-app');
+// Initialize Firebase (use default app to share auth state)
+const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+getAuth(app);
 const db = getFirestore(app);
 
 // ============ USER OPERATIONS ============
