@@ -2013,21 +2013,26 @@ async function getVideoSuggestion(level, score) {
     const container = document.getElementById('videoSuggestionContainer');
     container.innerHTML = '<p style="color:var(--text-secondary);">Selecting a course from our library...</p>';
 
+    console.log('Getting video suggestion for level:', level);
+
     // Get the courses you manually added in the Course Management tab
     const availableCourses = JSON.parse(localStorage.getItem('courses') || '[]');
+    console.log('Available courses:', availableCourses.length);
     
     // Filter courses that match the level (beginner, intermediate, advanced)
     const matchedCourses = availableCourses.filter(c => c.type.toLowerCase() === level.toLowerCase());
+    console.log('Matched courses for', level, ':', matchedCourses.length);
 
     if (matchedCourses.length > 0) {
         // Pick the first matching course from your actual library
         const selectedCourse = matchedCourses[0];
+        console.log('Selected course from library:', selectedCourse.name);
         
         const courseData = {
             videoId: selectedCourse.videoId,
             topic: selectedCourse.name,
-            definition: `A comprehensive ${level} course on ${selectedCourse.name}.`,
-            uses: `Technical mastery and practical implementation of ${selectedCourse.name}.`
+            definition: selectedCourse.definition || `A comprehensive ${level} course on ${selectedCourse.name}.`,
+            uses: selectedCourse.uses || `Technical mastery and practical implementation of ${selectedCourse.name}.`
         };
 
         assignCourseToUser(courseData, level);
@@ -2035,30 +2040,49 @@ async function getVideoSuggestion(level, score) {
         container.innerHTML = `
             <div style="background:rgba(76,175,80,0.1); padding:15px; border-radius:8px; border:1px solid #4CAF50;">
                 <p style="color:#4CAF50; font-weight:bold; margin-bottom:10px;">✓ Course Assigned from Library!</p>
-                <p style="color:var(--text-main);">The course <strong>${selectedCourse.name}</strong> is now available below.</p>
+                <p style="color:var(--text-main);">The course <strong>${selectedCourse.name}</strong> is now available in "My Assigned Courses" section below.</p>
+                <p style="color:var(--text-secondary); font-size:12px; margin-top:8px;">📌 Scroll down to see your assigned course</p>
             </div>
         `;
     } else {
         // Fallback: If your library is empty for this level, only then ask AI
-        // Ensure you use Google Search grounding here to avoid "Video unavailable"
+        console.log('No matching courses in library, fetching from AI...');
         container.innerHTML = '<p style="color:var(--text-secondary);">No matching course in library. Fetching verified recommendation...</p>';
         
         const prompt = `Use Google Search to find ONE REAL, LIVE YouTube tutorial for a ${level} level learner. 
         Must be from freeCodeCamp or Programming with Mosh. Return JSON ONLY: {"videoId": "VALID_ID", "topic": "Title", "definition": "...", "uses": "..."}`;
 
         try {
-            const data = await callGeminiAPI(prompt, 'gemini-2.0-flash');
+            const data = await callGeminiAPI(prompt, 'gemini-2.0-flash-exp');
+            if (data.error) throw new Error(data.error.message);
+            
             const cleanJson = data.candidates[0].content.parts[0].text.replace(/```json|```/g, "").trim();
             const videoData = JSON.parse(cleanJson);
+            console.log('AI suggested course:', videoData);
+            
             assignCourseToUser(videoData, level);
-            container.innerHTML = '<p style="color:#4CAF50;">✓ AI-Verified Course Assigned!</p>';
+            container.innerHTML = `
+                <div style="background:rgba(76,175,80,0.1); padding:15px; border-radius:8px; border:1px solid #4CAF50;">
+                    <p style="color:#4CAF50; font-weight:bold; margin-bottom:10px;">✓ AI-Verified Course Assigned!</p>
+                    <p style="color:var(--text-main);">The course <strong>${videoData.topic}</strong> is now available in "My Assigned Courses" section below.</p>
+                    <p style="color:var(--text-secondary); font-size:12px; margin-top:8px;">📌 Scroll down to see your assigned course</p>
+                </div>
+            `;
         } catch (error) {
-            container.innerHTML = '<p style="color:#f85149;">Error: No courses found. Please add a course in Course Management.</p>';
+            console.error('Error fetching AI course:', error);
+            container.innerHTML = `
+                <div style="background:rgba(248,81,73,0.1); padding:15px; border-radius:8px; border:1px solid #f85149;">
+                    <p style="color:#f85149; font-weight:bold; margin-bottom:10px;">⚠️ Error Assigning Course</p>
+                    <p style="color:var(--text-main); font-size:13px;">${error.message}</p>
+                    <p style="color:var(--text-secondary); font-size:12px; margin-top:8px;">Please add a ${level} level course in Course Management tab.</p>
+                </div>
+            `;
         }
     }
 }
 
 function assignCourseToUser(videoData, level) {
+    console.log('Assigning course:', videoData);
     const assignedCourses = JSON.parse(localStorage.getItem('assignedCourses') || '[]');
     const newCourse = {
         id: Date.now(),
@@ -2073,7 +2097,18 @@ function assignCourseToUser(videoData, level) {
     };
     assignedCourses.push(newCourse);
     localStorage.setItem('assignedCourses', JSON.stringify(assignedCourses));
+    console.log('Course assigned successfully. Total courses:', assignedCourses.length);
+    
+    // Reload the courses display
     loadAssignedCourses();
+    
+    // Scroll to the assigned courses section after a brief delay
+    setTimeout(() => {
+        const assignedSection = document.getElementById('assignedCoursesSection');
+        if (assignedSection) {
+            assignedSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }, 500);
 }
 
 function updateInitialAssessmentStatus() {
