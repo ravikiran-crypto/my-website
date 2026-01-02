@@ -1140,21 +1140,24 @@ window.onload = () => {
     
     if (existingUserIndex === -1 && userEmail.toLowerCase() !== SUPERADMIN_EMAIL.toLowerCase()) {
         // User not in list and not superadmin - add them
-        const userName = localStorage.getItem('userName') || userEmail.split('@')[0];
-        users.push({
-            employeeId: 'AUTO-' + Date.now(),
+        const userName = localStorage.getItem('userName') || deriveNameFromEmail(userEmail);
+        const newUser = {
+            employeeId: 'EMP-' + Date.now(),
             name: userName,
             email: userEmail,
             role: 'User',
             lastActive: new Date().toLocaleString()
-        });
+        };
+        users.push(newUser);
         localStorage.setItem('users', JSON.stringify(users));
         localStorage.setItem('userRole', 'User');
-        console.log('User auto-registered on dashboard load:', userEmail);
+        console.log('User auto-registered on dashboard load:', userEmail, 'with ID:', newUser.employeeId);
     } else if (existingUserIndex !== -1) {
-        // Update last active time
+        // Update last active time and sync role
         users[existingUserIndex].lastActive = new Date().toLocaleString();
         localStorage.setItem('users', JSON.stringify(users));
+        // Sync the user's role from the users array
+        localStorage.setItem('userRole', users[existingUserIndex].role || 'User');
     }
     
     // Generate Static Title
@@ -1890,8 +1893,14 @@ async function loadCoursesView(searchTerm = '') {
 // Note: All initialization moved to window.onload above to avoid conflicts
 
 function checkAdminStatus() {
-    // Check if user is admin
-    const isAdmin = (localStorage.getItem('userRole') || '').toLowerCase() === 'admin';
+    // Check if user is admin (includes both Superadmin and regular Admin)
+    const SUPERADMIN_EMAIL = 'ravikiran@oneorigin.us';
+    const userEmail = localStorage.getItem('userEmail') || '';
+    const userRole = (localStorage.getItem('userRole') || '').toLowerCase();
+    const isSuperadmin = userEmail.toLowerCase() === SUPERADMIN_EMAIL.toLowerCase();
+    const isAdmin = userRole === 'admin' || isSuperadmin;
+    
+    console.log('Admin check - Email:', userEmail, 'Role:', userRole, 'Is Admin:', isAdmin);
     
     // Admin Refresh News Button - Admin only
     const refreshBtn = document.getElementById('adminRefreshNewsBtn');
@@ -2140,22 +2149,26 @@ async function getVideoSuggestion(level, score) {
     console.log('Getting video suggestion for level:', level);
 
     // Directly fetch from YouTube using AI with Google Search grounding
-    const prompt = `Use Google Search to find ONE REAL, LIVE YouTube tutorial video for a ${level} level learner in Web Development, AI, Machine Learning, or related tech topics.
+    const prompt = `Use Google Search to find ONE REAL, PUBLICLY AVAILABLE, EMBEDDABLE YouTube tutorial video for a ${level} level learner.
 
-STRICT REQUIREMENTS:
-1. The video MUST be from reputable channels like freeCodeCamp, Programming with Mosh, Traversy Media, or similar educational tech channels.
-2. The video MUST be currently available on YouTube (not deleted or private).
-3. Extract the actual YouTube video ID from the URL.
-4. Provide a clear, informative definition of what the course covers.
-5. List practical uses and applications.
+CRITICAL REQUIREMENTS:
+1. Video MUST be from verified educational channels: freeCodeCamp, Traversy Media, Programming with Mosh, Academind, The Net Ninja, Web Dev Simplified, or Fireship
+2. Video MUST be PUBLIC and EMBEDDABLE (not private, unlisted, or embed-disabled)
+3. Video MUST be a FULL TUTORIAL (not a trailer, promo, or unavailable video)
+4. Verify the video ID is correct - test URL: https://www.youtube.com/watch?v={videoId}
+5. Extract ONLY the 11-character YouTube video ID (e.g., "dQw4w9WgXcQ")
+6. Video should be for ${level === 'Beginner' ? 'beginners with no prior experience' : level === 'Intermediate' ? 'intermediate learners with basic knowledge' : 'advanced developers'}
+7. Topics: Web Development (HTML/CSS/JavaScript/React), Python, AI/ML, or general programming
 
-Return ONLY valid JSON in this exact format:
+Return ONLY valid JSON (no markdown):
 {
-  "videoId": "ACTUAL_YOUTUBE_VIDEO_ID",
-  "topic": "Clear course title",
-  "definition": "Comprehensive description of what students will learn",
-  "uses": "Real-world applications and career benefits"
-}`;
+  "videoId": "11_CHAR_VIDEO_ID",
+  "topic": "Exact video title from YouTube",
+  "definition": "What students will learn (2-3 sentences)",
+  "uses": "Real-world applications and skills gained"
+}
+
+DO NOT return videos that show gray thumbnails or have embedding disabled.`;
 
     try {
         const data = await callGeminiAPI(prompt, 'gemini-2.0-flash-exp');
@@ -2174,6 +2187,12 @@ Return ONLY valid JSON in this exact format:
         // Validate the response has required fields
         if (!videoData.videoId || !videoData.topic) {
             throw new Error('Invalid course data received from AI');
+        }
+        
+        // Validate video ID format (should be 11 characters)
+        if (videoData.videoId.length !== 11) {
+            console.warn('Invalid video ID length:', videoData.videoId);
+            throw new Error('Invalid YouTube video ID format');
         }
         
         assignCourseToUser(videoData, level);

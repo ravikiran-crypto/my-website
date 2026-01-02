@@ -239,32 +239,27 @@
                 if (existingUserIndex === -1) {
                     // New user - add to users list (except superadmin)
                     if (user.email.toLowerCase() !== SUPERADMIN_EMAIL.toLowerCase()) {
-                        users.push({
-                            employeeId: 'AUTO-' + Date.now(),
+                        const newUser = {
+                            employeeId: 'EMP-' + Date.now(),
                             name: user.displayName || user.email.split('@')[0],
                             email: user.email,
                             role: 'User',
                             lastActive: new Date().toLocaleString()
-                        });
+                        };
+                        users.push(newUser);
                         localStorage.setItem('users', JSON.stringify(users));
-                        console.log('New user registered:', user.email);
+                        localStorage.setItem('userRole', 'User');
+                        console.log('New user registered:', user.email, 'with ID:', newUser.employeeId);
                     } else {
+                        localStorage.setItem('userRole', 'Admin');
                         console.log('Superadmin login - not added to user list');
                     }
                 } else {
-                    // Existing user - update last active time
+                    // Existing user - update last active time and sync role
                     users[existingUserIndex].lastActive = new Date().toLocaleString();
                     localStorage.setItem('users', JSON.stringify(users));
-                    console.log('User login - last active updated:', user.email);
-                }
-                
-                // Set role in localStorage
-                if (user.email.toLowerCase() === SUPERADMIN_EMAIL.toLowerCase()) {
-                    localStorage.setItem('userRole', 'Admin');
-                } else if (existingUserIndex !== -1) {
                     localStorage.setItem('userRole', users[existingUserIndex].role || 'User');
-                } else {
-                    localStorage.setItem('userRole', 'User');
+                    console.log('User login - last active updated:', user.email);
                 }
                 
                 window.location.href = "dashboard.html";
