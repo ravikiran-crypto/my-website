@@ -1730,9 +1730,7 @@ async function saveNewCourse() {
 }
 
 async function deleteCourse(id) {
-    if (!confirm('Are you sure you want to delete this course?')) {
-        return;
-    }
+    if (!confirm('Are you sure you want to delete this course?')) return;
     
     try {
         if (!id) {
@@ -1740,78 +1738,57 @@ async function deleteCourse(id) {
             return;
         }
 
-        console.log('🗑️ Deleting course with key:', id);
         const key = String(id).trim();
+        console.log('🗑️ Deleting course:', key);
 
-        // Delete from shared storage (Firestore/localStorage)
-        if (window.deleteSharedCourse) {
-            await window.deleteSharedCourse(key);
-        } else if (window.firestoreDB && typeof window.firestoreDB.deleteCourse === 'function') {
-            // Fallback to firestore-db helper (expects an id)
+        // 1. Delete from Firestore/Shared Storage
+        if (window.firestoreDB && typeof window.firestoreDB.deleteCourse === 'function') {
             await window.firestoreDB.deleteCourse(key);
+        } else if (window.deleteSharedCourse) {
+            await window.deleteSharedCourse(key);
         } else {
-            // Ultimate fallback: local delete
+            // Local fallback
             const courses = JSON.parse(localStorage.getItem('courses') || '[]')
-                .filter(c => String(c?.id ?? '') !== key && String(c?.videoId ?? '') !== key);
+                .filter(c => String(c.id) !== key && String(c.videoId) !== key);
             localStorage.setItem('courses', JSON.stringify(courses));
         }
-        console.log('✅ Course deleted successfully');
 
-        // Verify it was deleted from the shared source-of-truth (Firestore). If it still exists, it's likely rules/permissions.
-        try {
-            const after = window.syncSharedCourses ? await window.syncSharedCourses() : (JSON.parse(localStorage.getItem('courses') || '[]'));
-            const stillThere = Array.isArray(after) && after.some(c => {
-                const cid = String(c?.id ?? '').trim();
-                const vid = String(c?.videoId ?? '').trim();
-                return cid === key || vid === key;
-            });
-            if (stillThere) {
-                throw new Error('Delete was blocked (likely Firestore permissions). Please ensure the logged-in user is Admin in Firestore rules/users, and that Firestore rules allow Admin writes to /courses.');
-            }
-        } catch (verifyErr) {
-            console.warn('Delete verification failed:', verifyErr);
-        }
+        // 2. Clear session backups to prevent "ghost" data on reload
+        sessionStorage.removeItem('courses_backup');
 
-        // Keep session backup in sync so deleted items don't reappear
-        try {
-            const nowCourses = localStorage.getItem('courses');
-            if (nowCourses) sessionStorage.setItem('courses_backup', nowCourses);
-        } catch (_) {}
-        
-        // Reload the courses
+        // 3. Refresh the UI components
         await loadCourses();
-        await loadCoursesView();
-        loadRoles();
+        if (typeof loadCoursesView === 'function') await loadCoursesView();
+        
+        console.log('✅ Course deleted successfully');
     } catch (error) {
         console.error('❌ Error deleting course:', error);
-        alert('Failed to delete course. Please try again.');
+        alert('Failed to delete course: ' + error.message);
     }
 }
 
 async function loadCourses() {
-    // Sync shared courses from API first
+    // Sync shared courses from API/Firestore
     const courses = window.syncSharedCourses ? await window.syncSharedCourses() : (JSON.parse(localStorage.getItem('courses') || '[]'));
     
     const tbody = document.getElementById('courseMgmtTableBody');
     if (!tbody) return;
+    
     tbody.innerHTML = '';
     courses.forEach((course, index) => {
         const row = tbody.insertRow();
+        const deleteKey = course.id || course.videoId; // Ensure we have a valid identifier
+        
         row.insertCell(0).innerText = index + 1;
-        row.insertCell(1).innerText = course.name || 'Untitled Course';
+        row.insertCell(1).innerText = course.name || 'Untitled';
         row.insertCell(2).innerText = course.type || '-';
         row.insertCell(3).innerText = course.videoId || '-';
         row.insertCell(4).innerText = course.uploadDate || '-';
+        
         const deleteCell = row.insertCell(5);
-
-        // Legacy courses (added long back) may not have an id. Fall back to videoId so delete still works.
-        const deleteKey = (course && (course.id ?? course.videoId)) ?? '';
-        const hasKey = String(deleteKey || '').trim().length > 0;
-        deleteCell.innerHTML = hasKey
-            ? `<button style="background:#f85149; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;" onclick="deleteCourse(${JSON.stringify(String(deleteKey))})">Delete</button>`
-            : `<button style="background:#555; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:not-allowed;" disabled>Delete</button>`;
+        deleteCell.innerHTML = `<button style="background:#f85149; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;" 
+            onclick="deleteCourse('${deleteKey}')">Delete</button>`;
     });
-    loadRoles();
 }
 
 let currentCourseVideoId = '';
@@ -3235,7 +3212,6 @@ async function suggestNextLevelCourse(nextLevel, previousLevel) {
 window.openAddCourseModal = openAddCourseModal;
 window.closeAddCourseModal = closeAddCourseModal;
 window.saveNewCourse = saveNewCourse;
-window.deleteCourse = deleteCourse;
 window.loadCourses = loadCourses;
 window.loadRoles = loadRoles;
 window.deleteSelectedRoles = deleteSelectedRoles;
@@ -3256,7 +3232,6 @@ window.submitAssessment = submitAssessment;
 window.loadCoursesView = loadCoursesView;
 window.openCoursePlayer = openCoursePlayer;
 window.handleRoleChange = handleRoleChange;
-window.deleteCourse = deleteCourse;
 window.startVideoAssessment = startVideoAssessment;
 window.resetAssessment = resetAssessment;
 window.loadAssignedCourses = loadAssignedCourses;
