@@ -889,12 +889,14 @@ function displayNews(newsArray) {
     const newsContainer = document.getElementById('news-container');
     newsContainer.innerHTML = newsArray.map(item => `
         <div class="news-item">
-            <span class="item-date" style="color: var(--primary-blue); font-size: 11px;">${item.date}</span>
-            <div style="font-weight: 700; margin: 4px 0; color: var(--text-main);">${item.headline}</div>
-            <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.4; margin-bottom: 8px;">
+            <span class="item-date" style="color: var(--primary-blue); font-size: 11px; font-weight: bold;">${item.date}</span>
+            <div style="font-weight: 700; margin: 4px 0; color: var(--text-main); font-size: 14px;">${item.headline}</div>
+            <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.5; margin-bottom: 10px;">
                 ${item.summary}
             </div>
-            <a href="${item.url}" target="_blank" style="color: var(--primary-blue); font-size: 12px; text-decoration: underline;">Click here to read full article</a>
+            <a href="${item.url}" target="_blank" rel="noopener noreferrer" style="color: var(--primary-blue); font-size: 13px; text-decoration: none; font-weight: bold; display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; background: rgba(66,133,244,0.1); border-radius: 6px; border: 1px solid var(--primary-blue); transition: all 0.2s;">
+                📰 Read Full Article →
+            </a>
         </div>
     `).join('');
 }
@@ -932,13 +934,19 @@ async function fetchAINews() {
 
     try {
         const data = await callGeminiAPI(
-            `Use Google Search to find exactly 10 real, currently live AI news articles from the last 48 hours.
-            STRICT RULES:
-            1. Sourced articles MUST be from reputable sites like Wired, TechCrunch, MIT News, The Verge, VentureBeat, or similar tech publications.
-            2. The "url" field MUST be the exact, verified functional URL discovered via search.
-            3. Do NOT provide "example.com" or any fabricated links.
-            4. Each article must have a real publication date.
-            Return ONLY a JSON array: [{"date": "Jan 2, 2026", "headline": "Title", "summary": "Brief summary", "url": "VERIFIED_URL"}]`,
+            `Use Google Search to find exactly 10 REAL, ACCESSIBLE AI news articles published TODAY (January 2, 2026) or in the LAST 24 HOURS ONLY.
+
+CRITICAL REQUIREMENTS:
+1. Articles MUST be from the LAST 24 HOURS ONLY (today or yesterday)
+2. Sources MUST be reputable: TechCrunch, VentureBeat, The Verge, Wired, MIT Technology Review, Reuters Tech, Bloomberg Technology, or similar major tech news sites
+3. The "url" field MUST be the COMPLETE, DIRECT URL to the specific article page (not homepage)
+4. URLs must be real, working links that users can click and read the full article
+5. Focus on TOP/TRENDING AI news stories only
+6. Each article must have the actual publication date in "MMM D, YYYY" format
+7. Summary should be 2-3 sentences about what the article covers
+
+Return ONLY a valid JSON array with NO markdown formatting:
+[{"date": "Jan 2, 2026", "headline": "Actual Article Title", "summary": "Clear 2-3 sentence summary of the article content", "url": "https://complete-direct-url-to-article"}]`,
             'gemini-2.0-flash-exp'
         );
 
@@ -1099,6 +1107,30 @@ window.onload = () => {
     if (!userEmail) {
         window.location.href = 'index.html';
         return;
+    }
+    
+    // Auto-register current user if not already registered
+    const SUPERADMIN_EMAIL = 'ravikiran@oneorigin.us';
+    const users = JSON.parse(localStorage.getItem('users') || '[]');
+    const existingUserIndex = users.findIndex(u => u.email && u.email.toLowerCase() === userEmail.toLowerCase());
+    
+    if (existingUserIndex === -1 && userEmail.toLowerCase() !== SUPERADMIN_EMAIL.toLowerCase()) {
+        // User not in list and not superadmin - add them
+        const userName = localStorage.getItem('userName') || userEmail.split('@')[0];
+        users.push({
+            employeeId: 'AUTO-' + Date.now(),
+            name: userName,
+            email: userEmail,
+            role: 'User',
+            lastActive: new Date().toLocaleString()
+        });
+        localStorage.setItem('users', JSON.stringify(users));
+        localStorage.setItem('userRole', 'User');
+        console.log('User auto-registered on dashboard load:', userEmail);
+    } else if (existingUserIndex !== -1) {
+        // Update last active time
+        users[existingUserIndex].lastActive = new Date().toLocaleString();
+        localStorage.setItem('users', JSON.stringify(users));
     }
     
     // Generate Static Title
@@ -1367,18 +1399,32 @@ function closeAddUserModal() {
 function loadUsers() {
     const tbody = document.getElementById('userMgmtTableBody');
     if (!tbody) return;
+    
+    const SUPERADMIN_EMAIL = 'ravikiran@oneorigin.us';
     const users = JSON.parse(localStorage.getItem('users') || '[]');
+    
     tbody.innerHTML = '';
     users.forEach((u, idx) => {
+        const isSuperadmin = u.email && u.email.toLowerCase() === SUPERADMIN_EMAIL.toLowerCase();
+        
         const row = tbody.insertRow();
         row.insertCell(0).innerText = u.employeeId || '';
         row.insertCell(1).innerText = u.name || '';
         row.insertCell(2).innerText = u.email || '';
         const roleCell = row.insertCell(3);
-        roleCell.innerHTML = `<select onchange="handleRoleChange(${idx}, this.value)" style="padding:6px; background:var(--bg-dark); color:var(--text-main); border:1px solid var(--border-color); border-radius:6px;">
-            <option value="User" ${u.role === 'User' ? 'selected' : ''}>User</option>
-            <option value="Admin" ${u.role === 'Admin' ? 'selected' : ''}>Admin</option>
-        </select>`;
+        
+        if (isSuperadmin) {
+            // For superadmin, show locked Admin role with special styling
+            roleCell.innerHTML = `<div style="padding:6px; background:rgba(66,133,244,0.1); color:var(--primary-blue); border:1px solid var(--primary-blue); border-radius:6px; font-weight:bold; display:flex; align-items:center; gap:5px;">
+                <span>🔒 Admin (Superadmin)</span>
+            </div>`;
+        } else {
+            roleCell.innerHTML = `<select onchange="handleRoleChange(${idx}, this.value)" style="padding:6px; background:var(--bg-dark); color:var(--text-main); border:1px solid var(--border-color); border-radius:6px;">
+                <option value="User" ${u.role === 'User' ? 'selected' : ''}>User</option>
+                <option value="Admin" ${u.role === 'Admin' ? 'selected' : ''}>Admin</option>
+            </select>`;
+        }
+        
         row.insertCell(4).innerText = u.lastActive || '';
     });
 }
@@ -2011,73 +2057,64 @@ async function showInitialResults(score) {
 
 async function getVideoSuggestion(level, score) {
     const container = document.getElementById('videoSuggestionContainer');
-    container.innerHTML = '<p style="color:var(--text-secondary);">Selecting a course from our library...</p>';
+    container.innerHTML = '<p style="color:var(--text-secondary);">🔍 Searching YouTube for verified courses...</p>';
 
     console.log('Getting video suggestion for level:', level);
 
-    // Get the courses you manually added in the Course Management tab
-    const availableCourses = JSON.parse(localStorage.getItem('courses') || '[]');
-    console.log('Available courses:', availableCourses.length);
-    
-    // Filter courses that match the level (beginner, intermediate, advanced)
-    const matchedCourses = availableCourses.filter(c => c.type.toLowerCase() === level.toLowerCase());
-    console.log('Matched courses for', level, ':', matchedCourses.length);
+    // Directly fetch from YouTube using AI with Google Search grounding
+    const prompt = `Use Google Search to find ONE REAL, LIVE YouTube tutorial video for a ${level} level learner in Web Development, AI, Machine Learning, or related tech topics.
 
-    if (matchedCourses.length > 0) {
-        // Pick the first matching course from your actual library
-        const selectedCourse = matchedCourses[0];
-        console.log('Selected course from library:', selectedCourse.name);
-        
-        const courseData = {
-            videoId: selectedCourse.videoId,
-            topic: selectedCourse.name,
-            definition: selectedCourse.definition || `A comprehensive ${level} course on ${selectedCourse.name}.`,
-            uses: selectedCourse.uses || `Technical mastery and practical implementation of ${selectedCourse.name}.`
-        };
+STRICT REQUIREMENTS:
+1. The video MUST be from reputable channels like freeCodeCamp, Programming with Mosh, Traversy Media, or similar educational tech channels.
+2. The video MUST be currently available on YouTube (not deleted or private).
+3. Extract the actual YouTube video ID from the URL.
+4. Provide a clear, informative definition of what the course covers.
+5. List practical uses and applications.
 
-        assignCourseToUser(courseData, level);
+Return ONLY valid JSON in this exact format:
+{
+  "videoId": "ACTUAL_YOUTUBE_VIDEO_ID",
+  "topic": "Clear course title",
+  "definition": "Comprehensive description of what students will learn",
+  "uses": "Real-world applications and career benefits"
+}`;
+
+    try {
+        const data = await callGeminiAPI(prompt, 'gemini-2.0-flash-exp');
+        if (data.error) throw new Error(data.error.message);
         
+        let textResponse = data.candidates[0].content.parts[0].text;
+        let cleanJson = textResponse.replace(/```json|```/g, "").trim();
+        
+        // Extract JSON from response
+        const jsonMatch = cleanJson.match(/\{[\s\S]*\}/);
+        if (jsonMatch) cleanJson = jsonMatch[0];
+        
+        const videoData = JSON.parse(cleanJson);
+        console.log('AI suggested course:', videoData);
+        
+        // Validate the response has required fields
+        if (!videoData.videoId || !videoData.topic) {
+            throw new Error('Invalid course data received from AI');
+        }
+        
+        assignCourseToUser(videoData, level);
         container.innerHTML = `
             <div style="background:rgba(76,175,80,0.1); padding:15px; border-radius:8px; border:1px solid #4CAF50;">
-                <p style="color:#4CAF50; font-weight:bold; margin-bottom:10px;">✓ Course Assigned from Library!</p>
-                <p style="color:var(--text-main);">The course <strong>${selectedCourse.name}</strong> is now available in "My Assigned Courses" section below.</p>
-                <p style="color:var(--text-secondary); font-size:12px; margin-top:8px;">📌 Scroll down to see your assigned course</p>
+                <p style="color:#4CAF50; font-weight:bold; margin-bottom:10px;">✓ YouTube Course Assigned!</p>
+                <p style="color:var(--text-main);">The course <strong>${videoData.topic}</strong> has been assigned.</p>
+                <p style="color:var(--text-secondary); font-size:12px; margin-top:8px;">📌 Scroll down to "My Assigned Courses" section to start learning</p>
             </div>
         `;
-    } else {
-        // Fallback: If your library is empty for this level, only then ask AI
-        console.log('No matching courses in library, fetching from AI...');
-        container.innerHTML = '<p style="color:var(--text-secondary);">No matching course in library. Fetching verified recommendation...</p>';
-        
-        const prompt = `Use Google Search to find ONE REAL, LIVE YouTube tutorial for a ${level} level learner. 
-        Must be from freeCodeCamp or Programming with Mosh. Return JSON ONLY: {"videoId": "VALID_ID", "topic": "Title", "definition": "...", "uses": "..."}`;
-
-        try {
-            const data = await callGeminiAPI(prompt, 'gemini-2.0-flash-exp');
-            if (data.error) throw new Error(data.error.message);
-            
-            const cleanJson = data.candidates[0].content.parts[0].text.replace(/```json|```/g, "").trim();
-            const videoData = JSON.parse(cleanJson);
-            console.log('AI suggested course:', videoData);
-            
-            assignCourseToUser(videoData, level);
-            container.innerHTML = `
-                <div style="background:rgba(76,175,80,0.1); padding:15px; border-radius:8px; border:1px solid #4CAF50;">
-                    <p style="color:#4CAF50; font-weight:bold; margin-bottom:10px;">✓ AI-Verified Course Assigned!</p>
-                    <p style="color:var(--text-main);">The course <strong>${videoData.topic}</strong> is now available in "My Assigned Courses" section below.</p>
-                    <p style="color:var(--text-secondary); font-size:12px; margin-top:8px;">📌 Scroll down to see your assigned course</p>
-                </div>
-            `;
-        } catch (error) {
-            console.error('Error fetching AI course:', error);
-            container.innerHTML = `
-                <div style="background:rgba(248,81,73,0.1); padding:15px; border-radius:8px; border:1px solid #f85149;">
-                    <p style="color:#f85149; font-weight:bold; margin-bottom:10px;">⚠️ Error Assigning Course</p>
-                    <p style="color:var(--text-main); font-size:13px;">${error.message}</p>
-                    <p style="color:var(--text-secondary); font-size:12px; margin-top:8px;">Please add a ${level} level course in Course Management tab.</p>
-                </div>
-            `;
-        }
+    } catch (error) {
+        console.error('Error fetching YouTube course:', error);
+        container.innerHTML = `
+            <div style="background:rgba(248,81,73,0.1); padding:15px; border-radius:8px; border:1px solid #f85149;">
+                <p style="color:#f85149; font-weight:bold; margin-bottom:10px;">⚠️ Error Fetching Course</p>
+                <p style="color:var(--text-main); font-size:13px;">${error.message}</p>
+                <p style="color:var(--text-secondary); font-size:12px; margin-top:8px;">Please try the "Reset All" button and attempt the assessment again, or add a ${level} level course manually in Course Management.</p>
+            </div>
+        `;
     }
 }
 

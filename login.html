@@ -215,8 +215,64 @@
 
     document.getElementById('googleLoginBtn').onclick = () => {
         signInWithPopup(auth, provider)
-            .then(() => { window.location.href = "dashboard.html"; })
-            .catch((error) => { console.error("Login failed:", error); });
+            .then((result) => {
+                const user = result.user;
+                
+                // Check if email is from @oneorigin.us domain
+                if (!user.email || !user.email.endsWith('@oneorigin.us')) {
+                    alert('Access Denied: Please use your @oneorigin.us email.');
+                    auth.signOut();
+                    return;
+                }
+                
+                // Store user info in localStorage
+                localStorage.setItem('userEmail', user.email);
+                localStorage.setItem('userName', user.displayName || '');
+                
+                // Auto-register user in Role Management (one-time)
+                const SUPERADMIN_EMAIL = 'ravikiran@oneorigin.us';
+                const users = JSON.parse(localStorage.getItem('users') || '[]');
+                
+                // Check if user already exists
+                const existingUserIndex = users.findIndex(u => u.email && u.email.toLowerCase() === user.email.toLowerCase());
+                
+                if (existingUserIndex === -1) {
+                    // New user - add to users list (except superadmin)
+                    if (user.email.toLowerCase() !== SUPERADMIN_EMAIL.toLowerCase()) {
+                        users.push({
+                            employeeId: 'AUTO-' + Date.now(),
+                            name: user.displayName || user.email.split('@')[0],
+                            email: user.email,
+                            role: 'User',
+                            lastActive: new Date().toLocaleString()
+                        });
+                        localStorage.setItem('users', JSON.stringify(users));
+                        console.log('New user registered:', user.email);
+                    } else {
+                        console.log('Superadmin login - not added to user list');
+                    }
+                } else {
+                    // Existing user - update last active time
+                    users[existingUserIndex].lastActive = new Date().toLocaleString();
+                    localStorage.setItem('users', JSON.stringify(users));
+                    console.log('User login - last active updated:', user.email);
+                }
+                
+                // Set role in localStorage
+                if (user.email.toLowerCase() === SUPERADMIN_EMAIL.toLowerCase()) {
+                    localStorage.setItem('userRole', 'Admin');
+                } else if (existingUserIndex !== -1) {
+                    localStorage.setItem('userRole', users[existingUserIndex].role || 'User');
+                } else {
+                    localStorage.setItem('userRole', 'User');
+                }
+                
+                window.location.href = "dashboard.html";
+            })
+            .catch((error) => { 
+                console.error("Login failed:", error);
+                alert('Login failed: ' + error.message);
+            });
     };
 </script>
 </body>
