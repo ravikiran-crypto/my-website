@@ -1610,7 +1610,12 @@ async function deleteCourse(id) {
     }
     
     try {
-        console.log('🗑️ Deleting course with ID:', id);
+        if (!id) {
+            alert('Unable to delete: missing course identifier.');
+            return;
+        }
+
+        console.log('🗑️ Deleting course with key:', id);
         // Delete from shared storage (Firestore/localStorage)
         await deleteSharedCourse(id);
         console.log('✅ Course deleted successfully');
@@ -1635,12 +1640,15 @@ async function loadCourses() {
     courses.forEach((course, index) => {
         const row = tbody.insertRow();
         row.insertCell(0).innerText = index + 1;
-        row.insertCell(1).innerText = course.name;
-        row.insertCell(2).innerText = course.type;
-        row.insertCell(3).innerText = course.videoId;
-        row.insertCell(4).innerText = course.uploadDate;
+        row.insertCell(1).innerText = course.name || 'Untitled Course';
+        row.insertCell(2).innerText = course.type || '-';
+        row.insertCell(3).innerText = course.videoId || '-';
+        row.insertCell(4).innerText = course.uploadDate || '-';
         const deleteCell = row.insertCell(5);
-        deleteCell.innerHTML = `<button style="background:#f85149; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;" onclick="deleteCourse(${course.id})">Delete</button>`;
+
+        // Legacy courses (added long back) may not have an id. Fall back to videoId so delete still works.
+        const deleteKey = (course && (course.id ?? course.videoId)) ?? '';
+        deleteCell.innerHTML = `<button style="background:#f85149; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;" onclick="deleteCourse(${JSON.stringify(deleteKey)})">Delete</button>`;
     });
     loadRoles();
 }

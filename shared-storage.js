@@ -16,21 +16,33 @@ const db = getFirestore(app);
 
 console.log('✅ Firestore initialized successfully');
 
+function normalizeCourse(rawCourse, fallbackIndex = 0) {
+    const course = rawCourse && typeof rawCourse === 'object' ? rawCourse : {};
+    const videoId = (course.videoId || course.videoID || course.youtubeId || '').toString().trim();
+    const id = (course.id ?? '').toString().trim();
+
+    const normalized = {
+        ...course,
+        videoId,
+        id: id || (videoId ? `legacy-${videoId}` : `legacy-${Date.now()}-${fallbackIndex}`),
+        name: (course.name || course.courseName || '').toString().trim() || 'Untitled Course',
+        type: (course.type || course.courseType || '').toString().trim() || 'beginner',
+        uploadDate: (course.uploadDate || course.date || '').toString().trim() || new Date().toLocaleDateString(),
+    };
+
+    return normalized;
+}
+
 // Get shared courses from Firestore
 async function getSharedCourses() {
     try {
         console.log('📚 Fetching courses from Firestore...');
         const coursesCol = collection(db, 'courses');
         const snapshot = await getDocs(coursesCol);
-        const courses = snapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-                id: data.id || doc.id,
-                name: data.name,
-                type: data.type,
-                videoId: data.videoId,
-                uploadDate: data.uploadDate
-            };
+        const courses = snapshot.docs.map((docSnap, index) => {
+            const data = docSnap.data() || {};
+            // If legacy docs didn't store id in the payload, use Firestore doc id.
+            return normalizeCourse({ id: data.id || docSnap.id, ...data }, index);
         });
         console.log(`✅ Found ${courses.length} courses in Firestore:`, courses);
         return courses;
@@ -39,7 +51,13 @@ async function getSharedCourses() {
         console.log('⚠️ Falling back to localStorage');
         // Fallback to localStorage
         const local = localStorage.getItem('courses');
-        return local ? JSON.parse(local) : [];
+        const parsed = local ? JSON.parse(local) : [];
+        const normalized = Array.isArray(parsed) ? parsed.map((c, i) => normalizeCourse(c, i)) : [];
+        // Persist normalization so legacy courses get an id (enables delete buttons).
+        try {
+            localStorage.setItem('courses', JSON.stringify(normalized));
+        } catch (_) {}
+        return normalized;
     }
 }
 
@@ -47,13 +65,14 @@ async function getSharedCourses() {
 async function addSharedCourse(course) {
     // Always add to localStorage first for immediate availability
     const localCourses = JSON.parse(localStorage.getItem('courses') || '[]');
-    localCourses.push(course);
+    const normalized = normalizeCourse(course, localCourses.length);
+    localCourses.push(normalized);
     localStorage.setItem('courses', JSON.stringify(localCourses));
     
     try {
-        console.log('➕ Adding course to Firestore:', course);
-        const courseRef = doc(db, 'courses', course.id.toString());
-        await setDoc(courseRef, course);
+        console.log('➕ Adding course to Firestore:', normalized);
+        const courseRef = doc(db, 'courses', normalized.id.toString());
+        await setDoc(courseRef, normalized);
         console.log('✅ Course added successfully to Firestore');
         return localCourses;
     } catch (error) {
@@ -66,10 +85,28 @@ async function addSharedCourse(course) {
 // Delete course from Firestore
 async function deleteSharedCourse(courseId) {
     try {
-        console.log('🗑️ Deleting course from Firestore, ID:', courseId);
-        const courseRef = doc(db, 'courses', courseId.toString());
-        await deleteDoc(courseRef);
-        console.log('✅ Deleted from Firestore');
+        const key = (courseId ?? '').toString().trim();
+        if (!key) throw new Error('Missing course identifier');
+
+        console.log('🗑️ Deleting course from Firestore, key:', key);
+
+        // 1) Best-effort delete by doc id (works for normal courses)
+        await deleteDoc(doc(db, 'courses', key));
+
+        // 2) Legacy support: delete any doc whose payload matches by id OR videoId
+        const coursesCol = collection(db, 'courses');
+        const snapshot = await getDocs(coursesCol);
+        const matches = snapshot.docs.filter(d => {
+            const data = d.data() || {};
+            const did = (data.id ?? '').toString();
+            const vid = (data.videoId ?? '').toString();
+            return d.id === key || did === key || vid === key;
+        });
+        if (matches.length > 0) {
+            await Promise.all(matches.map(d => deleteDoc(doc(db, 'courses', d.id))));
+        }
+
+        console.log('✅ Deleted from Firestore (direct and legacy match)');
         // Also update localStorage
         const courses = await getSharedCourses();
         localStorage.setItem('courses', JSON.stringify(courses));
@@ -78,9 +115,17 @@ async function deleteSharedCourse(courseId) {
         console.error('❌ Error deleting course from Firestore:', error);
         console.log('⚠️ Falling back to localStorage delete');
         // Fallback to localStorage
+        const key = (courseId ?? '').toString().trim();
         let courses = JSON.parse(localStorage.getItem('courses') || '[]');
         console.log('📦 Before delete, localStorage has', courses.length, 'courses');
-        courses = courses.filter(c => c.id != courseId); // Use != for type coercion
+        courses = courses
+            .map((c, i) => normalizeCourse(c, i))
+            .filter(c => {
+                const cid = (c.id ?? '').toString();
+                const vid = (c.videoId ?? '').toString();
+                // Delete by id match OR by videoId match (legacy)
+                return !(cid === key || vid === key);
+            });
         console.log('📦 After delete, localStorage has', courses.length, 'courses');
         localStorage.setItem('courses', JSON.stringify(courses));
         return courses;
