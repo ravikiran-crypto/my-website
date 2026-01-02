@@ -532,6 +532,8 @@
     border: 1px solid var(--border-color);
     border-radius: 12px;
     padding: 16px;
+    display: flex;
+    flex-direction: column;
 }
 
 .home-about-card h3 {
@@ -571,6 +573,12 @@
 .home-about-actions {
     display: flex;
     justify-content: flex-end;
+    margin-top: auto;
+    padding-top: 10px;
+}
+
+.home-about-actions .btn-secondary {
+    min-width: 190px;
 }
 
 .news-item, .announcement-item {
