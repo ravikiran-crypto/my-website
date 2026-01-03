@@ -803,7 +803,7 @@ body.light-theme .user-badge {
                         <div class="home-about-kicker">How it works</div>
                         <ul class="home-about-list">
                             <li>You get courses assigned by your Admin (or automatically from curated sources).</li>
-                            <li>Assignments prefer embeddable videos; if a video can’t be embedded, the Hub provides a safe fallback and “Watch on YouTube”.</li>
+                            <li>Assignments prefer embeddable videos. If no embeddable match is found, you can retry and the Hub will fetch a different real-time YouTube result.</li>
                             <li>Your assigned course list is stored in shared storage so it remains consistent after refresh or on another device.</li>
                         </ul>
                         <div class="home-about-kicker">What you can do</div>
@@ -3736,124 +3736,86 @@ async function getVideoSuggestion(level, score) {
         }
     }
 
-    // Guaranteed fallback list (known public tutorials). This ensures employees always get a course.
-    const FALLBACK_VIDEOS = {
+    async function searchYouTube(query, max = 18) {
+        try {
+            const resp = await fetch(`/api/youtube/search?query=${encodeURIComponent(query)}&max=${encodeURIComponent(String(max))}`);
+            if (!resp.ok) return [];
+            const data = await resp.json();
+            return Array.isArray(data?.videoIds) ? data.videoIds : [];
+        } catch (_) {
+            return [];
+        }
+    }
+
+    // AI-focused topics by level (no hardcoded video IDs; results are fetched live from YouTube)
+    const AI_TOPIC_QUERIES = {
         Beginner: [
-            { videoId: 'PkZNo7MFNFg', topic: 'JavaScript Full Course (Beginner) - freeCodeCamp.org' },
-            { videoId: 'pQN-pnXPaVg', topic: 'Python for Beginners - freeCodeCamp.org' },
-            { videoId: 'kUMe1FH4CHE', topic: 'HTML Full Course - Build a Website Tutorial - freeCodeCamp.org' },
+            'transformers explained tutorial',
+            'neural networks deep learning basics full tutorial',
+            'large language models explained beginner tutorial',
+            'prompt engineering basics tutorial',
+            'introduction to retrieval augmented generation RAG tutorial'
         ],
         Intermediate: [
-            { videoId: 'Ke90Tje7VS0', topic: 'React JS Crash Course - Traversy Media' },
-            { videoId: 'Oe421EPjeBE', topic: 'Node.js Crash Course - Traversy Media' },
-            { videoId: '8mAITcNt710', topic: 'Complete Python Course (Intermediate) - freeCodeCamp.org' },
+            'transformer architecture from scratch tutorial',
+            'fine tuning LLMs tutorial',
+            'RAG with vector databases tutorial',
+            'agentic AI tool use function calling tutorial',
+            'LLM evaluation and testing tutorial'
         ],
         Advanced: [
-            { videoId: 'i_LwzRVP7bg', topic: 'Advanced JavaScript Concepts - freeCodeCamp.org' },
-            { videoId: 'aircAruvnKk', topic: 'Neural Networks / Deep Learning - 3Blue1Brown' },
-            { videoId: 'Z_ikDlimN6A', topic: 'System Design Interview Concepts - freeCodeCamp.org' },
+            'attention mechanisms transformer variants deep dive',
+            'RLHF preference optimization deep dive',
+            'multi agent systems agentic AI architecture deep dive',
+            'efficient LLM inference kv cache quantization tutorial',
+            'AI alignment safety interpretability deep dive'
         ]
     };
 
-    // Directly fetch from YouTube using AI with Google Search grounding
-    function buildPrompt(extraConstraints = '') {
-        return `Use Google Search to find ONE REAL, PUBLICLY AVAILABLE, EMBEDDABLE YouTube tutorial video for a ${level} level learner.
-
-CRITICAL REQUIREMENTS:
-1. Video MUST be from verified educational channels: freeCodeCamp, Traversy Media, Programming with Mosh, Academind, The Net Ninja, Web Dev Simplified, or Fireship
-2. Video MUST be PUBLIC and EMBEDDABLE (playable in YouTube embed iframe; not private, unlisted, age-restricted, region-blocked, or embed-disabled)
-3. Video MUST be a FULL TUTORIAL (not a trailer, promo, or unavailable video)
-4. Verify the video ID is correct - test URL: https://www.youtube.com/watch?v={videoId}
-5. Extract ONLY the 11-character YouTube video ID (e.g., "dQw4w9WgXcQ")
-6. Video should be for ${level === 'Beginner' ? 'beginners with no prior experience' : level === 'Intermediate' ? 'intermediate learners with basic knowledge' : 'advanced developers'}
-7. Topics: Web Development (HTML/CSS/JavaScript/React), Python, AI/ML, or general programming
-
-${extraConstraints}
-
-Return ONLY valid JSON (no markdown):
-{
-  "videoId": "11_CHAR_VIDEO_ID",
-  "topic": "Exact video title from YouTube",
-  "definition": "What students will learn (2-3 sentences)",
-  "uses": "Real-world applications and skills gained"
-}
-
-DO NOT return videos that show gray thumbnails or have embedding disabled.`;
-    }
+    const CHANNEL_HINTS = [
+        'DeepLearningAI',
+        'Stanford',
+        'MIT OpenCourseWare',
+        '3Blue1Brown',
+        'Two Minute Papers'
+    ];
 
     try {
-        let lastReject = '';
         let selected = null;
+        const baseQueries = AI_TOPIC_QUERIES[level] || AI_TOPIC_QUERIES.Beginner;
 
-        for (let attempt = 1; attempt <= 3; attempt++) {
-            container.innerHTML = `<p style="color:var(--text-secondary);">🔍 Searching YouTube for verified courses... (attempt ${attempt}/3)</p>`;
-
-            const extra = lastReject
-                ? `IMPORTANT: The previous candidate was rejected because: ${lastReject}. Pick a DIFFERENT video that is playable in embed.`
-                : `IMPORTANT: Prefer long-form tutorials (20+ minutes) from the listed channels.`;
-
-            const data = await callGeminiAPI(buildPrompt(extra), 'gemini-2.0-flash-exp');
-            if (data.error) throw new Error(data.error.message);
-
-            let textResponse = data.candidates[0].content.parts[0].text;
-            let cleanJson = textResponse.replace(/```json|```/g, "").trim();
-            const jsonMatch = cleanJson.match(/\{[\s\S]*\}/);
-            if (jsonMatch) cleanJson = jsonMatch[0];
-
-            const videoData = JSON.parse(cleanJson);
-            console.log('AI suggested course:', videoData);
-
-            if (!videoData.videoId || !videoData.topic) {
-                lastReject = 'missing videoId/topic';
-                continue;
+        const queries = [];
+        for (const q of baseQueries) {
+            queries.push(q);
+            // Add a couple channel-hinted variants to improve quality without hardcoding videos
+            for (const hint of CHANNEL_HINTS.slice(0, 2)) {
+                queries.push(`${q} ${hint}`);
             }
-            if (String(videoData.videoId).length !== 11) {
-                lastReject = `invalid videoId format (${videoData.videoId})`;
-                continue;
-            }
-
-            const check = await checkYouTubeVideo(videoData.videoId);
-            if (!check.ok) {
-                lastReject = check.reason || check.status || 'video unavailable/unembeddable';
-                continue;
-            }
-
-            // Use verified title from check if available
-            if (check.title && !videoData.topic) videoData.topic = check.title;
-            selected = videoData;
-            break;
         }
 
-        if (!selected) {
-            // Fallback to curated list and validate; if validation fails, still assign the first fallback.
-            const candidates = FALLBACK_VIDEOS[level] || FALLBACK_VIDEOS.Beginner;
-            for (const c of candidates) {
-                const check = await checkYouTubeVideo(c.videoId);
+        for (let attempt = 1; attempt <= 6; attempt++) {
+            const query = queries[attempt - 1] || queries[0];
+            container.innerHTML = `<p style="color:var(--text-secondary);">🔍 Searching YouTube for AI courses... (attempt ${attempt}/6)</p>`;
+
+            const ids = await searchYouTube(query, 18);
+            for (const id of ids) {
+                const check = await checkYouTubeVideo(id);
                 if (check && check.ok) {
+                    const title = check.title || 'AI Learning Course';
                     selected = {
-                        videoId: c.videoId,
-                        topic: check.title || c.topic,
-                        definition: 'A curated tutorial selected as a reliable fallback when search results are unavailable.',
-                        uses: 'Build core practical skills with a long-form training video.'
+                        videoId: id,
+                        topic: title,
+                        definition: `A real-time YouTube recommendation for ${level} level learning focused on modern AI topics (Transformers, neural networks, and agentic systems).`,
+                        uses: 'Build practical AI skills you can apply to real projects: understanding core concepts, implementing patterns, and evaluating results.'
                     };
                     break;
                 }
             }
 
-            if (!selected && candidates.length > 0) {
-                // Absolute last resort: assign first fallback without validation.
-                selected = {
-                    videoId: candidates[0].videoId,
-                    topic: candidates[0].topic,
-                    definition: 'A curated tutorial selected as a reliable fallback when validation is unavailable.',
-                    uses: 'Build core practical skills with a long-form training video.'
-                };
-            }
+            if (selected) break;
         }
 
-        if (!selected) {
-            throw new Error('Unable to assign a course at this time.');
-        }
+        if (!selected) throw new Error('Unable to find an embeddable AI course on YouTube right now. Please try again.');
 
         assignCourseToUser(selected, level);
         container.innerHTML = `

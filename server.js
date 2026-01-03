@@ -206,6 +206,51 @@ app.get('/api/youtube/check', async (req, res) => {
   }
 });
 
+// Lightweight YouTube search (no API key). Returns candidate video IDs from YouTube search results.
+app.get('/api/youtube/search', async (req, res) => {
+  try {
+    const query = String(req.query.query || req.query.q || '').trim();
+    const max = Math.max(1, Math.min(30, Number(req.query.max || 15) || 15));
+
+    if (!query) {
+      return res.status(400).json({ ok: false, reason: 'Missing query' });
+    }
+    if (query.length > 200) {
+      return res.status(400).json({ ok: false, reason: 'Query too long' });
+    }
+
+    const ua = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
+      'Accept-Language': 'en-US,en;q=0.9',
+    };
+
+    const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
+    const resp = await fetch(searchUrl, { method: 'GET', headers: ua });
+    if (!resp.ok) {
+      return res.status(200).json({ ok: false, query, reason: `HTTP ${resp.status}`, videoIds: [] });
+    }
+
+    const html = await resp.text();
+    const ids = [];
+    const seen = new Set();
+    const re = /watch\?v=([a-zA-Z0-9_-]{11})/g;
+    let m;
+    while ((m = re.exec(html)) !== null) {
+      const id = m[1];
+      if (!seen.has(id)) {
+        seen.add(id);
+        ids.push(id);
+        if (ids.length >= max) break;
+      }
+    }
+
+    return res.status(200).json({ ok: ids.length > 0, query, videoIds: ids });
+  } catch (error) {
+    console.error('YouTube search error:', error);
+    res.status(500).json({ ok: false, reason: error.message, videoIds: [] });
+  }
+});
+
 // Check whether an article URL is reachable and likely readable (not SSRF/private)
 app.get('/api/url/check', async (req, res) => {
   try {
