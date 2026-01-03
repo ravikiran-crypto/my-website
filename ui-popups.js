@@ -280,4 +280,20 @@
   window.appUI.alert = uiAlert;
   window.appUI.confirm = uiConfirm;
   window.appUI.prompt = uiPrompt;
+
+  // Prevent native browser alert popups (e.g., "<domain> says").
+  // Keep confirm/prompt native because they are synchronous and used for control flow.
+  try {
+    if (!window.__nativeAlert) window.__nativeAlert = window.alert;
+    window.alert = (msg) => {
+      try {
+        // Fire-and-forget modal; do not block execution.
+        uiAlert({ title: 'Notice', message: String(msg ?? ''), type: 'info' });
+      } catch (_) {
+        if (typeof window.__nativeAlert === 'function') window.__nativeAlert(msg);
+      }
+    };
+  } catch (_) {
+    // ignore
+  }
 })();

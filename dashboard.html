@@ -3750,9 +3750,11 @@ async function showInitialResults(score) {
     document.getElementById('assessmentQuizContainer').style.display = 'none';
     
     const scoreOutOf10 = (score / assessmentQuestions.length * 10).toFixed(1);
+    const roundedRating = Math.max(0, Math.min(10, Math.round(Number(scoreOutOf10) || 0)));
     let level = '';
-    if (scoreOutOf10 <= 4) level = 'Beginner';
-    else if (scoreOutOf10 <= 8) level = 'Intermediate';
+    // Rating bands (rounded): 0-4 Beginner, 5-8 Intermediate, 9-10 Advanced
+    if (roundedRating <= 4) level = 'Beginner';
+    else if (roundedRating <= 8) level = 'Intermediate';
     else level = 'Advanced';
 
     // Persist the results
@@ -3771,23 +3773,29 @@ async function showInitialResults(score) {
     await getVideoSuggestion(level, scoreOutOf10);
 }
 
-async function youtubeCheckVideo(videoId) {
+async function youtubeCheckVideo(videoId, opts = {}) {
     try {
-        const resp = await fetch(`/api/youtube/check?videoId=${encodeURIComponent(videoId)}`);
+        const resp = await fetch(`/api/youtube/check?videoId=${encodeURIComponent(videoId)}`, {
+            signal: opts && opts.signal ? opts.signal : undefined
+        });
         if (!resp.ok) return { ok: false, reason: `HTTP ${resp.status}` };
         return await resp.json();
     } catch (e) {
+        if (e && (e.name === 'AbortError' || e.code === 20)) return { ok: false, reason: 'Aborted' };
         return { ok: false, reason: e && e.message ? e.message : 'Network error' };
     }
 }
 
-async function youtubeSearchVideoIds(query, max = 18) {
+async function youtubeSearchVideoIds(query, max = 18, opts = {}) {
     try {
-        const resp = await fetch(`/api/youtube/search?query=${encodeURIComponent(query)}&max=${encodeURIComponent(String(max))}`);
+        const resp = await fetch(`/api/youtube/search?query=${encodeURIComponent(query)}&max=${encodeURIComponent(String(max))}`, {
+            signal: opts && opts.signal ? opts.signal : undefined
+        });
         if (!resp.ok) return [];
         const data = await resp.json();
         return Array.isArray(data?.videoIds) ? data.videoIds : [];
-    } catch (_) {
+    } catch (e) {
+        if (e && (e.name === 'AbortError' || e.code === 20)) return [];
         return [];
     }
 }
@@ -3828,58 +3836,59 @@ async function getVideoSuggestion(level, score) {
     };
 
     try {
+        // Cancel any prior in-flight assignment on this page
+        try {
+            if (window.__courseAssignAbortController) window.__courseAssignAbortController.abort();
+        } catch (_) {}
+
+        const controller = new AbortController();
+        window.__courseAssignAbortController = controller;
+        window.addEventListener('beforeunload', () => {
+            try { controller.abort(); } catch (_) {}
+        }, { once: true });
+
         let selected = null;
-        let firstCandidateId = '';
         const baseQueries = AI_TOPIC_QUERIES[level] || AI_TOPIC_QUERIES.Beginner;
 
-        const queries = [];
-        for (const q of baseQueries) {
-            // Prefer broader, consistently good queries (avoid hard channel names in UI/tool)
-            queries.push(`${q} full course`);
-            queries.push(`${q} tutorial`);
-            queries.push(q);
+        // Keep this fast: do a small number of searches, assign immediately.
+        const q1 = `${baseQueries[0] || 'transformers explained'} full course`;
+        const q2 = `${baseQueries[1] || baseQueries[0] || 'large language models'} tutorial`;
+        const q3 = `${baseQueries[2] || baseQueries[0] || 'agentic AI'} tutorial`;
+        const queries = [q1, q2, q3].filter(Boolean);
+
+        let ids = [];
+        for (let i = 0; i < queries.length; i++) {
+            if (controller.signal.aborted) return;
+            const query = queries[i];
+            container.innerHTML = `<p style="color:var(--text-secondary);">🔍 Finding a ${level} course... (${i + 1}/${queries.length})</p>`;
+            ids = await youtubeSearchVideoIds(query, 18, { signal: controller.signal });
+            if (Array.isArray(ids) && ids.length) break;
         }
 
-        for (let attempt = 1; attempt <= Math.min(queries.length, 12); attempt++) {
-            const query = queries[attempt - 1] || queries[0];
-            container.innerHTML = `<p style="color:var(--text-secondary);">🔍 Searching YouTube for ${level} courses... (attempt ${attempt}/${Math.min(queries.length, 12)})</p>`;
+        if (controller.signal.aborted) return;
 
-            const ids = await youtubeSearchVideoIds(query, 18);
-            if (!firstCandidateId && ids && ids.length) firstCandidateId = ids[0];
+        const picked = (ids || []).find(isValidYouTubeId) || '';
+        if (!isValidYouTubeId(picked)) throw new Error('No course results available');
 
-            for (const id of ids) {
-                const check = await youtubeCheckVideo(id);
-                if (check && check.ok) {
-                    const title = check.title || 'AI Learning Course';
-                    selected = {
-                        videoId: id,
-                        topic: title,
-                        definition: `A course matched to your ${level} level, focused on modern AI fundamentals and applied patterns.`,
-                        uses: 'Build practical AI skills you can apply to real projects: understand concepts, implement patterns, and evaluate results.'
-                    };
-                    break;
-                }
-            }
+        // Assign immediately (do not block on embeddability checks).
+        selected = {
+            videoId: picked,
+            topic: `AI Course Recommendation (${level})`,
+            definition: `A course matched to your ${level} level, focused on modern AI fundamentals and applied patterns.`,
+            uses: 'Start training immediately with the assigned video, then continue with the next course after passing the assessment.'
+        };
 
-            if (selected) break;
-        }
-
-        // If we couldn't verify embeddability (often due to server/network restrictions), still assign a real video id.
-        if (!selected) {
-            const fallbackQuery = (baseQueries && baseQueries[0]) ? baseQueries[0] : 'transformers explained tutorial';
-            const ids = firstCandidateId ? [firstCandidateId] : await youtubeSearchVideoIds(fallbackQuery, 18);
-            const picked = ids && ids.length ? ids[0] : '';
-            selected = {
-                videoId: picked,
-                topic: `AI Course Recommendation (${level})`,
-                definition: `A real-time YouTube recommendation matched to your ${level} level.`,
-                uses: 'Start training immediately with the assigned video, then continue with the next course after passing the assessment.'
-            };
-        }
+        // Best-effort: improve the title in the background (non-blocking)
+        try {
+            const check = await youtubeCheckVideo(picked, { signal: controller.signal });
+            if (check && check.ok && check.title) selected.topic = check.title;
+        } catch (_) {}
 
         if (!isValidYouTubeId(selected.videoId)) {
             throw new Error('Could not find a valid course video right now.');
         }
+
+        if (controller.signal.aborted) return;
 
         assignCourseToUser(selected, level);
         container.innerHTML = `
