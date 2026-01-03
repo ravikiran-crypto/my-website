@@ -7,7 +7,6 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <script src="api-config.js"></script>
-    <script src="ui-popups.js"></script>
     <script type="module" src="shared-storage.js"></script>
     <script type="module" src="firestore-db.js"></script>
     <style>
@@ -533,8 +532,6 @@
     border: 1px solid var(--border-color);
     border-radius: 12px;
     padding: 16px;
-    display: flex;
-    flex-direction: column;
 }
 
 .home-about-card h3 {
@@ -574,12 +571,6 @@
 .home-about-actions {
     display: flex;
     justify-content: flex-end;
-    margin-top: auto;
-    padding-top: 10px;
-}
-
-.home-about-actions .btn-secondary {
-    min-width: 190px;
 }
 
 .news-item, .announcement-item {
@@ -643,7 +634,7 @@ body.light-theme .user-badge {
         .course-card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; margin-bottom: 15px; padding-bottom: 15px; height: 100%; }
         .course-card h3 { font-size: 18px; margin: 15px 15px 5px 15px; text-align: left; color: var(--primary-blue); }
 
-        /* CuePilot refreshed styles */
+        /* Hub Bot refreshed styles */
         .hub-bot-shell { background: linear-gradient(135deg, rgba(88, 71, 195, 0.7), rgba(32, 20, 90, 0.8)), radial-gradient(circle at 20% 20%, rgba(255,255,255,0.06), rgba(0,0,0,0)); border: 1px solid rgba(255,255,255,0.08); border-radius: 18px; padding: 22px; max-width: 980px; margin: 0 auto; box-shadow: 0 18px 36px rgba(0,0,0,0.3); backdrop-filter: blur(6px); }
         .hub-bot-hero { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:14px; }
         .hub-bot-meta { display:flex; align-items:center; gap:12px; }
@@ -769,8 +760,8 @@ body.light-theme .user-badge {
             <div class="sidebar-item" onclick="switchTab('courses-view', this)">📚 <span class="sidebar-text">Courses</span></div>
             <div class="sidebar-item" onclick="switchTab('measure-master-view', this)">📊 <span class="sidebar-text">Measure & Master</span></div>
             <div class="sidebar-item" onclick="switchTab('my-progress-view', this)">📈 <span class="sidebar-text">My Progress</span></div>
-            <div class="sidebar-item" onclick="switchTab('leaderboard-view', this)">🏆 <span class="sidebar-text">Leadership Board</span></div>
-            <div class="sidebar-item" onclick="switchTab('hub-bot-view', this)">✈️ <span class="sidebar-text">CuePilot</span></div>
+            <div class="sidebar-item" onclick="switchTab('leaderboard-view', this)">🏆 <span class="sidebar-text">LeaderBoard</span></div>
+            <div class="sidebar-item" onclick="switchTab('hub-bot-view', this)">🤖 <span class="sidebar-text">Hub Bot</span></div>
         </div>
         <div class="sidebar-footer">
             <div class="sidebar-item" id="courseMgmtSidebarItem" onclick="switchTab('course-mgmt-view', this)">📖 <span class="sidebar-text">Course Mgmt</span></div>
@@ -787,7 +778,7 @@ body.light-theme .user-badge {
                 <div class="home-about-hero">
                     <div class="home-about-head">
                         <h2 class="home-about-title">About the Hub</h2>
-                        <p class="home-about-subtitle">A single place to learn, track progress, and get help — designed to keep your growth consistent and measurable. Courses are assigned and validated so they stay playable, your learning data stays consistent across devices using shared storage, and CuePilot can continue conversations with saved chat history so you can pick up where you left off.</p>
+                        <p class="home-about-subtitle">A single place to learn, track progress, and get help — designed to keep your growth consistent and measurable. Courses are assigned and validated so they stay playable (with safe fallbacks when embeds fail), your learning data stays consistent across devices using shared storage, and Hub Bot can continue conversations with saved chat history so you can pick up where you left off.</p>
                     </div>
 
                     <div class="home-about-highlights">
@@ -804,7 +795,7 @@ body.light-theme .user-badge {
                         <div class="home-about-kicker">How it works</div>
                         <ul class="home-about-list">
                             <li>You get courses assigned by your Admin (or automatically from curated sources).</li>
-                            <li>Assignments prefer embeddable videos. If no embeddable match is found, you can retry and the Hub will fetch a different real-time YouTube result.</li>
+                            <li>Assignments prefer embeddable videos; if a video can’t be embedded, the Hub provides a safe fallback and “Watch on YouTube”.</li>
                             <li>Your assigned course list is stored in shared storage so it remains consistent after refresh or on another device.</li>
                         </ul>
                         <div class="home-about-kicker">What you can do</div>
@@ -837,11 +828,11 @@ body.light-theme .user-badge {
                     </div>
 
                     <div class="home-about-card">
-                        <h3>✈️ CuePilot</h3>
+                        <h3>🤖 Hub Bot</h3>
                         <p>Your AI assistant for learning support: summaries, troubleshooting, and next-step guidance — with chat history for continuity.</p>
                         <div class="home-about-kicker">How it works</div>
                         <ul class="home-about-list">
-                            <li>Ask questions and CuePilot responds with context from your ongoing conversation.</li>
+                            <li>Ask questions and Hub Bot responds with context from your ongoing conversation.</li>
                             <li>Chat sessions are saved so you can revisit prior topics from the “Chat history” list.</li>
                             <li>Use quick prompts to generate summaries, flashcards, practice plans, and debug help faster.</li>
                         </ul>
@@ -851,44 +842,7 @@ body.light-theme .user-badge {
                             <li>Create practice plans that match your current course work.</li>
                         </ul>
                         <div class="home-about-actions">
-                            <button class="btn-secondary" onclick="switchTab('hub-bot-view', null)">Go to CuePilot</button>
-                        </div>
-                    </div>
-
-                    <div class="home-about-card">
-                        <h3>📈 My Progress</h3>
-                        <p>A single view of your course activity and assessment results, saved so you can track improvement over time.</p>
-                        <div class="home-about-kicker">How it works</div>
-                        <ul class="home-about-list">
-                            <li>Tracks when you open a course and when you attempt assessments.</li>
-                            <li>Shows your latest score and status (Not Started → In Progress → Passed).</li>
-                            <li>Progress is stored in shared storage when available, so it stays consistent across devices.</li>
-                        </ul>
-                        <div class="home-about-kicker">What you can do</div>
-                        <ul class="home-about-list">
-                            <li>Retake assessments to improve your score.</li>
-                            <li>Quickly resume any course from the table view.</li>
-                        </ul>
-                        <div class="home-about-actions">
-                            <button class="btn-secondary" onclick="switchTab('my-progress-view', null)">Go to My Progress</button>
-                        </div>
-                    </div>
-
-                    <div class="home-about-card">
-                        <h3>🏆 Leadership Board</h3>
-                        <p>See where you stand compared to other employees based on points earned from passing course assessments.</p>
-                        <div class="home-about-kicker">How it works</div>
-                        <ul class="home-about-list">
-                            <li>Points are awarded when you pass a course assessment (≥ 80%).</li>
-                            <li>Beginner: 2 • Intermediate: 5 • Advanced: 10.</li>
-                            <li>Shows all users registered in Role Management (including 0 points).</li>
-                        </ul>
-                        <div class="home-about-kicker">What you can do</div>
-                        <ul class="home-about-list">
-                            <li>Improve your rank by passing more courses and higher levels.</li>
-                        </ul>
-                        <div class="home-about-actions">
-                            <button class="btn-secondary" onclick="switchTab('leaderboard-view', null)">Go to Leadership Board</button>
+                            <button class="btn-secondary" onclick="switchTab('hub-bot-view', null)">Go to Hub Bot</button>
                         </div>
                     </div>
                 </div>
@@ -915,14 +869,14 @@ body.light-theme .user-badge {
             </div>
         </section>
 
-        <!-- CuePilot Page -->
+        <!-- Hub Bot Page -->
         <section id="hub-bot-view" style="display: none;">
             <div class="hub-bot-shell">
                 <div class="hub-bot-hero">
                     <div class="hub-bot-meta">
                         <div class="hub-bot-avatar">🤖</div>
                         <div>
-                            <div class="hub-bot-title">CuePilot</div>
+                            <div class="hub-bot-title">Hub Bot</div>
                             <div class="hub-bot-sub">Your AI copilot for courses & troubleshooting</div>
                         </div>
                     </div>
@@ -1190,16 +1144,16 @@ body.light-theme .user-badge {
     </main>
 </div>
 
-<!-- Floating CuePilot Widget -->
+<!-- Floating Hub Bot Widget -->
 <button id="hubBotFloatBtn" onclick="toggleHubBotWidget()" style="position:fixed; bottom:20px; right:20px; z-index:3500; background: var(--primary-blue); color: white; border: none; padding: 12px 16px; border-radius: 999px; box-shadow: 0 8px 24px rgba(0,0,0,0.3); cursor: pointer; font-weight: 700; display:flex; align-items:center; gap:8px;">
-    ✈️ CuePilot
+    🤖 Hub Bot
 </button>
 
 <div id="hubBotWidget" style="display:none; position:fixed; bottom:80px; right:20px; width:340px; max-height:520px; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px; box-shadow: 0 12px 32px rgba(0,0,0,0.45); z-index:4000; overflow:hidden;">
     <div style="display:flex; align-items:center; justify-content:space-between; padding:10px 12px; border-bottom:1px solid var(--border-color);">
         <div style="display:flex; align-items:center; gap:8px;">
-            <div style="width:24px; height:24px; border-radius:50%; background: var(--primary-blue); display:flex; align-items:center; justify-content:center; color:white; font-weight:700;">✈️</div>
-            <div style="color:var(--text-main); font-weight:700;">CuePilot</div>
+            <div style="width:24px; height:24px; border-radius:50%; background: var(--primary-blue); display:flex; align-items:center; justify-content:center; color:white; font-weight:700;">🤖</div>
+            <div style="color:var(--text-main); font-weight:700;">Hub Bot</div>
         </div>
         <div style="display:flex; align-items:center; gap:8px;">
             <button onclick="clearHubBotChat()" title="Clear chat" style="background: transparent; color: var(--text-secondary); border:1px solid var(--border-color); padding:4px 8px; border-radius:6px; cursor:pointer;">🗑</button>
@@ -1302,44 +1256,8 @@ if (userEmail && !localStorage.getItem('migrated_to_firestore')) {
 <script>
 // Check if running through server (not file://)
 if (window.location.protocol === 'file:') {
-    if (window.appUI && typeof window.appUI.alert === 'function') {
-        // Give the dialog a moment to paint before redirecting.
-        window.appUI.alert({
-            title: 'Server required',
-            message: 'Please access this app through the server.\n\nRun: npm start\nThen open: http://localhost:3000\n\nThe app cannot work from local files.',
-            type: 'error'
-        });
-        setTimeout(() => { window.location.href = 'server-required.html'; }, 350);
-    } else {
-        window.location.href = 'server-required.html';
-    }
-}
-
-function uiToast(type, title, message, duration = 4200) {
-    if (window.appUI && typeof window.appUI.toast === 'function') {
-        window.appUI.toast({ type, title, message, duration });
-    }
-}
-
-function uiAlert(message, title = 'Notice', type = 'info') {
-    if (window.appUI && typeof window.appUI.alert === 'function') {
-        return window.appUI.alert({ title, message, type });
-    }
-    return Promise.resolve();
-}
-
-async function uiConfirm(message, title = 'Confirm', okText = 'Confirm', cancelText = 'Cancel', type = 'warning') {
-    if (window.appUI && typeof window.appUI.confirm === 'function') {
-        return await window.appUI.confirm({ title, message, okText, cancelText, type });
-    }
-    return confirm(message);
-}
-
-async function uiPrompt(message, title = 'Input required', placeholder = '', value = '', okText = 'Continue', cancelText = 'Cancel', type = 'info') {
-    if (window.appUI && typeof window.appUI.prompt === 'function') {
-        return await window.appUI.prompt({ title, message, placeholder, value, okText, cancelText, type });
-    }
-    return prompt(message);
+    alert('⚠️ ERROR: Please access this app through the server!\n\nRun: npm start\nThen open: http://localhost:3000\n\nThe app cannot work from local files.');
+    window.location.href = 'server-required.html';
 }
 
 function displayNews(newsArray) {
@@ -1780,9 +1698,6 @@ function updateGreeting() {
 }
 
 function switchTab(viewId, element) {
-    try {
-        localStorage.setItem('lastViewId', String(viewId || 'home-view'));
-    } catch (_) {}
     // Hide all sections
     document.querySelectorAll('main > section').forEach(section => {
         section.style.display = 'none';
@@ -1854,7 +1769,7 @@ function setUserBadge() {
     badge.textContent = stored || derived || 'User';
 }
 
-// Quick insert helper for CuePilot prompt chips
+// Quick insert helper for Hub Bot prompt chips
 function hubBotInsert(text) {
     const input = document.getElementById('hubBotPageInput');
     if (!input) return;
@@ -1999,28 +1914,9 @@ window.onload = async () => {
     Promise.resolve(loadUsers()).catch(() => {});
     Promise.resolve(loadRoles()).catch(() => {});
 
-    // Restore last visited view (fallback to Home)
-    let initialViewId = 'home-view';
-    try {
-        const saved = String(localStorage.getItem('lastViewId') || '').trim();
-        if (saved) initialViewId = saved;
-    } catch (_) {}
-
-    // If the view doesn't exist, fallback
-    if (!document.getElementById(initialViewId)) {
-        initialViewId = 'home-view';
-    }
-
-    // If a non-admin tries to restore an admin-only view, fallback to Home
-    const SUPERADMIN_EMAIL = 'ravikiran@oneorigin.us';
-    const userEmail2 = (localStorage.getItem('userEmail') || '').trim();
-    const userRole2 = (localStorage.getItem('userRole') || '').toLowerCase();
-    const isAdmin2 = userRole2 === 'admin' || userEmail2.toLowerCase() === SUPERADMIN_EMAIL.toLowerCase();
-    if (!isAdmin2 && (initialViewId === 'role-mgmt-view' || initialViewId === 'course-mgmt-view' || initialViewId === 'user-mgmt-view')) {
-        initialViewId = 'home-view';
-    }
-
-    switchTab(initialViewId, null);
+    // Show Home view
+    const homeView = document.getElementById('home-view');
+    if (homeView) homeView.style.display = 'block';
 };
 
 // Backup data to sessionStorage and restore if localStorage is cleared
@@ -2160,7 +2056,7 @@ async function saveNewCourse() {
     const videoId = document.getElementById('newVideoId').value.trim();
 
     if (!name || !videoId) {
-        uiToast('warning', 'Missing details', 'Please fill in all required fields.');
+        alert('Please fill in all required fields.');
         return;
     }
 
@@ -2192,11 +2088,11 @@ async function saveNewCourse() {
 }
 
 async function deleteCourse(id) {
-    if (!await uiConfirm('Are you sure you want to delete this course?', 'Delete course', 'Delete', 'Cancel', 'warning')) return;
+    if (!confirm('Are you sure you want to delete this course?')) return;
     
     try {
         if (!id) {
-            uiToast('error', 'Delete failed', 'Missing course identifier.');
+            alert('Unable to delete: missing course identifier.');
             return;
         }
 
@@ -2225,7 +2121,7 @@ async function deleteCourse(id) {
         console.log('✅ Course deleted successfully');
     } catch (error) {
         console.error('❌ Error deleting course:', error);
-        uiToast('error', 'Delete failed', 'Failed to delete course: ' + (error?.message || error));
+        alert('Failed to delete course: ' + error.message);
     }
 }
 
@@ -2476,7 +2372,7 @@ function startCatalogAssessmentFromPlayer() {
     const title = String(currentCourseTitle || '').trim();
     const type = String(currentCourseType || '').trim();
     if (!vid) {
-        uiToast('warning', 'No course selected', 'Please select a course first.');
+        alert('No course selected.');
         return;
     }
     startCatalogAssessment(vid, title, type);
@@ -2595,7 +2491,7 @@ function catalogAssessmentSelect(optionIndex) {
 
 function catalogAssessmentNext() {
     if (!catalogAssessmentAnswers[catalogAssessmentIndex]) {
-        uiToast('warning', 'Answer required', 'Please select an answer before proceeding.');
+        alert('Please select an answer before proceeding.');
         return;
     }
     catalogAssessmentIndex++;
@@ -2612,7 +2508,7 @@ function catalogAssessmentScore() {
 
 async function catalogAssessmentSubmit() {
     if (!catalogAssessmentAnswers[catalogAssessmentIndex]) {
-        uiToast('warning', 'Answer required', 'Please select an answer before submitting.');
+        alert('Please select an answer before submitting.');
         return;
     }
 
@@ -2746,20 +2642,13 @@ async function loadLeaderboard() {
         };
     }).sort((a, b) => (b.points - a.points) || a.email.localeCompare(b.email));
 
-    // Dense ranking: same points => same rank number
-    let currentRank = 0;
-    let lastPoints = null;
-    tbody.innerHTML = merged.map((e) => {
-        if (lastPoints === null || e.points !== lastPoints) {
-            currentRank += 1;
-            lastPoints = e.points;
-        }
-
+    tbody.innerHTML = merged.map((e, idx) => {
+        const rank = idx + 1; // ascending rank numbers
         const last = e.updatedAt ? new Date(e.updatedAt).toLocaleDateString() : '—';
         const displayName = e.name || (e.email ? e.email.split('@')[0] : 'User');
         return `
             <tr>
-                <td>${currentRank}</td>
+                <td>${rank}</td>
                 <td>${displayName}</td>
                 <td>${e.email}</td>
                 <td><b>${e.points}</b></td>
@@ -2897,7 +2786,7 @@ async function saveNewUser() {
     const email = document.getElementById('newEmpEmail').value.trim();
     const role = document.getElementById('newEmpRole').value;
     if (!employeeId || !name || !email) {
-        uiToast('warning', 'Missing details', 'Please fill in Employee ID, Name, and Email.');
+        alert('Please fill in Employee ID, Name, and Email');
         return;
     }
     if (window.upsertSharedUser) {
@@ -2931,7 +2820,7 @@ async function handleRoleChange(userEmail, value) {
     
     // Prevent changing superadmin role
     if (normalizedEmail === SUPERADMIN_EMAIL.toLowerCase()) {
-        await uiAlert('ravikiran@oneorigin.us always has Admin access.', 'Protected account', 'warning');
+        alert('⚠️ Cannot change the role of the Superadmin!\n\nravikiran@oneorigin.us always has Admin access.');
         loadUsers(); // Reload to reset the dropdown
         return;
     }
@@ -2942,13 +2831,7 @@ async function handleRoleChange(userEmail, value) {
     const employeeName = localMatch?.name || normalizedEmail;
     
     // Show confirmation dialog
-    if (!await uiConfirm(
-        `Are you sure you want to change ${employeeName}'s role from ${oldRole} to ${value}?`,
-        'Change role',
-        'Change',
-        'Cancel',
-        'warning'
-    )) {
+    if (!confirm(`Are you sure you want to change ${employeeName}'s role from ${oldRole} to ${value}?`)) {
         // Best-effort: refresh tables to restore correct values
         Promise.resolve(loadUsers()).catch(() => {});
         Promise.resolve(loadRoles()).catch(() => {});
@@ -2982,7 +2865,7 @@ async function handleRoleChange(userEmail, value) {
     if (currentEmail && currentEmail === normalizedEmail) {
         localStorage.setItem('userRole', String(value).toLowerCase() === 'admin' ? 'admin' : 'user');
         checkAdminStatus();
-        await uiAlert(`Your role has been changed to ${value}. The page will reload to apply changes.`, 'Role updated', 'success');
+        alert(`Your role has been changed to ${value}. The page will reload to apply changes.`);
         setTimeout(() => location.reload(), 500);
         return;
     }
@@ -3120,11 +3003,11 @@ async function deleteRole(userEmail) {
     
     // Prevent deleting superadmin
     if (normalizedEmail === SUPERADMIN_EMAIL.toLowerCase()) {
-        await uiAlert('ravikiran@oneorigin.us is a permanent admin.', 'Protected account', 'warning');
+        alert('⚠️ Cannot delete the Superadmin!\n\nravikiran@oneorigin.us is a permanent admin.');
         return;
     }
     
-    if (!await uiConfirm('Delete this user?', 'Delete user', 'Delete', 'Cancel', 'warning')) return;
+    if (!confirm('Delete this user?')) return;
 
     if (window.deleteSharedUserByEmail) {
         try {
@@ -3150,14 +3033,14 @@ async function deleteRole(userEmail) {
     checkAdminStatus();
 }
 
-async function deleteSelectedRoles() {
+function deleteSelectedRoles() {
     const checks = Array.from(document.querySelectorAll('.role-row-check'));
     const selectedEmails = checks
         .filter(c => c.checked)
         .map(c => String(c.dataset.email || '').trim().toLowerCase())
         .filter(Boolean);
     if (selectedEmails.length === 0) {
-        uiToast('warning', 'Nothing selected', 'Select at least one entry to delete.');
+        alert('Select at least one entry to delete.');
         return;
     }
     
@@ -3165,11 +3048,11 @@ async function deleteSelectedRoles() {
     const superadminSelected = selectedEmails.some(e => e === SUPERADMIN_EMAIL.toLowerCase());
     
     if (superadminSelected) {
-        await uiAlert('ravikiran@oneorigin.us cannot be removed. Please deselect and try again.', 'Protected account', 'warning');
+        alert('⚠️ Cannot delete the Superadmin!\n\nravikiran@oneorigin.us cannot be removed.\nPlease deselect and try again.');
         return;
     }
     
-    if (!await uiConfirm(`Delete ${selectedEmails.length} user(s)?`, 'Delete users', 'Delete', 'Cancel', 'warning')) return;
+    if (!confirm(`Delete ${selectedEmails.length} user(s)?`)) return;
 
     if (window.deleteSharedUserByEmail) {
         Promise.all(selectedEmails.map(e => window.deleteSharedUserByEmail(e)))
@@ -3216,7 +3099,7 @@ function toggleAllRoleChecks(isChecked) {
 
 async function resetUserAssessment(userEmail) {
     if (!userEmail) {
-        uiToast('error', 'Reset failed', 'Invalid user email.');
+        alert('Invalid user email');
         return;
     }
 
@@ -3233,7 +3116,7 @@ This will:
 
 Are you sure?`;
     
-    if (!await uiConfirm(confirmMsg, 'Reset assessment', 'Reset', 'Cancel', 'warning')) return;
+    if (!confirm(confirmMsg)) return;
     
     // Check if this is the current user
     const currentUserEmail = localStorage.getItem('userEmail') || '';
@@ -3256,13 +3139,13 @@ Are you sure?`;
             loadAssignedCourses();
         } catch (_) {}
 
-        await uiAlert(`Assessment reset successfully for ${user.name}. You can now retake the assessment.`, 'Reset complete', 'success');
+        alert(`Assessment reset successfully for ${user.name}!\n\nYou can now retake the assessment.`);
     } else {
         // For other users, set a cloud flag so it applies on their device
         if (window.setUserResetAssessmentFlag) {
             try {
                 await window.setUserResetAssessmentFlag(normalizedEmail, true);
-                await uiAlert(`Assessment reset queued for ${user.name}. It will apply when they next log in or load the dashboard.`, 'Reset queued', 'success');
+                alert(`Assessment reset queued for ${user.name}!\n\nIt will apply when they next log in or load the dashboard.`);
                 return;
             } catch (e) {
                 console.warn('Cloud reset flag failed; falling back to local', e);
@@ -3274,7 +3157,7 @@ Are you sure?`;
             users[userIndex].resetAssessmentFlag = true;
             localStorage.setItem('users', JSON.stringify(users));
         }
-        await uiAlert(`Assessment reset queued for ${user.name}. (Local-only fallback; may not work across devices.)`, 'Reset queued', 'warning');
+        alert(`Assessment reset queued for ${user.name}!\n\n(Local-only fallback; may not work across devices.)`);
     }
     
     console.log('Assessment reset for user:', userEmail);
@@ -3316,13 +3199,13 @@ function handleRoleCSVUpload(event) {
             Promise.resolve(loadRoles()).catch(() => {});
             syncCurrentUserRole();
             checkAdminStatus();
-            uiToast('success', 'Upload complete', 'Users uploaded successfully.');
+            alert('Users uploaded successfully');
         } catch (err) {
-            uiToast('error', 'Upload failed', 'CSV upload failed: ' + (err?.message || err));
+            alert('CSV upload failed: ' + err.message);
         }
         event.target.value = '';
     };
-    reader.onerror = () => uiToast('error', 'Read failed', 'Failed reading file.');
+    reader.onerror = () => alert('Failed reading file');
     reader.readAsText(file);
 }
 
@@ -3357,16 +3240,16 @@ function handleCSVUpload(event) {
             }
 
             Promise.resolve(loadUsers()).catch(() => {});
-            uiToast('success', 'Upload complete', 'Users uploaded successfully.');
+            alert('Users uploaded successfully');
             // After bulk upload, ensure session role is synced
             syncCurrentUserRole();
             checkAdminStatus();
         } catch (err) {
-            uiToast('error', 'Upload failed', 'CSV upload failed: ' + (err?.message || err));
+            alert('CSV upload failed: ' + err.message);
         }
         event.target.value = '';
     };
-    reader.onerror = () => uiToast('error', 'Read failed', 'Failed reading file.');
+    reader.onerror = () => alert('Failed reading file');
     reader.readAsText(file);
 }
 
@@ -3529,27 +3412,19 @@ function checkAdminStatus() {
 async function clearAllCoursesOneTime() {
     const isAdmin = (localStorage.getItem('userRole') || '').toLowerCase() === 'admin' || (localStorage.getItem('userEmail') || '').toLowerCase() === 'ravikiran@oneorigin.us';
     if (!isAdmin) {
-        uiToast('error', 'Not allowed', 'Only Admin can clear courses.');
+        alert('Only Admin can clear courses.');
         return;
     }
 
     const alreadyCleared = localStorage.getItem('one_time_courses_cleared') === 'true';
     if (alreadyCleared) {
-        uiToast('warning', 'Already cleared', 'Courses were already cleared once.');
+        alert('Courses were already cleared once.');
         return;
     }
 
-    const typed = await uiPrompt(
-        'This will permanently delete ALL courses for ALL users (database + local).\n\nType CLEAR ALL to continue:',
-        'Confirm destructive action',
-        'Type CLEAR ALL',
-        '',
-        'Delete all',
-        'Cancel',
-        'warning'
-    );
+    const typed = prompt('This will permanently delete ALL courses for ALL users (database + local).\n\nType CLEAR ALL to continue:');
     if (String(typed || '').trim().toUpperCase() !== 'CLEAR ALL') {
-        uiToast('warning', 'Cancelled', 'No changes were made.');
+        alert('Cancelled.');
         return;
     }
 
@@ -3571,10 +3446,10 @@ async function clearAllCoursesOneTime() {
         await loadCourses();
         await loadCoursesView();
         if (typeof loadRoles === 'function') loadRoles();
-        uiToast('success', 'Done', 'All courses cleared successfully.');
+        alert('All courses cleared successfully.');
     } catch (e) {
         console.error('Failed clearing all courses:', e);
-        uiToast('error', 'Failed', 'Failed to clear all courses: ' + (e?.message || e));
+        alert('Failed to clear all courses: ' + (e?.message || e));
     }
 }
 
@@ -3619,8 +3494,8 @@ async function syncCurrentUserRole() {
     }
 }
 
-async function forceRefreshNews() {
-    if (await uiConfirm('This will refresh the AI news for all users. Continue?', 'Refresh news', 'Refresh', 'Cancel', 'warning')) {
+function forceRefreshNews() {
+    if (confirm('This will refresh the AI news for all users. Continue?')) {
         // Clear the cache
         localStorage.removeItem('aiNews');
         localStorage.removeItem('aiNewsTimestamp');
@@ -3629,7 +3504,7 @@ async function forceRefreshNews() {
         // Fetch fresh news
         fetchAINews();
         fetchAIUpdates();
-        uiToast('success', 'News refreshed', 'All users will see the updated news.');
+        alert('News refreshed successfully! All users will see the updated news.');
     }
 }
 
@@ -3678,7 +3553,7 @@ async function generateQuestions() {
         userAnswers = [];
     } catch (error) {
         console.error("Question generation error:", error);
-        uiToast('error', 'Question generation failed', 'Failed to generate questions. Please try again.', 6500);
+        alert("Failed to generate questions. Please try again.");
     }
 }
 
@@ -3714,7 +3589,7 @@ function selectOption(optionIndex) {
 
 function nextQuestion() {
     if (!userAnswers[currentQuestionIndex]) {
-        uiToast('warning', 'Answer required', 'Please select an answer before proceeding.');
+        alert('Please select an answer before proceeding.');
         return;
     }
     currentQuestionIndex++;
@@ -3723,7 +3598,7 @@ function nextQuestion() {
 
 async function submitAssessment() {
     if (!userAnswers[currentQuestionIndex]) {
-        uiToast('warning', 'Answer required', 'Please select an answer before submitting.');
+        alert('Please select an answer before submitting.');
         return;
     }
 
@@ -3750,11 +3625,11 @@ async function showInitialResults(score) {
     document.getElementById('assessmentQuizContainer').style.display = 'none';
     
     const scoreOutOf10 = (score / assessmentQuestions.length * 10).toFixed(1);
-    const roundedRating = Math.max(0, Math.min(10, Math.round(Number(scoreOutOf10) || 0)));
     let level = '';
-    // Rating bands (rounded): 0-4 Beginner, 5-8 Intermediate, 9-10 Advanced
-    if (roundedRating <= 4) level = 'Beginner';
-    else if (roundedRating <= 8) level = 'Intermediate';
+    const scoreNum = Number(scoreOutOf10);
+    // 0–5 Beginner, 6–8 Intermediate, 9–10 Advanced
+    if (scoreNum <= 5) level = 'Beginner';
+    else if (scoreNum <= 8) level = 'Intermediate';
     else level = 'Advanced';
 
     // Persist the results
@@ -3773,122 +3648,140 @@ async function showInitialResults(score) {
     await getVideoSuggestion(level, scoreOutOf10);
 }
 
-async function youtubeCheckVideo(videoId, opts = {}) {
-    try {
-        const resp = await fetch(`/api/youtube/check?videoId=${encodeURIComponent(videoId)}`, {
-            signal: opts && opts.signal ? opts.signal : undefined
-        });
-        if (!resp.ok) return { ok: false, reason: `HTTP ${resp.status}` };
-        return await resp.json();
-    } catch (e) {
-        if (e && (e.name === 'AbortError' || e.code === 20)) return { ok: false, reason: 'Aborted' };
-        return { ok: false, reason: e && e.message ? e.message : 'Network error' };
-    }
-}
-
-async function youtubeSearchVideoIds(query, max = 18, opts = {}) {
-    try {
-        const resp = await fetch(`/api/youtube/search?query=${encodeURIComponent(query)}&max=${encodeURIComponent(String(max))}`, {
-            signal: opts && opts.signal ? opts.signal : undefined
-        });
-        if (!resp.ok) return [];
-        const data = await resp.json();
-        return Array.isArray(data?.videoIds) ? data.videoIds : [];
-    } catch (e) {
-        if (e && (e.name === 'AbortError' || e.code === 20)) return [];
-        return [];
-    }
-}
-
-function isValidYouTubeId(id) {
-    return /^[a-zA-Z0-9_-]{11}$/.test(String(id || ''));
-}
-
 async function getVideoSuggestion(level, score) {
     const container = document.getElementById('videoSuggestionContainer');
-    container.innerHTML = '<p style="color:var(--text-secondary);">🔍 Assigning a course based on your level...</p>';
+    container.innerHTML = '<p style="color:var(--text-secondary);">🔍 Searching YouTube for verified courses...</p>';
 
     console.log('Getting video suggestion for level:', level);
 
-    // AI-focused topics by level (no hardcoded video IDs; results are fetched live from YouTube)
-    const AI_TOPIC_QUERIES = {
+    async function checkYouTubeVideo(videoId) {
+        try {
+            const resp = await fetch(`/api/youtube/check?videoId=${encodeURIComponent(videoId)}`);
+            if (!resp.ok) return { ok: false, reason: `HTTP ${resp.status}` };
+            return await resp.json();
+        } catch (e) {
+            return { ok: false, reason: e && e.message ? e.message : 'Network error' };
+        }
+    }
+
+    // Guaranteed fallback list (known public tutorials). This ensures employees always get a course.
+    const FALLBACK_VIDEOS = {
         Beginner: [
-            'transformers explained tutorial',
-            'neural networks deep learning basics full tutorial',
-            'large language models explained beginner tutorial',
-            'prompt engineering basics tutorial',
-            'introduction to retrieval augmented generation RAG tutorial'
+            { videoId: 'PkZNo7MFNFg', topic: 'JavaScript Full Course (Beginner) - freeCodeCamp.org' },
+            { videoId: 'pQN-pnXPaVg', topic: 'Python for Beginners - freeCodeCamp.org' },
+            { videoId: 'kUMe1FH4CHE', topic: 'HTML Full Course - Build a Website Tutorial - freeCodeCamp.org' },
         ],
         Intermediate: [
-            'transformer architecture from scratch tutorial',
-            'fine tuning LLMs tutorial',
-            'RAG with vector databases tutorial',
-            'agentic AI tool use function calling tutorial',
-            'LLM evaluation and testing tutorial'
+            { videoId: 'Ke90Tje7VS0', topic: 'React JS Crash Course - Traversy Media' },
+            { videoId: 'Oe421EPjeBE', topic: 'Node.js Crash Course - Traversy Media' },
+            { videoId: '8mAITcNt710', topic: 'Complete Python Course (Intermediate) - freeCodeCamp.org' },
         ],
         Advanced: [
-            'attention mechanisms transformer variants deep dive',
-            'RLHF preference optimization deep dive',
-            'multi agent systems agentic AI architecture deep dive',
-            'efficient LLM inference kv cache quantization tutorial',
-            'AI alignment safety interpretability deep dive'
+            { videoId: 'i_LwzRVP7bg', topic: 'Advanced JavaScript Concepts - freeCodeCamp.org' },
+            { videoId: 'aircAruvnKk', topic: 'Neural Networks / Deep Learning - 3Blue1Brown' },
+            { videoId: 'Z_ikDlimN6A', topic: 'System Design Interview Concepts - freeCodeCamp.org' },
         ]
     };
 
+    // Directly fetch from YouTube using AI with Google Search grounding
+    function buildPrompt(extraConstraints = '') {
+        return `Use Google Search to find ONE REAL, PUBLICLY AVAILABLE, EMBEDDABLE YouTube tutorial video for a ${level} level learner.
+
+CRITICAL REQUIREMENTS:
+1. Video MUST be from verified educational channels: freeCodeCamp, Traversy Media, Programming with Mosh, Academind, The Net Ninja, Web Dev Simplified, or Fireship
+2. Video MUST be PUBLIC and EMBEDDABLE (playable in YouTube embed iframe; not private, unlisted, age-restricted, region-blocked, or embed-disabled)
+3. Video MUST be a FULL TUTORIAL (not a trailer, promo, or unavailable video)
+4. Verify the video ID is correct - test URL: https://www.youtube.com/watch?v={videoId}
+5. Extract ONLY the 11-character YouTube video ID (e.g., "dQw4w9WgXcQ")
+6. Video should be for ${level === 'Beginner' ? 'beginners with no prior experience' : level === 'Intermediate' ? 'intermediate learners with basic knowledge' : 'advanced developers'}
+7. Topics: Web Development (HTML/CSS/JavaScript/React), Python, AI/ML, or general programming
+
+${extraConstraints}
+
+Return ONLY valid JSON (no markdown):
+{
+  "videoId": "11_CHAR_VIDEO_ID",
+  "topic": "Exact video title from YouTube",
+  "definition": "What students will learn (2-3 sentences)",
+  "uses": "Real-world applications and skills gained"
+}
+
+DO NOT return videos that show gray thumbnails or have embedding disabled.`;
+    }
+
     try {
-        // Cancel any prior in-flight assignment on this page
-        try {
-            if (window.__courseAssignAbortController) window.__courseAssignAbortController.abort();
-        } catch (_) {}
-
-        const controller = new AbortController();
-        window.__courseAssignAbortController = controller;
-        window.addEventListener('beforeunload', () => {
-            try { controller.abort(); } catch (_) {}
-        }, { once: true });
-
+        let lastReject = '';
         let selected = null;
-        const baseQueries = AI_TOPIC_QUERIES[level] || AI_TOPIC_QUERIES.Beginner;
 
-        // Keep this fast: do a small number of searches, assign immediately.
-        const q1 = `${baseQueries[0] || 'transformers explained'} full course`;
-        const q2 = `${baseQueries[1] || baseQueries[0] || 'large language models'} tutorial`;
-        const q3 = `${baseQueries[2] || baseQueries[0] || 'agentic AI'} tutorial`;
-        const queries = [q1, q2, q3].filter(Boolean);
+        for (let attempt = 1; attempt <= 3; attempt++) {
+            container.innerHTML = `<p style="color:var(--text-secondary);">🔍 Searching YouTube for verified courses... (attempt ${attempt}/3)</p>`;
 
-        let ids = [];
-        for (let i = 0; i < queries.length; i++) {
-            if (controller.signal.aborted) return;
-            const query = queries[i];
-            container.innerHTML = `<p style="color:var(--text-secondary);">🔍 Finding a ${level} course... (${i + 1}/${queries.length})</p>`;
-            ids = await youtubeSearchVideoIds(query, 18, { signal: controller.signal });
-            if (Array.isArray(ids) && ids.length) break;
+            const extra = lastReject
+                ? `IMPORTANT: The previous candidate was rejected because: ${lastReject}. Pick a DIFFERENT video that is playable in embed.`
+                : `IMPORTANT: Prefer long-form tutorials (20+ minutes) from the listed channels.`;
+
+            const data = await callGeminiAPI(buildPrompt(extra), 'gemini-2.0-flash-exp');
+            if (data.error) throw new Error(data.error.message);
+
+            let textResponse = data.candidates[0].content.parts[0].text;
+            let cleanJson = textResponse.replace(/```json|```/g, "").trim();
+            const jsonMatch = cleanJson.match(/\{[\s\S]*\}/);
+            if (jsonMatch) cleanJson = jsonMatch[0];
+
+            const videoData = JSON.parse(cleanJson);
+            console.log('AI suggested course:', videoData);
+
+            if (!videoData.videoId || !videoData.topic) {
+                lastReject = 'missing videoId/topic';
+                continue;
+            }
+            if (String(videoData.videoId).length !== 11) {
+                lastReject = `invalid videoId format (${videoData.videoId})`;
+                continue;
+            }
+
+            const check = await checkYouTubeVideo(videoData.videoId);
+            if (!check.ok) {
+                lastReject = check.reason || check.status || 'video unavailable/unembeddable';
+                continue;
+            }
+
+            // Use verified title from check if available
+            if (check.title && !videoData.topic) videoData.topic = check.title;
+            selected = videoData;
+            break;
         }
 
-        if (controller.signal.aborted) return;
+        if (!selected) {
+            // Fallback to curated list and validate; if validation fails, still assign the first fallback.
+            const candidates = FALLBACK_VIDEOS[level] || FALLBACK_VIDEOS.Beginner;
+            for (const c of candidates) {
+                const check = await checkYouTubeVideo(c.videoId);
+                if (check && check.ok) {
+                    selected = {
+                        videoId: c.videoId,
+                        topic: check.title || c.topic,
+                        definition: 'A curated tutorial selected as a reliable fallback when search results are unavailable.',
+                        uses: 'Build core practical skills with a long-form training video.'
+                    };
+                    break;
+                }
+            }
 
-        const picked = (ids || []).find(isValidYouTubeId) || '';
-        if (!isValidYouTubeId(picked)) throw new Error('No course results available');
-
-        // Assign immediately (do not block on embeddability checks).
-        selected = {
-            videoId: picked,
-            topic: `AI Course Recommendation (${level})`,
-            definition: `A course matched to your ${level} level, focused on modern AI fundamentals and applied patterns.`,
-            uses: 'Start training immediately with the assigned video, then continue with the next course after passing the assessment.'
-        };
-
-        // Best-effort: improve the title in the background (non-blocking)
-        try {
-            const check = await youtubeCheckVideo(picked, { signal: controller.signal });
-            if (check && check.ok && check.title) selected.topic = check.title;
-        } catch (_) {}
-
-        if (!isValidYouTubeId(selected.videoId)) {
-            throw new Error('Could not find a valid course video right now.');
+            if (!selected && candidates.length > 0) {
+                // Absolute last resort: assign first fallback without validation.
+                selected = {
+                    videoId: candidates[0].videoId,
+                    topic: candidates[0].topic,
+                    definition: 'A curated tutorial selected as a reliable fallback when validation is unavailable.',
+                    uses: 'Build core practical skills with a long-form training video.'
+                };
+            }
         }
 
-        if (controller.signal.aborted) return;
+        if (!selected) {
+            throw new Error('Unable to assign a course at this time.');
+        }
 
         assignCourseToUser(selected, level);
         container.innerHTML = `
@@ -3902,9 +3795,9 @@ async function getVideoSuggestion(level, score) {
         console.error('Error fetching YouTube course:', error);
         container.innerHTML = `
             <div style="background:rgba(248,81,73,0.1); padding:15px; border-radius:8px; border:1px solid #f85149;">
-                <p style="color:#f85149; font-weight:bold; margin-bottom:10px;">Couldn’t assign a course right now</p>
-                <p style="color:var(--text-main);">Please click “Retry Assignment” to try again.</p>
-                <button class="btn-secondary" style="margin-top:12px;" onclick="getVideoSuggestion('${String(level).replace(/'/g, "\\'")}', '${String(score).replace(/'/g, "\\'")}')">Retry Assignment</button>
+                <p style="color:#f85149; font-weight:bold; margin-bottom:10px;">⚠️ Error Fetching Course</p>
+                <p style="color:var(--text-main); font-size:13px;">${error.message}</p>
+                <p style="color:var(--text-secondary); font-size:12px; margin-top:8px;">Please try the "Reset All" button and attempt the assessment again, or add a ${level} level course manually in Course Management.</p>
             </div>
         `;
     }
@@ -3919,7 +3812,6 @@ function assignCourseToUser(videoData, level) {
         topic: videoData.topic,
         definition: videoData.definition,
         uses: videoData.uses,
-        searchQuery: videoData.searchQuery || '',
         level: level,
         assignedDate: new Date().toLocaleDateString(),
         completed: false,
@@ -3940,77 +3832,6 @@ function assignCourseToUser(videoData, level) {
         }
     }, 500);
 }
-
-async function repairInvalidAssignedCoursesOnce() {
-    try {
-        const key = 'assignedCourses_repair_v2_done';
-        if (localStorage.getItem(key) === 'true') return;
-
-        const courses = JSON.parse(localStorage.getItem('assignedCourses') || '[]');
-        if (!Array.isArray(courses) || courses.length === 0) {
-            localStorage.setItem(key, 'true');
-            return;
-        }
-
-        let changed = false;
-        for (const c of courses) {
-            if (!c || c.passed) continue;
-
-            // Always scrub any legacy channel naming from stored content
-            const level = String(c.level || 'Beginner');
-            const legacyBrandToken = () => String.fromCharCode(83,105,109,112,108,105,108,101,97,114,110);
-            const legacyBrandRegex = () => new RegExp(legacyBrandToken(), 'gi');
-            const scrub = (s, fallback) => {
-                const raw = String(s || '');
-                if (!raw) return fallback;
-                const cleaned = raw.replace(legacyBrandRegex(), '').replace(/\s{2,}/g, ' ').trim();
-                return cleaned || fallback;
-            };
-
-            const beforeTopic = c.topic;
-            const beforeDef = c.definition;
-            const beforeUses = c.uses;
-            const beforeQuery = c.searchQuery;
-
-            c.topic = scrub(c.topic, `AI Course Recommendation (${level})`);
-            c.definition = scrub(c.definition, `A course matched to your ${level} level.`);
-            c.uses = scrub(c.uses, 'Start training immediately with the assigned video.');
-            c.searchQuery = scrub(c.searchQuery, '');
-
-            if (c.topic !== beforeTopic || c.definition !== beforeDef || c.uses !== beforeUses || c.searchQuery !== beforeQuery) {
-                changed = true;
-            }
-
-            if (isValidYouTubeId(c.videoId)) continue;
-
-            const q = String(c.searchQuery || '').trim() || (String(c.topic || '').trim() + ' tutorial') || (level + ' AI tutorial');
-            const ids = await youtubeSearchVideoIds(q, 18);
-            const picked = ids && ids.length ? ids[0] : '';
-            if (isValidYouTubeId(picked)) {
-                c.videoId = picked;
-                // Try to replace placeholder titles with a real title if available
-                const check = await youtubeCheckVideo(picked);
-                if (check && check.ok && check.title) c.topic = check.title;
-                changed = true;
-            }
-        }
-
-        if (changed) {
-            localStorage.setItem('assignedCourses', JSON.stringify(courses));
-            loadAssignedCourses();
-        }
-
-        localStorage.setItem(key, 'true');
-    } catch (e) {
-        // Do not block the app if repair fails.
-        try { localStorage.setItem('assignedCourses_repair_v2_done', 'true'); } catch (_) {}
-    }
-}
-
-// On load, repair any legacy placeholder assignments (no videoId)
-window.addEventListener('load', () => {
-    setTimeout(() => { repairInvalidAssignedCoursesOnce(); }, 600);
-});
 
 function updateInitialAssessmentStatus() {
     const initialScore = localStorage.getItem('initialAssessmentScore');
@@ -4064,17 +3885,12 @@ function loadAssignedCourses() {
             // Only the first active course is unlocked
             const isLocked = index > 0;
             const previousCourse = index > 0 ? activeCourses[index - 1] : null;
-            const hasVideoId = /^[a-zA-Z0-9_-]{11}$/.test(String(course.videoId || ''));
-            const safeTopic = String(course.topic || '').replace(/"/g, '&quot;');
-            const thumbHtml = hasVideoId
-                ? `<img src="https://img.youtube.com/vi/${course.videoId}/mqdefault.jpg" alt="${safeTopic}" ${!isLocked ? `onclick='openCoursePlayer("${course.videoId}", "${safeTopic}")'` : ''} style="max-width: 50%; margin: 0 auto; display: block; ${!isLocked ? 'cursor: pointer;' : ''} border-radius: 8px;">`
-                : `<div ${!isLocked ? `onclick='openCoursePlayer("", "${safeTopic}")'` : ''} style="max-width: 70%; margin: 0 auto; display:flex; align-items:center; justify-content:center; height:120px; border-radius:8px; border:1px dashed var(--border-color); background:rgba(255,255,255,0.03); color:var(--text-secondary); ${!isLocked ? 'cursor:pointer;' : ''}">🔍 YouTube search results</div>`;
             
             return `
             <div class="assigned-course-card" style="${isLocked ? 'opacity: 0.5; position: relative;' : ''}">
                 ${isLocked ? '<div style="position:absolute; top:10px; right:10px; background:#f85149; color:white; padding:5px 10px; border-radius:6px; font-size:11px; font-weight:bold;">🔒 Locked</div>' : ''}
                 <div class="course-thumbnail-wrapper">
-                    ${thumbHtml}
+                    <img src="https://img.youtube.com/vi/${course.videoId}/mqdefault.jpg" alt="${course.topic}" ${!isLocked ? `onclick='openCoursePlayer("${course.videoId}", "${course.topic.replace(/"/g, '&quot;')}")'` : ''} style="max-width: 50%; margin: 0 auto; display: block; ${!isLocked ? 'cursor: pointer;' : ''} border-radius: 8px;">
                 </div>
                 <h4 style="color:var(--primary-blue); margin:10px 0;">${course.topic}</h4>
                 <p style="color:var(--text-secondary); font-size:12px; margin-bottom:10px;">Level: ${course.level} | Assigned: ${course.assignedDate}</p>
@@ -4090,14 +3906,14 @@ function loadAssignedCourses() {
                 ${isLocked 
                     ? `<div style="margin-top:15px; padding:10px; background:rgba(248,81,73,0.1); border:1px solid #f85149; border-radius:6px; text-align:center; color:#f85149; font-size:12px;">🔒 Complete "${previousCourse.topic}" assessment first</div>`
                     : course.attemptedDate 
-                        ? `<button onclick='openCoursePlayer("${hasVideoId ? course.videoId : ''}", "${safeTopic}")' style="width:100%; margin-top:15px; background:var(--primary-blue); color:white; border:none; padding:10px; border-radius:6px; cursor:pointer; font-weight:bold;">▶ Start Training</button>
+                        ? `<button onclick='openCoursePlayer("${course.videoId}", "${course.topic.replace(/"/g, '&quot;')}")' style="width:100%; margin-top:15px; background:var(--primary-blue); color:white; border:none; padding:10px; border-radius:6px; cursor:pointer; font-weight:bold;">▶ Start Training</button>
                            <div style="width:100%; margin-top:10px; padding:12px; background:rgba(76,175,80,0.1); border:1px solid #4CAF50; border-radius:6px; text-align:center;">
                                <div style="color:#4CAF50; font-weight:bold; margin-bottom:5px;">✓ Already Attempted</div>
                                <div style="color:var(--text-main); font-size:14px;">Score: ${course.lastScore}% (${course.attemptCount} attempt${course.attemptCount > 1 ? 's' : ''})</div>
                                <div style="color:var(--text-secondary); font-size:12px; margin-top:3px;">Last: ${course.attemptedDate}</div>
                                ${course.lastScore < 80 ? `<button onclick="startVideoAssessment(${course.id})" style="width:100%; margin-top:8px; background:#f0ad4e; color:white; border:none; padding:8px; border-radius:6px; cursor:pointer; font-weight:bold; font-size:12px;">Retake Assessment</button>` : ''}
                            </div>`
-                        : `<button onclick='openCoursePlayer("${hasVideoId ? course.videoId : ''}", "${safeTopic}")' style="width:100%; margin-top:15px; background:var(--primary-blue); color:white; border:none; padding:10px; border-radius:6px; cursor:pointer; font-weight:bold;">▶ Start Training</button>
+                        : `<button onclick='openCoursePlayer("${course.videoId}", "${course.topic.replace(/"/g, '&quot;')}")' style="width:100%; margin-top:15px; background:var(--primary-blue); color:white; border:none; padding:10px; border-radius:6px; cursor:pointer; font-weight:bold;">▶ Start Training</button>
                            <button onclick="startVideoAssessment(${course.id})" style="width:100%; margin-top:10px; background:#4CAF50; color:white; border:none; padding:10px; border-radius:6px; cursor:pointer; font-weight:bold;">Attend Assessment</button>`
                 }
             </div>
@@ -4106,16 +3922,11 @@ function loadAssignedCourses() {
 
         // Add upcoming course preview if available
         if (upcomingCourse) {
-            const hasUpcomingVideoId = /^[a-zA-Z0-9_-]{11}$/.test(String(upcomingCourse.videoId || ''));
-            const safeUpcomingTopic = String(upcomingCourse.topic || '').replace(/"/g, '&quot;');
-            const upcomingThumbHtml = hasUpcomingVideoId
-                ? `<img src="https://img.youtube.com/vi/${upcomingCourse.videoId}/mqdefault.jpg" alt="${safeUpcomingTopic}" style="max-width: 50%; margin: 0 auto; display: block; border-radius: 8px; filter: grayscale(50%);">`
-                : `<div style="max-width: 70%; margin: 0 auto; display:flex; align-items:center; justify-content:center; height:120px; border-radius:8px; border:1px dashed var(--border-color); background:rgba(255,255,255,0.03); color:var(--text-secondary); filter: grayscale(50%);">🔍 YouTube search results</div>`;
             activeCoursesHTML += `
             <div class="assigned-course-card" style="opacity: 0.6; position: relative; border: 2px dashed var(--primary-blue);">
                 <div style="position:absolute; top:10px; right:10px; background:var(--primary-blue); color:white; padding:5px 10px; border-radius:6px; font-size:11px; font-weight:bold;">⭐ Upcoming</div>
                 <div class="course-thumbnail-wrapper">
-                    ${upcomingThumbHtml}
+                    <img src="https://img.youtube.com/vi/${upcomingCourse.videoId}/mqdefault.jpg" alt="${upcomingCourse.topic}" style="max-width: 50%; margin: 0 auto; display: block; border-radius: 8px; filter: grayscale(50%);">
                 </div>
                 <h4 style="color:var(--primary-blue); margin:10px 0;">${upcomingCourse.topic}</h4>
                 <p style="color:var(--text-secondary); font-size:12px; margin-bottom:10px;">Level: ${upcomingCourse.level}</p>
@@ -4144,9 +3955,7 @@ function loadAssignedCourses() {
             <div class="assigned-course-card" style="border: 2px solid #4CAF50;">
                 <div style="position:absolute; top:10px; right:10px; background:#4CAF50; color:white; padding:5px 10px; border-radius:6px; font-size:11px; font-weight:bold;">✓ Passed</div>
                 <div class="course-thumbnail-wrapper">
-                    ${/^[a-zA-Z0-9_-]{11}$/.test(String(course.videoId || ''))
-                        ? `<img src="https://img.youtube.com/vi/${course.videoId}/mqdefault.jpg" alt="${String(course.topic || '').replace(/"/g, '&quot;')}" onclick='openCoursePlayer("${course.videoId}", "${String(course.topic || '').replace(/"/g, '&quot;')}")' style="max-width: 50%; margin: 0 auto; display: block; cursor: pointer; border-radius: 8px;">`
-                        : `<div onclick='openCoursePlayer("", "${String(course.topic || '').replace(/"/g, '&quot;')}")' style="max-width: 70%; margin: 0 auto; display:flex; align-items:center; justify-content:center; height:120px; border-radius:8px; border:1px dashed var(--border-color); background:rgba(255,255,255,0.03); color:var(--text-secondary); cursor:pointer;">🔍 YouTube search results</div>`}
+                    <img src="https://img.youtube.com/vi/${course.videoId}/mqdefault.jpg" alt="${course.topic}" onclick='openCoursePlayer("${course.videoId}", "${course.topic.replace(/"/g, '&quot;')}")' style="max-width: 50%; margin: 0 auto; display: block; cursor: pointer; border-radius: 8px;">
                 </div>
                 <h4 style="color:#4CAF50; margin:10px 0;">${course.topic}</h4>
                 <p style="color:var(--text-secondary); font-size:12px; margin-bottom:10px;">Level: ${course.level} | Completed: ${course.assignedDate}</p>
@@ -4159,7 +3968,7 @@ function loadAssignedCourses() {
                     <strong style="color:#4CAF50;">Uses:</strong> ${course.uses}
                 </div>
                 
-                <button onclick='openCoursePlayer("${/^[a-zA-Z0-9_-]{11}$/.test(String(course.videoId || '')) ? course.videoId : ''}", "${String(course.topic || '').replace(/"/g, '&quot;')}")' style="width:100%; margin-top:15px; background:#4CAF50; color:white; border:none; padding:10px; border-radius:6px; cursor:pointer; font-weight:bold;">▶ Replay Course</button>
+                <button onclick='openCoursePlayer("${course.videoId}", "${course.topic.replace(/"/g, '&quot;')}")' style="width:100%; margin-top:15px; background:#4CAF50; color:white; border:none; padding:10px; border-radius:6px; cursor:pointer; font-weight:bold;">▶ Replay Course</button>
             </div>
         `).join('');
     }
@@ -4169,8 +3978,8 @@ function openCoursePlayerAndEnableAssessment(courseId, videoId, topic) {
     openCoursePlayer(videoId, topic);
 }
 
-async function resetAllAssessments() {
-    if (await uiConfirm('Are you sure you want to reset all progress? This will clear your score and assigned courses.', 'Reset progress', 'Reset', 'Cancel', 'warning')) {
+function resetAllAssessments() {
+    if (confirm('Are you sure you want to reset all progress? This will clear your score and assigned courses.')) {
         localStorage.removeItem('assignedCourses');
         localStorage.removeItem('initialAssessmentScore');
         localStorage.removeItem('userLevel');
@@ -4187,7 +3996,7 @@ async function resetAllAssessments() {
         
         loadAssignedCourses();
         updateInitialAssessmentStatus();
-        uiToast('success', 'Reset complete', 'Profile reset successfully.');
+        alert('Profile reset successfully.');
     }
 }
 
@@ -4353,11 +4162,11 @@ window.toggleAllRoleChecks = toggleAllRoleChecks;
 </script>
 
 <script>
-// ===== CuePilot (Gemini) =====
+// ===== Hub Bot (Gemini) =====
 const HUB_BOT_HISTORY_KEY = 'hubBotHistory'; // legacy
 const HUB_BOT_SESSIONS_KEY = 'hubBotSessions';
 const HUB_BOT_ACTIVE_SESSION_KEY = 'hubBotActiveSessionId';
-const HUB_BOT_SYSTEM_PROMPT = `You are CuePilot, an AI assistant for the OneOrigin Learning Hub.
+const HUB_BOT_SYSTEM_PROMPT = `You are Hub Bot, an AI assistant for the OneOrigin Learning Hub.
 Your duties:
 - Answer questions about courses available in the hub accurately using the provided course list.
 - If asked about broader technical topics beyond the hub, explain clearly with correct, safe, neutral information.
@@ -4421,7 +4230,7 @@ function ensureActiveHubBotSession() {
     const exists = activeId && sessions.some(s => s.id === activeId);
     if (!exists) {
         const id = 'chat-' + Date.now();
-        const seed = [{ role: 'assistant', content: "Welcome to the Flight Deck. I’m CuePilot. Ask me about our courses or any tech concept." }];
+        const seed = [{ role: 'assistant', content: "Hi! I'm Hub Bot. Ask me about our courses or any tech concept." }];
         const session = {
             id,
             title: 'New chat',
@@ -4629,10 +4438,10 @@ async function sendHubBotMessage(source) {
         const recent = allHistory.slice(-20);
         const convo = recent.map(m => `${m.role === 'assistant' ? 'Assistant' : 'User'}: ${m.content}`).join('\n');
 
-        const fullPrompt = `${HUB_BOT_SYSTEM_PROMPT}\n\nConversation so far (do NOT repeat this back; use it only as context):\n${convo}\n\nCourse data (only if needed):\n${context}\n\nAnswer ONLY the user's last message as CuePilot (no "User:" / "Assistant:" labels).`;
-        console.log('✈️ CuePilot: Sending request to Gemini API...');
+        const fullPrompt = `${HUB_BOT_SYSTEM_PROMPT}\n\nConversation so far (do NOT repeat this back; use it only as context):\n${convo}\n\nCourse data (only if needed):\n${context}\n\nAnswer ONLY the user's last message as Hub Bot (no "User:" / "Assistant:" labels).`;
+        console.log('🤖 Hub Bot: Sending request to Gemini API...');
         const data = await callGeminiAPI(fullPrompt, 'gemini-2.0-flash-exp');
-        console.log('✈️ CuePilot: Received response:', data);
+        console.log('🤖 Hub Bot: Received response:', data);
         let answer = 'Sorry, I could not fetch an answer right now.';
         if (data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) {
             answer = data.candidates[0].content.parts.map(p => p.text || '').join('\n').trim();
@@ -4645,7 +4454,7 @@ async function sendHubBotMessage(source) {
         setActiveHubBotMessages(updated);
         renderHubBotMessages(messagesId);
     } catch (err) {
-        console.error('❌ CuePilot error:', err);
+        console.error('❌ Hub Bot error:', err);
         const updated = getActiveHubBotMessages();
         updated.push({ role: 'assistant', content: `I ran into an issue: ${err.message || 'Unknown error'}. Please check the console for details.` });
         setActiveHubBotMessages(updated);
@@ -4653,13 +4462,13 @@ async function sendHubBotMessage(source) {
     }
 }
 
-async function clearHubBotChat() {
-    if (!await uiConfirm('Clear the CuePilot chat history?', 'Clear chat', 'Clear', 'Cancel', 'warning')) return;
+function clearHubBotChat() {
+    if (!confirm('Clear the Hub Bot chat history?')) return;
     try {
         // Start a NEW chat session (keep old sessions in Chat history)
         const sessions = loadHubBotSessions();
         const id = 'chat-' + Date.now();
-        const seed = [{ role: 'assistant', content: "Welcome to the Flight Deck. I’m CuePilot. Ask me about our courses or any tech concept." }];
+        const seed = [{ role: 'assistant', content: "Hi! I'm Hub Bot. Ask me about our courses or any tech concept." }];
         sessions.unshift({
             id,
             title: 'New chat',
@@ -4674,11 +4483,11 @@ async function clearHubBotChat() {
         renderHubBotMessages('hubBotPageMessages');
         renderHubBotHistoryList();
     } catch (e) {
-        uiToast('error', 'Clear failed', 'Unable to clear chat: ' + (e && e.message ? e.message : 'unknown error'));
+        alert('Unable to clear chat: ' + (e && e.message ? e.message : 'unknown error'));
     }
 }
 
-// Initialize CuePilot on load
+// Initialize Hub Bot on load
 window.addEventListener('load', () => {
     initHubBot();
 });
