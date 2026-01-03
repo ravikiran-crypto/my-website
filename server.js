@@ -159,7 +159,6 @@ app.get('/api/youtube/check', async (req, res) => {
     const blockedPhrases = [
       'video unavailable',
       'playback on other websites has been disabled',
-      'watch this video on youtube',
       'this video is private',
       'sign in to confirm your age',
       'this video is not available',
