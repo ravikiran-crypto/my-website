@@ -1,6 +1,26 @@
 // Firestore Integration Helper - Add these updated functions to dashboard.html
 // Replace the existing localStorage functions with these Firestore-enabled versions
 
+function uiToast(type, title, message, duration = 4200) {
+    if (window.appUI && typeof window.appUI.toast === 'function') {
+        window.appUI.toast({ type, title, message, duration });
+    }
+}
+
+function uiAlert(message, title = 'Notice', type = 'info') {
+    if (window.appUI && typeof window.appUI.alert === 'function') {
+        return window.appUI.alert({ title, message, type });
+    }
+    return Promise.resolve();
+}
+
+async function uiConfirm(message, title = 'Confirm', okText = 'Confirm', cancelText = 'Cancel', type = 'warning') {
+    if (window.appUI && typeof window.appUI.confirm === 'function') {
+        return await window.appUI.confirm({ title, message, okText, cancelText, type });
+    }
+    return confirm(message);
+}
+
 // ============ USER MANAGEMENT FUNCTIONS ============
 
 async function loadUsers() {
@@ -41,7 +61,7 @@ async function saveNewUser() {
     const role = document.getElementById('newRole').value;
 
     if (!employeeId || !name || !email) {
-        alert('Please fill in all fields');
+        uiToast('warning', 'Missing details', 'Please fill in all fields.');
         return;
     }
 
@@ -50,19 +70,19 @@ async function saveNewUser() {
     if (window.firestoreDB) {
         const result = await window.firestoreDB.saveUser(userData);
         if (result.success) {
-            alert('User added successfully to Firestore!');
+            uiToast('success', 'User added', 'User added successfully.');
             closeAddUserModal();
             loadUsers();
             syncCurrentUserRole();
         } else {
-            alert('Error adding user: ' + result.error);
+            uiToast('error', 'Add failed', 'Error adding user: ' + result.error);
         }
     } else {
         // Fallback to localStorage
         const users = JSON.parse(localStorage.getItem('users') || '[]');
         users.push(userData);
         localStorage.setItem('users', JSON.stringify(users));
-        alert('User added to localStorage (Firestore not available)');
+        uiToast('success', 'User added', 'User added (local fallback).');
         closeAddUserModal();
         loadUsers();
         syncCurrentUserRole();
@@ -83,7 +103,7 @@ async function updateUserRole(index, value) {
     const employeeName = users[index].name;
     const employeeId = users[index].employeeId;
 
-    if (!confirm(`Change role of ${employeeName} from "${oldRole}" to "${value}"?`)) {
+    if (!await uiConfirm(`Change role of ${employeeName} from "${oldRole}" to "${value}"?`, 'Change role', 'Change', 'Cancel', 'warning')) {
         loadUsers();
         return;
     }
@@ -91,16 +111,16 @@ async function updateUserRole(index, value) {
     if (window.firestoreDB) {
         const result = await window.firestoreDB.updateUserRole(employeeId, value);
         if (result.success) {
-            alert(`${employeeName}'s role changed to ${value} in Firestore!`);
+            uiToast('success', 'Role updated', `${employeeName}'s role changed to ${value}.`);
             loadUsers();
             syncCurrentUserRole();
         } else {
-            alert('Error updating role: ' + result.error);
+            uiToast('error', 'Update failed', 'Error updating role: ' + result.error);
         }
     } else {
         users[index].role = value;
         localStorage.setItem('users', JSON.stringify(users));
-        alert(`${employeeName}'s role changed to ${value} in localStorage`);
+        uiToast('success', 'Role updated', `${employeeName}'s role changed to ${value}. (Local)`);
         loadUsers();
         syncCurrentUserRole();
     }
@@ -109,11 +129,11 @@ async function updateUserRole(index, value) {
 async function deleteSelectedRoles() {
     const checkboxes = document.querySelectorAll('.user-checkbox:checked');
     if (checkboxes.length === 0) {
-        alert('No users selected');
+        uiToast('warning', 'Nothing selected', 'No users selected.');
         return;
     }
     
-    if (!confirm(`Delete ${checkboxes.length} selected user(s)?`)) return;
+    if (!await uiConfirm(`Delete ${checkboxes.length} selected user(s)?`, 'Delete users', 'Delete', 'Cancel', 'warning')) return;
 
     let users = [];
     if (window.firestoreDB) {
@@ -125,13 +145,13 @@ async function deleteSelectedRoles() {
                 await window.firestoreDB.deleteUser(users[index].employeeId);
             }
         }
-        alert('Users deleted from Firestore!');
+        uiToast('success', 'Deleted', 'Users deleted successfully.');
     } else {
         users = JSON.parse(localStorage.getItem('users') || '[]');
         const indices = Array.from(checkboxes).map(cb => parseInt(cb.getAttribute('data-index')));
         const remaining = users.filter((_, i) => !indices.includes(i));
         localStorage.setItem('users', JSON.stringify(remaining));
-        alert('Users deleted from localStorage');
+        uiToast('success', 'Deleted', 'Users deleted (local fallback).');
     }
     
     loadUsers();
@@ -145,7 +165,7 @@ async function saveNewCourse() {
     const videoId = document.getElementById('newVideoId').value.trim();
 
     if (!name || !videoId) {
-        alert('Please fill in all required fields.');
+        uiToast('warning', 'Missing details', 'Please fill in all required fields.');
         return;
     }
 
@@ -155,17 +175,17 @@ async function saveNewCourse() {
     if (window.firestoreDB) {
         const result = await window.firestoreDB.saveCourse(courseData);
         if (result.success) {
-            alert('Course added to Firestore!');
+            uiToast('success', 'Course added', 'Course added successfully.');
             closeAddCourseModal();
             loadCourses();
         } else {
-            alert('Error adding course: ' + result.error);
+            uiToast('error', 'Add failed', 'Error adding course: ' + result.error);
         }
     } else {
         const courses = JSON.parse(localStorage.getItem('courses') || '[]');
         courses.push(courseData);
         localStorage.setItem('courses', JSON.stringify(courses));
-        alert('Course added to localStorage');
+        uiToast('success', 'Course added', 'Course added (local fallback).');
         closeAddCourseModal();
         loadCourses();
     }
@@ -193,21 +213,21 @@ async function loadCourses() {
 }
 
 async function deleteCourse(courseId) {
-    if (!confirm('Delete this course?')) return;
+    if (!await uiConfirm('Delete this course?', 'Delete course', 'Delete', 'Cancel', 'warning')) return;
 
     if (window.firestoreDB) {
         const result = await window.firestoreDB.deleteCourse(courseId);
         if (result.success) {
-            alert('Course deleted from Firestore!');
+            uiToast('success', 'Deleted', 'Course deleted successfully.');
             loadCourses();
         } else {
-            alert('Error deleting course: ' + result.error);
+            uiToast('error', 'Delete failed', 'Error deleting course: ' + result.error);
         }
     } else {
         let courses = JSON.parse(localStorage.getItem('courses') || '[]');
         courses = courses.filter(c => c.id !== courseId);
         localStorage.setItem('courses', JSON.stringify(courses));
-        alert('Course deleted from localStorage');
+        uiToast('success', 'Deleted', 'Course deleted (local fallback).');
         loadCourses();
     }
 }

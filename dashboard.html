@@ -7,6 +7,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <script src="api-config.js"></script>
+    <script src="ui-popups.js"></script>
     <script type="module" src="shared-storage.js"></script>
     <script type="module" src="firestore-db.js"></script>
     <style>
@@ -1301,8 +1302,44 @@ if (userEmail && !localStorage.getItem('migrated_to_firestore')) {
 <script>
 // Check if running through server (not file://)
 if (window.location.protocol === 'file:') {
-    alert('⚠️ ERROR: Please access this app through the server!\n\nRun: npm start\nThen open: http://localhost:3000\n\nThe app cannot work from local files.');
-    window.location.href = 'server-required.html';
+    if (window.appUI && typeof window.appUI.alert === 'function') {
+        // Give the dialog a moment to paint before redirecting.
+        window.appUI.alert({
+            title: 'Server required',
+            message: 'Please access this app through the server.\n\nRun: npm start\nThen open: http://localhost:3000\n\nThe app cannot work from local files.',
+            type: 'error'
+        });
+        setTimeout(() => { window.location.href = 'server-required.html'; }, 350);
+    } else {
+        window.location.href = 'server-required.html';
+    }
+}
+
+function uiToast(type, title, message, duration = 4200) {
+    if (window.appUI && typeof window.appUI.toast === 'function') {
+        window.appUI.toast({ type, title, message, duration });
+    }
+}
+
+function uiAlert(message, title = 'Notice', type = 'info') {
+    if (window.appUI && typeof window.appUI.alert === 'function') {
+        return window.appUI.alert({ title, message, type });
+    }
+    return Promise.resolve();
+}
+
+async function uiConfirm(message, title = 'Confirm', okText = 'Confirm', cancelText = 'Cancel', type = 'warning') {
+    if (window.appUI && typeof window.appUI.confirm === 'function') {
+        return await window.appUI.confirm({ title, message, okText, cancelText, type });
+    }
+    return confirm(message);
+}
+
+async function uiPrompt(message, title = 'Input required', placeholder = '', value = '', okText = 'Continue', cancelText = 'Cancel', type = 'info') {
+    if (window.appUI && typeof window.appUI.prompt === 'function') {
+        return await window.appUI.prompt({ title, message, placeholder, value, okText, cancelText, type });
+    }
+    return prompt(message);
 }
 
 function displayNews(newsArray) {
@@ -2123,7 +2160,7 @@ async function saveNewCourse() {
     const videoId = document.getElementById('newVideoId').value.trim();
 
     if (!name || !videoId) {
-        alert('Please fill in all required fields.');
+        uiToast('warning', 'Missing details', 'Please fill in all required fields.');
         return;
     }
 
@@ -2155,11 +2192,11 @@ async function saveNewCourse() {
 }
 
 async function deleteCourse(id) {
-    if (!confirm('Are you sure you want to delete this course?')) return;
+    if (!await uiConfirm('Are you sure you want to delete this course?', 'Delete course', 'Delete', 'Cancel', 'warning')) return;
     
     try {
         if (!id) {
-            alert('Unable to delete: missing course identifier.');
+            uiToast('error', 'Delete failed', 'Missing course identifier.');
             return;
         }
 
@@ -2188,7 +2225,7 @@ async function deleteCourse(id) {
         console.log('✅ Course deleted successfully');
     } catch (error) {
         console.error('❌ Error deleting course:', error);
-        alert('Failed to delete course: ' + error.message);
+        uiToast('error', 'Delete failed', 'Failed to delete course: ' + (error?.message || error));
     }
 }
 
@@ -2439,7 +2476,7 @@ function startCatalogAssessmentFromPlayer() {
     const title = String(currentCourseTitle || '').trim();
     const type = String(currentCourseType || '').trim();
     if (!vid) {
-        alert('No course selected.');
+        uiToast('warning', 'No course selected', 'Please select a course first.');
         return;
     }
     startCatalogAssessment(vid, title, type);
@@ -2558,7 +2595,7 @@ function catalogAssessmentSelect(optionIndex) {
 
 function catalogAssessmentNext() {
     if (!catalogAssessmentAnswers[catalogAssessmentIndex]) {
-        alert('Please select an answer before proceeding.');
+        uiToast('warning', 'Answer required', 'Please select an answer before proceeding.');
         return;
     }
     catalogAssessmentIndex++;
@@ -2575,7 +2612,7 @@ function catalogAssessmentScore() {
 
 async function catalogAssessmentSubmit() {
     if (!catalogAssessmentAnswers[catalogAssessmentIndex]) {
-        alert('Please select an answer before submitting.');
+        uiToast('warning', 'Answer required', 'Please select an answer before submitting.');
         return;
     }
 
@@ -2860,7 +2897,7 @@ async function saveNewUser() {
     const email = document.getElementById('newEmpEmail').value.trim();
     const role = document.getElementById('newEmpRole').value;
     if (!employeeId || !name || !email) {
-        alert('Please fill in Employee ID, Name, and Email');
+        uiToast('warning', 'Missing details', 'Please fill in Employee ID, Name, and Email.');
         return;
     }
     if (window.upsertSharedUser) {
@@ -2894,7 +2931,7 @@ async function handleRoleChange(userEmail, value) {
     
     // Prevent changing superadmin role
     if (normalizedEmail === SUPERADMIN_EMAIL.toLowerCase()) {
-        alert('⚠️ Cannot change the role of the Superadmin!\n\nravikiran@oneorigin.us always has Admin access.');
+        await uiAlert('ravikiran@oneorigin.us always has Admin access.', 'Protected account', 'warning');
         loadUsers(); // Reload to reset the dropdown
         return;
     }
@@ -2905,7 +2942,13 @@ async function handleRoleChange(userEmail, value) {
     const employeeName = localMatch?.name || normalizedEmail;
     
     // Show confirmation dialog
-    if (!confirm(`Are you sure you want to change ${employeeName}'s role from ${oldRole} to ${value}?`)) {
+    if (!await uiConfirm(
+        `Are you sure you want to change ${employeeName}'s role from ${oldRole} to ${value}?`,
+        'Change role',
+        'Change',
+        'Cancel',
+        'warning'
+    )) {
         // Best-effort: refresh tables to restore correct values
         Promise.resolve(loadUsers()).catch(() => {});
         Promise.resolve(loadRoles()).catch(() => {});
@@ -2939,7 +2982,7 @@ async function handleRoleChange(userEmail, value) {
     if (currentEmail && currentEmail === normalizedEmail) {
         localStorage.setItem('userRole', String(value).toLowerCase() === 'admin' ? 'admin' : 'user');
         checkAdminStatus();
-        alert(`Your role has been changed to ${value}. The page will reload to apply changes.`);
+        await uiAlert(`Your role has been changed to ${value}. The page will reload to apply changes.`, 'Role updated', 'success');
         setTimeout(() => location.reload(), 500);
         return;
     }
@@ -3077,11 +3120,11 @@ async function deleteRole(userEmail) {
     
     // Prevent deleting superadmin
     if (normalizedEmail === SUPERADMIN_EMAIL.toLowerCase()) {
-        alert('⚠️ Cannot delete the Superadmin!\n\nravikiran@oneorigin.us is a permanent admin.');
+        await uiAlert('ravikiran@oneorigin.us is a permanent admin.', 'Protected account', 'warning');
         return;
     }
     
-    if (!confirm('Delete this user?')) return;
+    if (!await uiConfirm('Delete this user?', 'Delete user', 'Delete', 'Cancel', 'warning')) return;
 
     if (window.deleteSharedUserByEmail) {
         try {
@@ -3107,14 +3150,14 @@ async function deleteRole(userEmail) {
     checkAdminStatus();
 }
 
-function deleteSelectedRoles() {
+async function deleteSelectedRoles() {
     const checks = Array.from(document.querySelectorAll('.role-row-check'));
     const selectedEmails = checks
         .filter(c => c.checked)
         .map(c => String(c.dataset.email || '').trim().toLowerCase())
         .filter(Boolean);
     if (selectedEmails.length === 0) {
-        alert('Select at least one entry to delete.');
+        uiToast('warning', 'Nothing selected', 'Select at least one entry to delete.');
         return;
     }
     
@@ -3122,11 +3165,11 @@ function deleteSelectedRoles() {
     const superadminSelected = selectedEmails.some(e => e === SUPERADMIN_EMAIL.toLowerCase());
     
     if (superadminSelected) {
-        alert('⚠️ Cannot delete the Superadmin!\n\nravikiran@oneorigin.us cannot be removed.\nPlease deselect and try again.');
+        await uiAlert('ravikiran@oneorigin.us cannot be removed. Please deselect and try again.', 'Protected account', 'warning');
         return;
     }
     
-    if (!confirm(`Delete ${selectedEmails.length} user(s)?`)) return;
+    if (!await uiConfirm(`Delete ${selectedEmails.length} user(s)?`, 'Delete users', 'Delete', 'Cancel', 'warning')) return;
 
     if (window.deleteSharedUserByEmail) {
         Promise.all(selectedEmails.map(e => window.deleteSharedUserByEmail(e)))
@@ -3173,7 +3216,7 @@ function toggleAllRoleChecks(isChecked) {
 
 async function resetUserAssessment(userEmail) {
     if (!userEmail) {
-        alert('Invalid user email');
+        uiToast('error', 'Reset failed', 'Invalid user email.');
         return;
     }
 
@@ -3190,7 +3233,7 @@ This will:
 
 Are you sure?`;
     
-    if (!confirm(confirmMsg)) return;
+    if (!await uiConfirm(confirmMsg, 'Reset assessment', 'Reset', 'Cancel', 'warning')) return;
     
     // Check if this is the current user
     const currentUserEmail = localStorage.getItem('userEmail') || '';
@@ -3213,13 +3256,13 @@ Are you sure?`;
             loadAssignedCourses();
         } catch (_) {}
 
-        alert(`Assessment reset successfully for ${user.name}!\n\nYou can now retake the assessment.`);
+        await uiAlert(`Assessment reset successfully for ${user.name}. You can now retake the assessment.`, 'Reset complete', 'success');
     } else {
         // For other users, set a cloud flag so it applies on their device
         if (window.setUserResetAssessmentFlag) {
             try {
                 await window.setUserResetAssessmentFlag(normalizedEmail, true);
-                alert(`Assessment reset queued for ${user.name}!\n\nIt will apply when they next log in or load the dashboard.`);
+                await uiAlert(`Assessment reset queued for ${user.name}. It will apply when they next log in or load the dashboard.`, 'Reset queued', 'success');
                 return;
             } catch (e) {
                 console.warn('Cloud reset flag failed; falling back to local', e);
@@ -3231,7 +3274,7 @@ Are you sure?`;
             users[userIndex].resetAssessmentFlag = true;
             localStorage.setItem('users', JSON.stringify(users));
         }
-        alert(`Assessment reset queued for ${user.name}!\n\n(Local-only fallback; may not work across devices.)`);
+        await uiAlert(`Assessment reset queued for ${user.name}. (Local-only fallback; may not work across devices.)`, 'Reset queued', 'warning');
     }
     
     console.log('Assessment reset for user:', userEmail);
@@ -3273,13 +3316,13 @@ function handleRoleCSVUpload(event) {
             Promise.resolve(loadRoles()).catch(() => {});
             syncCurrentUserRole();
             checkAdminStatus();
-            alert('Users uploaded successfully');
+            uiToast('success', 'Upload complete', 'Users uploaded successfully.');
         } catch (err) {
-            alert('CSV upload failed: ' + err.message);
+            uiToast('error', 'Upload failed', 'CSV upload failed: ' + (err?.message || err));
         }
         event.target.value = '';
     };
-    reader.onerror = () => alert('Failed reading file');
+    reader.onerror = () => uiToast('error', 'Read failed', 'Failed reading file.');
     reader.readAsText(file);
 }
 
@@ -3314,16 +3357,16 @@ function handleCSVUpload(event) {
             }
 
             Promise.resolve(loadUsers()).catch(() => {});
-            alert('Users uploaded successfully');
+            uiToast('success', 'Upload complete', 'Users uploaded successfully.');
             // After bulk upload, ensure session role is synced
             syncCurrentUserRole();
             checkAdminStatus();
         } catch (err) {
-            alert('CSV upload failed: ' + err.message);
+            uiToast('error', 'Upload failed', 'CSV upload failed: ' + (err?.message || err));
         }
         event.target.value = '';
     };
-    reader.onerror = () => alert('Failed reading file');
+    reader.onerror = () => uiToast('error', 'Read failed', 'Failed reading file.');
     reader.readAsText(file);
 }
 
@@ -3486,19 +3529,27 @@ function checkAdminStatus() {
 async function clearAllCoursesOneTime() {
     const isAdmin = (localStorage.getItem('userRole') || '').toLowerCase() === 'admin' || (localStorage.getItem('userEmail') || '').toLowerCase() === 'ravikiran@oneorigin.us';
     if (!isAdmin) {
-        alert('Only Admin can clear courses.');
+        uiToast('error', 'Not allowed', 'Only Admin can clear courses.');
         return;
     }
 
     const alreadyCleared = localStorage.getItem('one_time_courses_cleared') === 'true';
     if (alreadyCleared) {
-        alert('Courses were already cleared once.');
+        uiToast('warning', 'Already cleared', 'Courses were already cleared once.');
         return;
     }
 
-    const typed = prompt('This will permanently delete ALL courses for ALL users (database + local).\n\nType CLEAR ALL to continue:');
+    const typed = await uiPrompt(
+        'This will permanently delete ALL courses for ALL users (database + local).\n\nType CLEAR ALL to continue:',
+        'Confirm destructive action',
+        'Type CLEAR ALL',
+        '',
+        'Delete all',
+        'Cancel',
+        'warning'
+    );
     if (String(typed || '').trim().toUpperCase() !== 'CLEAR ALL') {
-        alert('Cancelled.');
+        uiToast('warning', 'Cancelled', 'No changes were made.');
         return;
     }
 
@@ -3520,10 +3571,10 @@ async function clearAllCoursesOneTime() {
         await loadCourses();
         await loadCoursesView();
         if (typeof loadRoles === 'function') loadRoles();
-        alert('All courses cleared successfully.');
+        uiToast('success', 'Done', 'All courses cleared successfully.');
     } catch (e) {
         console.error('Failed clearing all courses:', e);
-        alert('Failed to clear all courses: ' + (e?.message || e));
+        uiToast('error', 'Failed', 'Failed to clear all courses: ' + (e?.message || e));
     }
 }
 
@@ -3568,8 +3619,8 @@ async function syncCurrentUserRole() {
     }
 }
 
-function forceRefreshNews() {
-    if (confirm('This will refresh the AI news for all users. Continue?')) {
+async function forceRefreshNews() {
+    if (await uiConfirm('This will refresh the AI news for all users. Continue?', 'Refresh news', 'Refresh', 'Cancel', 'warning')) {
         // Clear the cache
         localStorage.removeItem('aiNews');
         localStorage.removeItem('aiNewsTimestamp');
@@ -3578,7 +3629,7 @@ function forceRefreshNews() {
         // Fetch fresh news
         fetchAINews();
         fetchAIUpdates();
-        alert('News refreshed successfully! All users will see the updated news.');
+        uiToast('success', 'News refreshed', 'All users will see the updated news.');
     }
 }
 
@@ -3627,7 +3678,7 @@ async function generateQuestions() {
         userAnswers = [];
     } catch (error) {
         console.error("Question generation error:", error);
-        alert("Failed to generate questions. Please try again.");
+        uiToast('error', 'Question generation failed', 'Failed to generate questions. Please try again.', 6500);
     }
 }
 
@@ -3663,7 +3714,7 @@ function selectOption(optionIndex) {
 
 function nextQuestion() {
     if (!userAnswers[currentQuestionIndex]) {
-        alert('Please select an answer before proceeding.');
+        uiToast('warning', 'Answer required', 'Please select an answer before proceeding.');
         return;
     }
     currentQuestionIndex++;
@@ -3672,7 +3723,7 @@ function nextQuestion() {
 
 async function submitAssessment() {
     if (!userAnswers[currentQuestionIndex]) {
-        alert('Please select an answer before submitting.');
+        uiToast('warning', 'Answer required', 'Please select an answer before submitting.');
         return;
     }
 
@@ -3720,32 +3771,36 @@ async function showInitialResults(score) {
     await getVideoSuggestion(level, scoreOutOf10);
 }
 
+async function youtubeCheckVideo(videoId) {
+    try {
+        const resp = await fetch(`/api/youtube/check?videoId=${encodeURIComponent(videoId)}`);
+        if (!resp.ok) return { ok: false, reason: `HTTP ${resp.status}` };
+        return await resp.json();
+    } catch (e) {
+        return { ok: false, reason: e && e.message ? e.message : 'Network error' };
+    }
+}
+
+async function youtubeSearchVideoIds(query, max = 18) {
+    try {
+        const resp = await fetch(`/api/youtube/search?query=${encodeURIComponent(query)}&max=${encodeURIComponent(String(max))}`);
+        if (!resp.ok) return [];
+        const data = await resp.json();
+        return Array.isArray(data?.videoIds) ? data.videoIds : [];
+    } catch (_) {
+        return [];
+    }
+}
+
+function isValidYouTubeId(id) {
+    return /^[a-zA-Z0-9_-]{11}$/.test(String(id || ''));
+}
+
 async function getVideoSuggestion(level, score) {
     const container = document.getElementById('videoSuggestionContainer');
-    container.innerHTML = '<p style="color:var(--text-secondary);">🔍 Searching YouTube for verified courses...</p>';
+    container.innerHTML = '<p style="color:var(--text-secondary);">🔍 Assigning a course based on your level...</p>';
 
     console.log('Getting video suggestion for level:', level);
-
-    async function checkYouTubeVideo(videoId) {
-        try {
-            const resp = await fetch(`/api/youtube/check?videoId=${encodeURIComponent(videoId)}`);
-            if (!resp.ok) return { ok: false, reason: `HTTP ${resp.status}` };
-            return await resp.json();
-        } catch (e) {
-            return { ok: false, reason: e && e.message ? e.message : 'Network error' };
-        }
-    }
-
-    async function searchYouTube(query, max = 18) {
-        try {
-            const resp = await fetch(`/api/youtube/search?query=${encodeURIComponent(query)}&max=${encodeURIComponent(String(max))}`);
-            if (!resp.ok) return [];
-            const data = await resp.json();
-            return Array.isArray(data?.videoIds) ? data.videoIds : [];
-        } catch (_) {
-            return [];
-        }
-    }
 
     // AI-focused topics by level (no hardcoded video IDs; results are fetched live from YouTube)
     const AI_TOPIC_QUERIES = {
@@ -3772,46 +3827,35 @@ async function getVideoSuggestion(level, score) {
         ]
     };
 
-    // Channel preference order: always try Simplilearn first
-    const CHANNEL_HINTS = [
-        'Simplilearn',
-        'DeepLearningAI',
-        'Stanford',
-        'MIT OpenCourseWare',
-        '3Blue1Brown',
-        'Two Minute Papers'
-    ];
-
     try {
         let selected = null;
+        let firstCandidateId = '';
         const baseQueries = AI_TOPIC_QUERIES[level] || AI_TOPIC_QUERIES.Beginner;
 
         const queries = [];
         for (const q of baseQueries) {
-            // Always prioritize Simplilearn search first
-            queries.push(`${q} Simplilearn`);
-            // Then try the plain query (still real-time)
+            // Prefer broader, consistently good queries (avoid hard channel names in UI/tool)
+            queries.push(`${q} full course`);
+            queries.push(`${q} tutorial`);
             queries.push(q);
-            // Then try a couple additional channel-hinted variants
-            for (const hint of CHANNEL_HINTS.slice(1, 3)) {
-                queries.push(`${q} ${hint}`);
-            }
         }
 
-        for (let attempt = 1; attempt <= 10; attempt++) {
+        for (let attempt = 1; attempt <= Math.min(queries.length, 12); attempt++) {
             const query = queries[attempt - 1] || queries[0];
-            container.innerHTML = `<p style="color:var(--text-secondary);">🔍 Searching YouTube for AI courses (Simplilearn-first)... (attempt ${attempt}/10)</p>`;
+            container.innerHTML = `<p style="color:var(--text-secondary);">🔍 Searching YouTube for ${level} courses... (attempt ${attempt}/${Math.min(queries.length, 12)})</p>`;
 
-            const ids = await searchYouTube(query, 18);
+            const ids = await youtubeSearchVideoIds(query, 18);
+            if (!firstCandidateId && ids && ids.length) firstCandidateId = ids[0];
+
             for (const id of ids) {
-                const check = await checkYouTubeVideo(id);
+                const check = await youtubeCheckVideo(id);
                 if (check && check.ok) {
                     const title = check.title || 'AI Learning Course';
                     selected = {
                         videoId: id,
                         topic: title,
-                        definition: `A real-time YouTube recommendation for ${level} level learning focused on modern AI topics (Transformers, neural networks, and agentic systems).`,
-                        uses: 'Build practical AI skills you can apply to real projects: understanding core concepts, implementing patterns, and evaluating results.'
+                        definition: `A course matched to your ${level} level, focused on modern AI fundamentals and applied patterns.`,
+                        uses: 'Build practical AI skills you can apply to real projects: understand concepts, implement patterns, and evaluate results.'
                     };
                     break;
                 }
@@ -3820,18 +3864,21 @@ async function getVideoSuggestion(level, score) {
             if (selected) break;
         }
 
+        // If we couldn't verify embeddability (often due to server/network restrictions), still assign a real video id.
         if (!selected) {
-            // Never show an error to the user here.
-            // Fall back to a real-time YouTube *search* course (still Simplilearn-first via query).
-            const fallbackQuery = `${(baseQueries && baseQueries[0]) ? baseQueries[0] : 'transformers tutorial'} Simplilearn`;
+            const fallbackQuery = (baseQueries && baseQueries[0]) ? baseQueries[0] : 'transformers explained tutorial';
+            const ids = firstCandidateId ? [firstCandidateId] : await youtubeSearchVideoIds(fallbackQuery, 18);
+            const picked = ids && ids.length ? ids[0] : '';
             selected = {
-                videoId: '',
-                topic: `Simplilearn AI Course Search (${level})`,
-                definition: `We couldn't verify an embeddable single video right now, so we've assigned a real-time YouTube search results playlist focused on ${level} AI topics (Transformers, LLMs, Agentic AI).`,
-                uses: 'Start learning immediately from live YouTube search results; pick a lesson and continue.'
+                videoId: picked,
+                topic: `AI Course Recommendation (${level})`,
+                definition: `A real-time YouTube recommendation matched to your ${level} level.`,
+                uses: 'Start training immediately with the assigned video, then continue with the next course after passing the assessment.'
             };
-            // Store the query on the object for better playback/search relevance
-            selected.searchQuery = fallbackQuery;
+        }
+
+        if (!isValidYouTubeId(selected.videoId)) {
+            throw new Error('Could not find a valid course video right now.');
         }
 
         assignCourseToUser(selected, level);
@@ -3843,25 +3890,12 @@ async function getVideoSuggestion(level, score) {
             </div>
         `;
     } catch (error) {
-        console.error('Error fetching YouTube course; falling back to search assignment:', error);
-
-        const baseQueries = AI_TOPIC_QUERIES[level] || AI_TOPIC_QUERIES.Beginner;
-        const fallbackQuery = `${(baseQueries && baseQueries[0]) ? baseQueries[0] : 'transformers tutorial'} Simplilearn`;
-        const selected = {
-            videoId: '',
-            topic: `Simplilearn AI Course Search (${level})`,
-            definition: `A real-time YouTube search results playlist focused on ${level} AI learning.`,
-            uses: 'Start learning immediately from live YouTube search results.'
-        };
-        selected.searchQuery = fallbackQuery;
-
-        try { assignCourseToUser(selected, level); } catch (_) {}
-
+        console.error('Error fetching YouTube course:', error);
         container.innerHTML = `
-            <div style="background:rgba(76,175,80,0.1); padding:15px; border-radius:8px; border:1px solid #4CAF50;">
-                <p style="color:#4CAF50; font-weight:bold; margin-bottom:10px;">✓ YouTube Course Assigned!</p>
-                <p style="color:var(--text-main);">The course <strong>${selected.topic}</strong> has been assigned.</p>
-                <p style="color:var(--text-secondary); font-size:12px; margin-top:8px;">📌 Scroll down to "My Assigned Courses" section to start learning</p>
+            <div style="background:rgba(248,81,73,0.1); padding:15px; border-radius:8px; border:1px solid #f85149;">
+                <p style="color:#f85149; font-weight:bold; margin-bottom:10px;">Couldn’t assign a course right now</p>
+                <p style="color:var(--text-main);">Please click “Retry Assignment” to try again.</p>
+                <button class="btn-secondary" style="margin-top:12px;" onclick="getVideoSuggestion('${String(level).replace(/'/g, "\\'")}', '${String(score).replace(/'/g, "\\'")}')">Retry Assignment</button>
             </div>
         `;
     }
@@ -3876,6 +3910,7 @@ function assignCourseToUser(videoData, level) {
         topic: videoData.topic,
         definition: videoData.definition,
         uses: videoData.uses,
+        searchQuery: videoData.searchQuery || '',
         level: level,
         assignedDate: new Date().toLocaleDateString(),
         completed: false,
@@ -3896,6 +3931,77 @@ function assignCourseToUser(videoData, level) {
         }
     }, 500);
 }
+
+async function repairInvalidAssignedCoursesOnce() {
+    try {
+        const key = 'assignedCourses_repair_v2_done';
+        if (localStorage.getItem(key) === 'true') return;
+
+        const courses = JSON.parse(localStorage.getItem('assignedCourses') || '[]');
+        if (!Array.isArray(courses) || courses.length === 0) {
+            localStorage.setItem(key, 'true');
+            return;
+        }
+
+        let changed = false;
+        for (const c of courses) {
+            if (!c || c.passed) continue;
+
+            // Always scrub any legacy channel naming from stored content
+            const level = String(c.level || 'Beginner');
+            const legacyBrandToken = () => String.fromCharCode(83,105,109,112,108,105,108,101,97,114,110);
+            const legacyBrandRegex = () => new RegExp(legacyBrandToken(), 'gi');
+            const scrub = (s, fallback) => {
+                const raw = String(s || '');
+                if (!raw) return fallback;
+                const cleaned = raw.replace(legacyBrandRegex(), '').replace(/\s{2,}/g, ' ').trim();
+                return cleaned || fallback;
+            };
+
+            const beforeTopic = c.topic;
+            const beforeDef = c.definition;
+            const beforeUses = c.uses;
+            const beforeQuery = c.searchQuery;
+
+            c.topic = scrub(c.topic, `AI Course Recommendation (${level})`);
+            c.definition = scrub(c.definition, `A course matched to your ${level} level.`);
+            c.uses = scrub(c.uses, 'Start training immediately with the assigned video.');
+            c.searchQuery = scrub(c.searchQuery, '');
+
+            if (c.topic !== beforeTopic || c.definition !== beforeDef || c.uses !== beforeUses || c.searchQuery !== beforeQuery) {
+                changed = true;
+            }
+
+            if (isValidYouTubeId(c.videoId)) continue;
+
+            const q = String(c.searchQuery || '').trim() || (String(c.topic || '').trim() + ' tutorial') || (level + ' AI tutorial');
+            const ids = await youtubeSearchVideoIds(q, 18);
+            const picked = ids && ids.length ? ids[0] : '';
+            if (isValidYouTubeId(picked)) {
+                c.videoId = picked;
+                // Try to replace placeholder titles with a real title if available
+                const check = await youtubeCheckVideo(picked);
+                if (check && check.ok && check.title) c.topic = check.title;
+                changed = true;
+            }
+        }
+
+        if (changed) {
+            localStorage.setItem('assignedCourses', JSON.stringify(courses));
+            loadAssignedCourses();
+        }
+
+        localStorage.setItem(key, 'true');
+    } catch (e) {
+        // Do not block the app if repair fails.
+        try { localStorage.setItem('assignedCourses_repair_v2_done', 'true'); } catch (_) {}
+    }
+}
+
+// On load, repair any legacy placeholder assignments (no videoId)
+window.addEventListener('load', () => {
+    setTimeout(() => { repairInvalidAssignedCoursesOnce(); }, 600);
+});
 
 function updateInitialAssessmentStatus() {
     const initialScore = localStorage.getItem('initialAssessmentScore');
@@ -4054,8 +4160,8 @@ function openCoursePlayerAndEnableAssessment(courseId, videoId, topic) {
     openCoursePlayer(videoId, topic);
 }
 
-function resetAllAssessments() {
-    if (confirm('Are you sure you want to reset all progress? This will clear your score and assigned courses.')) {
+async function resetAllAssessments() {
+    if (await uiConfirm('Are you sure you want to reset all progress? This will clear your score and assigned courses.', 'Reset progress', 'Reset', 'Cancel', 'warning')) {
         localStorage.removeItem('assignedCourses');
         localStorage.removeItem('initialAssessmentScore');
         localStorage.removeItem('userLevel');
@@ -4072,7 +4178,7 @@ function resetAllAssessments() {
         
         loadAssignedCourses();
         updateInitialAssessmentStatus();
-        alert('Profile reset successfully.');
+        uiToast('success', 'Reset complete', 'Profile reset successfully.');
     }
 }
 
@@ -4538,8 +4644,8 @@ async function sendHubBotMessage(source) {
     }
 }
 
-function clearHubBotChat() {
-    if (!confirm('Clear the CuePilot chat history?')) return;
+async function clearHubBotChat() {
+    if (!await uiConfirm('Clear the CuePilot chat history?', 'Clear chat', 'Clear', 'Cancel', 'warning')) return;
     try {
         // Start a NEW chat session (keep old sessions in Chat history)
         const sessions = loadHubBotSessions();
@@ -4559,7 +4665,7 @@ function clearHubBotChat() {
         renderHubBotMessages('hubBotPageMessages');
         renderHubBotHistoryList();
     } catch (e) {
-        alert('Unable to clear chat: ' + (e && e.message ? e.message : 'unknown error'));
+        uiToast('error', 'Clear failed', 'Unable to clear chat: ' + (e && e.message ? e.message : 'unknown error'));
     }
 }
 

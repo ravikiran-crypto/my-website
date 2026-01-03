@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login | OneOrigin Hub</title>
+    <script src="ui-popups.js"></script>
     <style>
         :root {
             --primary-blue: #00d2ff;
@@ -220,7 +221,13 @@
                 
                 // Check if email is from @oneorigin.us domain
                 if (!user.email || !user.email.endsWith('@oneorigin.us')) {
-                    alert('Access Denied: Please use your @oneorigin.us email.');
+                    if (window.appUI && typeof window.appUI.alert === 'function') {
+                        window.appUI.alert({
+                            title: 'Access denied',
+                            message: 'Please sign in using your @oneorigin.us email.',
+                            type: 'error'
+                        });
+                    }
                     auth.signOut();
                     return;
                 }
@@ -266,7 +273,13 @@
             })
             .catch((error) => { 
                 console.error("Login failed:", error);
-                alert('Login failed: ' + error.message);
+                if (window.appUI && typeof window.appUI.alert === 'function') {
+                    window.appUI.alert({
+                        title: 'Login failed',
+                        message: String(error && error.message ? error.message : 'Unknown error'),
+                        type: 'error'
+                    });
+                }
             });
     };
 </script>

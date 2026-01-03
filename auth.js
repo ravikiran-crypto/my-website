@@ -106,11 +106,23 @@ document.getElementById('loginBtn').addEventListener('click', async () => {
 
             window.location.href = "dashboard.html";
         } else {
-            alert("Access Denied: Please use your @oneorigin.us email.");
+            if (window.appUI && typeof window.appUI.alert === 'function') {
+                window.appUI.alert({
+                    title: 'Access denied',
+                    message: 'Please sign in using your @oneorigin.us email.',
+                    type: 'error'
+                });
+            }
             await signOut(auth);
         }
     } catch (error) {
         console.error("Login Error:", error.message);
-        alert("Error: " + error.message);
+        if (window.appUI && typeof window.appUI.alert === 'function') {
+            window.appUI.alert({
+                title: 'Login error',
+                message: String(error && error.message ? error.message : 'Unknown error'),
+                type: 'error'
+            });
+        }
     }
 });
