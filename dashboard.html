@@ -642,7 +642,7 @@ body.light-theme .user-badge {
         .course-card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; margin-bottom: 15px; padding-bottom: 15px; height: 100%; }
         .course-card h3 { font-size: 18px; margin: 15px 15px 5px 15px; text-align: left; color: var(--primary-blue); }
 
-        /* Hub Bot refreshed styles */
+        /* CuePilot refreshed styles */
         .hub-bot-shell { background: linear-gradient(135deg, rgba(88, 71, 195, 0.7), rgba(32, 20, 90, 0.8)), radial-gradient(circle at 20% 20%, rgba(255,255,255,0.06), rgba(0,0,0,0)); border: 1px solid rgba(255,255,255,0.08); border-radius: 18px; padding: 22px; max-width: 980px; margin: 0 auto; box-shadow: 0 18px 36px rgba(0,0,0,0.3); backdrop-filter: blur(6px); }
         .hub-bot-hero { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:14px; }
         .hub-bot-meta { display:flex; align-items:center; gap:12px; }
@@ -769,7 +769,7 @@ body.light-theme .user-badge {
             <div class="sidebar-item" onclick="switchTab('measure-master-view', this)">📊 <span class="sidebar-text">Measure & Master</span></div>
             <div class="sidebar-item" onclick="switchTab('my-progress-view', this)">📈 <span class="sidebar-text">My Progress</span></div>
             <div class="sidebar-item" onclick="switchTab('leaderboard-view', this)">🏆 <span class="sidebar-text">Leadership Board</span></div>
-            <div class="sidebar-item" onclick="switchTab('hub-bot-view', this)">🤖 <span class="sidebar-text">Hub Bot</span></div>
+            <div class="sidebar-item" onclick="switchTab('hub-bot-view', this)">✈️ <span class="sidebar-text">CuePilot</span></div>
         </div>
         <div class="sidebar-footer">
             <div class="sidebar-item" id="courseMgmtSidebarItem" onclick="switchTab('course-mgmt-view', this)">📖 <span class="sidebar-text">Course Mgmt</span></div>
@@ -786,7 +786,7 @@ body.light-theme .user-badge {
                 <div class="home-about-hero">
                     <div class="home-about-head">
                         <h2 class="home-about-title">About the Hub</h2>
-                        <p class="home-about-subtitle">A single place to learn, track progress, and get help — designed to keep your growth consistent and measurable. Courses are assigned and validated so they stay playable (with safe fallbacks when embeds fail), your learning data stays consistent across devices using shared storage, and Hub Bot can continue conversations with saved chat history so you can pick up where you left off.</p>
+                        <p class="home-about-subtitle">A single place to learn, track progress, and get help — designed to keep your growth consistent and measurable. Courses are assigned and validated so they stay playable, your learning data stays consistent across devices using shared storage, and CuePilot can continue conversations with saved chat history so you can pick up where you left off.</p>
                     </div>
 
                     <div class="home-about-highlights">
@@ -836,11 +836,11 @@ body.light-theme .user-badge {
                     </div>
 
                     <div class="home-about-card">
-                        <h3>🤖 Hub Bot</h3>
+                        <h3>✈️ CuePilot</h3>
                         <p>Your AI assistant for learning support: summaries, troubleshooting, and next-step guidance — with chat history for continuity.</p>
                         <div class="home-about-kicker">How it works</div>
                         <ul class="home-about-list">
-                            <li>Ask questions and Hub Bot responds with context from your ongoing conversation.</li>
+                            <li>Ask questions and CuePilot responds with context from your ongoing conversation.</li>
                             <li>Chat sessions are saved so you can revisit prior topics from the “Chat history” list.</li>
                             <li>Use quick prompts to generate summaries, flashcards, practice plans, and debug help faster.</li>
                         </ul>
@@ -850,7 +850,7 @@ body.light-theme .user-badge {
                             <li>Create practice plans that match your current course work.</li>
                         </ul>
                         <div class="home-about-actions">
-                            <button class="btn-secondary" onclick="switchTab('hub-bot-view', null)">Go to Hub Bot</button>
+                            <button class="btn-secondary" onclick="switchTab('hub-bot-view', null)">Go to CuePilot</button>
                         </div>
                     </div>
 
@@ -914,14 +914,14 @@ body.light-theme .user-badge {
             </div>
         </section>
 
-        <!-- Hub Bot Page -->
+        <!-- CuePilot Page -->
         <section id="hub-bot-view" style="display: none;">
             <div class="hub-bot-shell">
                 <div class="hub-bot-hero">
                     <div class="hub-bot-meta">
                         <div class="hub-bot-avatar">🤖</div>
                         <div>
-                            <div class="hub-bot-title">Hub Bot</div>
+                            <div class="hub-bot-title">CuePilot</div>
                             <div class="hub-bot-sub">Your AI copilot for courses & troubleshooting</div>
                         </div>
                     </div>
@@ -1189,16 +1189,16 @@ body.light-theme .user-badge {
     </main>
 </div>
 
-<!-- Floating Hub Bot Widget -->
+<!-- Floating CuePilot Widget -->
 <button id="hubBotFloatBtn" onclick="toggleHubBotWidget()" style="position:fixed; bottom:20px; right:20px; z-index:3500; background: var(--primary-blue); color: white; border: none; padding: 12px 16px; border-radius: 999px; box-shadow: 0 8px 24px rgba(0,0,0,0.3); cursor: pointer; font-weight: 700; display:flex; align-items:center; gap:8px;">
-    🤖 Hub Bot
+    ✈️ CuePilot
 </button>
 
 <div id="hubBotWidget" style="display:none; position:fixed; bottom:80px; right:20px; width:340px; max-height:520px; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px; box-shadow: 0 12px 32px rgba(0,0,0,0.45); z-index:4000; overflow:hidden;">
     <div style="display:flex; align-items:center; justify-content:space-between; padding:10px 12px; border-bottom:1px solid var(--border-color);">
         <div style="display:flex; align-items:center; gap:8px;">
-            <div style="width:24px; height:24px; border-radius:50%; background: var(--primary-blue); display:flex; align-items:center; justify-content:center; color:white; font-weight:700;">🤖</div>
-            <div style="color:var(--text-main); font-weight:700;">Hub Bot</div>
+            <div style="width:24px; height:24px; border-radius:50%; background: var(--primary-blue); display:flex; align-items:center; justify-content:center; color:white; font-weight:700;">✈️</div>
+            <div style="color:var(--text-main); font-weight:700;">CuePilot</div>
         </div>
         <div style="display:flex; align-items:center; gap:8px;">
             <button onclick="clearHubBotChat()" title="Clear chat" style="background: transparent; color: var(--text-secondary); border:1px solid var(--border-color); padding:4px 8px; border-radius:6px; cursor:pointer;">🗑</button>
@@ -1817,7 +1817,7 @@ function setUserBadge() {
     badge.textContent = stored || derived || 'User';
 }
 
-// Quick insert helper for Hub Bot prompt chips
+// Quick insert helper for CuePilot prompt chips
 function hubBotInsert(text) {
     const input = document.getElementById('hubBotPageInput');
     if (!input) return;
@@ -4238,11 +4238,11 @@ window.toggleAllRoleChecks = toggleAllRoleChecks;
 </script>
 
 <script>
-// ===== Hub Bot (Gemini) =====
+// ===== CuePilot (Gemini) =====
 const HUB_BOT_HISTORY_KEY = 'hubBotHistory'; // legacy
 const HUB_BOT_SESSIONS_KEY = 'hubBotSessions';
 const HUB_BOT_ACTIVE_SESSION_KEY = 'hubBotActiveSessionId';
-const HUB_BOT_SYSTEM_PROMPT = `You are Hub Bot, an AI assistant for the OneOrigin Learning Hub.
+const HUB_BOT_SYSTEM_PROMPT = `You are CuePilot, an AI assistant for the OneOrigin Learning Hub.
 Your duties:
 - Answer questions about courses available in the hub accurately using the provided course list.
 - If asked about broader technical topics beyond the hub, explain clearly with correct, safe, neutral information.
@@ -4306,7 +4306,7 @@ function ensureActiveHubBotSession() {
     const exists = activeId && sessions.some(s => s.id === activeId);
     if (!exists) {
         const id = 'chat-' + Date.now();
-        const seed = [{ role: 'assistant', content: "Hi! I'm Hub Bot. Ask me about our courses or any tech concept." }];
+        const seed = [{ role: 'assistant', content: "Welcome to the Flight Deck. I’m CuePilot. Ask me about our courses or any tech concept." }];
         const session = {
             id,
             title: 'New chat',
@@ -4514,10 +4514,10 @@ async function sendHubBotMessage(source) {
         const recent = allHistory.slice(-20);
         const convo = recent.map(m => `${m.role === 'assistant' ? 'Assistant' : 'User'}: ${m.content}`).join('\n');
 
-        const fullPrompt = `${HUB_BOT_SYSTEM_PROMPT}\n\nConversation so far (do NOT repeat this back; use it only as context):\n${convo}\n\nCourse data (only if needed):\n${context}\n\nAnswer ONLY the user's last message as Hub Bot (no "User:" / "Assistant:" labels).`;
-        console.log('🤖 Hub Bot: Sending request to Gemini API...');
+        const fullPrompt = `${HUB_BOT_SYSTEM_PROMPT}\n\nConversation so far (do NOT repeat this back; use it only as context):\n${convo}\n\nCourse data (only if needed):\n${context}\n\nAnswer ONLY the user's last message as CuePilot (no "User:" / "Assistant:" labels).`;
+        console.log('✈️ CuePilot: Sending request to Gemini API...');
         const data = await callGeminiAPI(fullPrompt, 'gemini-2.0-flash-exp');
-        console.log('🤖 Hub Bot: Received response:', data);
+        console.log('✈️ CuePilot: Received response:', data);
         let answer = 'Sorry, I could not fetch an answer right now.';
         if (data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) {
             answer = data.candidates[0].content.parts.map(p => p.text || '').join('\n').trim();
@@ -4530,7 +4530,7 @@ async function sendHubBotMessage(source) {
         setActiveHubBotMessages(updated);
         renderHubBotMessages(messagesId);
     } catch (err) {
-        console.error('❌ Hub Bot error:', err);
+        console.error('❌ CuePilot error:', err);
         const updated = getActiveHubBotMessages();
         updated.push({ role: 'assistant', content: `I ran into an issue: ${err.message || 'Unknown error'}. Please check the console for details.` });
         setActiveHubBotMessages(updated);
@@ -4539,12 +4539,12 @@ async function sendHubBotMessage(source) {
 }
 
 function clearHubBotChat() {
-    if (!confirm('Clear the Hub Bot chat history?')) return;
+    if (!confirm('Clear the CuePilot chat history?')) return;
     try {
         // Start a NEW chat session (keep old sessions in Chat history)
         const sessions = loadHubBotSessions();
         const id = 'chat-' + Date.now();
-        const seed = [{ role: 'assistant', content: "Hi! I'm Hub Bot. Ask me about our courses or any tech concept." }];
+        const seed = [{ role: 'assistant', content: "Welcome to the Flight Deck. I’m CuePilot. Ask me about our courses or any tech concept." }];
         sessions.unshift({
             id,
             title: 'New chat',
@@ -4563,7 +4563,7 @@ function clearHubBotChat() {
     }
 }
 
-// Initialize Hub Bot on load
+// Initialize CuePilot on load
 window.addEventListener('load', () => {
     initHubBot();
 });
