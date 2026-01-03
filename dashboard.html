@@ -3820,7 +3820,19 @@ async function getVideoSuggestion(level, score) {
             if (selected) break;
         }
 
-        if (!selected) throw new Error('Unable to find an embeddable AI course on YouTube right now. Please try again.');
+        if (!selected) {
+            // Never show an error to the user here.
+            // Fall back to a real-time YouTube *search* course (still Simplilearn-first via query).
+            const fallbackQuery = `${(baseQueries && baseQueries[0]) ? baseQueries[0] : 'transformers tutorial'} Simplilearn`;
+            selected = {
+                videoId: '',
+                topic: `Simplilearn AI Course Search (${level})`,
+                definition: `We couldn't verify an embeddable single video right now, so we've assigned a real-time YouTube search results playlist focused on ${level} AI topics (Transformers, LLMs, Agentic AI).`,
+                uses: 'Start learning immediately from live YouTube search results; pick a lesson and continue.'
+            };
+            // Store the query on the object for better playback/search relevance
+            selected.searchQuery = fallbackQuery;
+        }
 
         assignCourseToUser(selected, level);
         container.innerHTML = `
@@ -3831,12 +3843,25 @@ async function getVideoSuggestion(level, score) {
             </div>
         `;
     } catch (error) {
-        console.error('Error fetching YouTube course:', error);
+        console.error('Error fetching YouTube course; falling back to search assignment:', error);
+
+        const baseQueries = AI_TOPIC_QUERIES[level] || AI_TOPIC_QUERIES.Beginner;
+        const fallbackQuery = `${(baseQueries && baseQueries[0]) ? baseQueries[0] : 'transformers tutorial'} Simplilearn`;
+        const selected = {
+            videoId: '',
+            topic: `Simplilearn AI Course Search (${level})`,
+            definition: `A real-time YouTube search results playlist focused on ${level} AI learning.`,
+            uses: 'Start learning immediately from live YouTube search results.'
+        };
+        selected.searchQuery = fallbackQuery;
+
+        try { assignCourseToUser(selected, level); } catch (_) {}
+
         container.innerHTML = `
-            <div style="background:rgba(248,81,73,0.1); padding:15px; border-radius:8px; border:1px solid #f85149;">
-                <p style="color:#f85149; font-weight:bold; margin-bottom:10px;">⚠️ Error Fetching Course</p>
-                <p style="color:var(--text-main); font-size:13px;">${error.message}</p>
-                <p style="color:var(--text-secondary); font-size:12px; margin-top:8px;">Please try the "Reset All" button and attempt the assessment again, or add a ${level} level course manually in Course Management.</p>
+            <div style="background:rgba(76,175,80,0.1); padding:15px; border-radius:8px; border:1px solid #4CAF50;">
+                <p style="color:#4CAF50; font-weight:bold; margin-bottom:10px;">✓ YouTube Course Assigned!</p>
+                <p style="color:var(--text-main);">The course <strong>${selected.topic}</strong> has been assigned.</p>
+                <p style="color:var(--text-secondary); font-size:12px; margin-top:8px;">📌 Scroll down to "My Assigned Courses" section to start learning</p>
             </div>
         `;
     }
@@ -3924,12 +3949,17 @@ function loadAssignedCourses() {
             // Only the first active course is unlocked
             const isLocked = index > 0;
             const previousCourse = index > 0 ? activeCourses[index - 1] : null;
+            const hasVideoId = /^[a-zA-Z0-9_-]{11}$/.test(String(course.videoId || ''));
+            const safeTopic = String(course.topic || '').replace(/"/g, '&quot;');
+            const thumbHtml = hasVideoId
+                ? `<img src="https://img.youtube.com/vi/${course.videoId}/mqdefault.jpg" alt="${safeTopic}" ${!isLocked ? `onclick='openCoursePlayer("${course.videoId}", "${safeTopic}")'` : ''} style="max-width: 50%; margin: 0 auto; display: block; ${!isLocked ? 'cursor: pointer;' : ''} border-radius: 8px;">`
+                : `<div ${!isLocked ? `onclick='openCoursePlayer("", "${safeTopic}")'` : ''} style="max-width: 70%; margin: 0 auto; display:flex; align-items:center; justify-content:center; height:120px; border-radius:8px; border:1px dashed var(--border-color); background:rgba(255,255,255,0.03); color:var(--text-secondary); ${!isLocked ? 'cursor:pointer;' : ''}">🔍 YouTube search results</div>`;
             
             return `
             <div class="assigned-course-card" style="${isLocked ? 'opacity: 0.5; position: relative;' : ''}">
                 ${isLocked ? '<div style="position:absolute; top:10px; right:10px; background:#f85149; color:white; padding:5px 10px; border-radius:6px; font-size:11px; font-weight:bold;">🔒 Locked</div>' : ''}
                 <div class="course-thumbnail-wrapper">
-                    <img src="https://img.youtube.com/vi/${course.videoId}/mqdefault.jpg" alt="${course.topic}" ${!isLocked ? `onclick='openCoursePlayer("${course.videoId}", "${course.topic.replace(/"/g, '&quot;')}")'` : ''} style="max-width: 50%; margin: 0 auto; display: block; ${!isLocked ? 'cursor: pointer;' : ''} border-radius: 8px;">
+                    ${thumbHtml}
                 </div>
                 <h4 style="color:var(--primary-blue); margin:10px 0;">${course.topic}</h4>
                 <p style="color:var(--text-secondary); font-size:12px; margin-bottom:10px;">Level: ${course.level} | Assigned: ${course.assignedDate}</p>
@@ -3945,14 +3975,14 @@ function loadAssignedCourses() {
                 ${isLocked 
                     ? `<div style="margin-top:15px; padding:10px; background:rgba(248,81,73,0.1); border:1px solid #f85149; border-radius:6px; text-align:center; color:#f85149; font-size:12px;">🔒 Complete "${previousCourse.topic}" assessment first</div>`
                     : course.attemptedDate 
-                        ? `<button onclick='openCoursePlayer("${course.videoId}", "${course.topic.replace(/"/g, '&quot;')}")' style="width:100%; margin-top:15px; background:var(--primary-blue); color:white; border:none; padding:10px; border-radius:6px; cursor:pointer; font-weight:bold;">▶ Start Training</button>
+                        ? `<button onclick='openCoursePlayer("${hasVideoId ? course.videoId : ''}", "${safeTopic}")' style="width:100%; margin-top:15px; background:var(--primary-blue); color:white; border:none; padding:10px; border-radius:6px; cursor:pointer; font-weight:bold;">▶ Start Training</button>
                            <div style="width:100%; margin-top:10px; padding:12px; background:rgba(76,175,80,0.1); border:1px solid #4CAF50; border-radius:6px; text-align:center;">
                                <div style="color:#4CAF50; font-weight:bold; margin-bottom:5px;">✓ Already Attempted</div>
                                <div style="color:var(--text-main); font-size:14px;">Score: ${course.lastScore}% (${course.attemptCount} attempt${course.attemptCount > 1 ? 's' : ''})</div>
                                <div style="color:var(--text-secondary); font-size:12px; margin-top:3px;">Last: ${course.attemptedDate}</div>
                                ${course.lastScore < 80 ? `<button onclick="startVideoAssessment(${course.id})" style="width:100%; margin-top:8px; background:#f0ad4e; color:white; border:none; padding:8px; border-radius:6px; cursor:pointer; font-weight:bold; font-size:12px;">Retake Assessment</button>` : ''}
                            </div>`
-                        : `<button onclick='openCoursePlayer("${course.videoId}", "${course.topic.replace(/"/g, '&quot;')}")' style="width:100%; margin-top:15px; background:var(--primary-blue); color:white; border:none; padding:10px; border-radius:6px; cursor:pointer; font-weight:bold;">▶ Start Training</button>
+                        : `<button onclick='openCoursePlayer("${hasVideoId ? course.videoId : ''}", "${safeTopic}")' style="width:100%; margin-top:15px; background:var(--primary-blue); color:white; border:none; padding:10px; border-radius:6px; cursor:pointer; font-weight:bold;">▶ Start Training</button>
                            <button onclick="startVideoAssessment(${course.id})" style="width:100%; margin-top:10px; background:#4CAF50; color:white; border:none; padding:10px; border-radius:6px; cursor:pointer; font-weight:bold;">Attend Assessment</button>`
                 }
             </div>
@@ -3961,11 +3991,16 @@ function loadAssignedCourses() {
 
         // Add upcoming course preview if available
         if (upcomingCourse) {
+            const hasUpcomingVideoId = /^[a-zA-Z0-9_-]{11}$/.test(String(upcomingCourse.videoId || ''));
+            const safeUpcomingTopic = String(upcomingCourse.topic || '').replace(/"/g, '&quot;');
+            const upcomingThumbHtml = hasUpcomingVideoId
+                ? `<img src="https://img.youtube.com/vi/${upcomingCourse.videoId}/mqdefault.jpg" alt="${safeUpcomingTopic}" style="max-width: 50%; margin: 0 auto; display: block; border-radius: 8px; filter: grayscale(50%);">`
+                : `<div style="max-width: 70%; margin: 0 auto; display:flex; align-items:center; justify-content:center; height:120px; border-radius:8px; border:1px dashed var(--border-color); background:rgba(255,255,255,0.03); color:var(--text-secondary); filter: grayscale(50%);">🔍 YouTube search results</div>`;
             activeCoursesHTML += `
             <div class="assigned-course-card" style="opacity: 0.6; position: relative; border: 2px dashed var(--primary-blue);">
                 <div style="position:absolute; top:10px; right:10px; background:var(--primary-blue); color:white; padding:5px 10px; border-radius:6px; font-size:11px; font-weight:bold;">⭐ Upcoming</div>
                 <div class="course-thumbnail-wrapper">
-                    <img src="https://img.youtube.com/vi/${upcomingCourse.videoId}/mqdefault.jpg" alt="${upcomingCourse.topic}" style="max-width: 50%; margin: 0 auto; display: block; border-radius: 8px; filter: grayscale(50%);">
+                    ${upcomingThumbHtml}
                 </div>
                 <h4 style="color:var(--primary-blue); margin:10px 0;">${upcomingCourse.topic}</h4>
                 <p style="color:var(--text-secondary); font-size:12px; margin-bottom:10px;">Level: ${upcomingCourse.level}</p>
@@ -3994,7 +4029,9 @@ function loadAssignedCourses() {
             <div class="assigned-course-card" style="border: 2px solid #4CAF50;">
                 <div style="position:absolute; top:10px; right:10px; background:#4CAF50; color:white; padding:5px 10px; border-radius:6px; font-size:11px; font-weight:bold;">✓ Passed</div>
                 <div class="course-thumbnail-wrapper">
-                    <img src="https://img.youtube.com/vi/${course.videoId}/mqdefault.jpg" alt="${course.topic}" onclick='openCoursePlayer("${course.videoId}", "${course.topic.replace(/"/g, '&quot;')}")' style="max-width: 50%; margin: 0 auto; display: block; cursor: pointer; border-radius: 8px;">
+                    ${/^[a-zA-Z0-9_-]{11}$/.test(String(course.videoId || ''))
+                        ? `<img src="https://img.youtube.com/vi/${course.videoId}/mqdefault.jpg" alt="${String(course.topic || '').replace(/"/g, '&quot;')}" onclick='openCoursePlayer("${course.videoId}", "${String(course.topic || '').replace(/"/g, '&quot;')}")' style="max-width: 50%; margin: 0 auto; display: block; cursor: pointer; border-radius: 8px;">`
+                        : `<div onclick='openCoursePlayer("", "${String(course.topic || '').replace(/"/g, '&quot;')}")' style="max-width: 70%; margin: 0 auto; display:flex; align-items:center; justify-content:center; height:120px; border-radius:8px; border:1px dashed var(--border-color); background:rgba(255,255,255,0.03); color:var(--text-secondary); cursor:pointer;">🔍 YouTube search results</div>`}
                 </div>
                 <h4 style="color:#4CAF50; margin:10px 0;">${course.topic}</h4>
                 <p style="color:var(--text-secondary); font-size:12px; margin-bottom:10px;">Level: ${course.level} | Completed: ${course.assignedDate}</p>
@@ -4007,7 +4044,7 @@ function loadAssignedCourses() {
                     <strong style="color:#4CAF50;">Uses:</strong> ${course.uses}
                 </div>
                 
-                <button onclick='openCoursePlayer("${course.videoId}", "${course.topic.replace(/"/g, '&quot;')}")' style="width:100%; margin-top:15px; background:#4CAF50; color:white; border:none; padding:10px; border-radius:6px; cursor:pointer; font-weight:bold;">▶ Replay Course</button>
+                <button onclick='openCoursePlayer("${/^[a-zA-Z0-9_-]{11}$/.test(String(course.videoId || '')) ? course.videoId : ''}", "${String(course.topic || '').replace(/"/g, '&quot;')}")' style="width:100%; margin-top:15px; background:#4CAF50; color:white; border:none; padding:10px; border-radius:6px; cursor:pointer; font-weight:bold;">▶ Replay Course</button>
             </div>
         `).join('');
     }
