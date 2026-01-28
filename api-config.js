@@ -5,7 +5,7 @@ const API_BASE_URL = window.location.origin;
 /**
  * Call Gemini API through backend proxy
  * @param {string} prompt - The prompt to send to Gemini
- * @param {string} model - The Gemini model to use (default: 'gemini-2.0-flash-exp')
+ * @param {string} model - The Gemini model to use (default: 'gemini-2.5-flash')
  * @returns {Promise<Object>} - The API response
  */
 async function callGeminiAPI(prompt, model = 'gemini-2.0-flash-exp') {
@@ -33,10 +33,10 @@ async function callGeminiAPI(prompt, model = 'gemini-2.0-flash-exp') {
 /**
  * Call Gemini API with custom request body through backend proxy
  * @param {Object} body - The custom request body for Gemini API
- * @param {string} model - The Gemini model to use (default: 'gemini-2.0-flash-exp')
+ * @param {string} model - The Gemini model to use (default: 'gemini-2.5-flash')
  * @returns {Promise<Object>} - The API response
  */
-async function callGeminiAPICustom(body, model = 'gemini-2.0-flash-exp') {
+async function callGeminiAPICustom(body, model = 'gemini-2.5-flash') {
   try {
     const response = await fetch(`${API_BASE_URL}/api/gemini/custom`, {
       method: 'POST',
@@ -65,7 +65,7 @@ async function callGeminiAPICustom(body, model = 'gemini-2.0-flash-exp') {
 /*
 const FIREBASE_FUNCTIONS_URL = 'https://YOUR-PROJECT-ID.cloudfunctions.net';
 
-async function callGeminiAPIFirebase(prompt, model = 'gemini-2.0-flash-exp') {
+async function callGeminiAPIFirebase(prompt, model = 'gemini-2.5-flash') {
   try {
     const response = await fetch(`${FIREBASE_FUNCTIONS_URL}/gemini`, {
       method: 'POST',
@@ -87,7 +87,7 @@ async function callGeminiAPIFirebase(prompt, model = 'gemini-2.0-flash-exp') {
   }
 }
 
-async function callGeminiAPICustomFirebase(body, model = 'gemini-2.0-flash-exp') {
+async function callGeminiAPICustomFirebase(body, model = 'gemini-2.5-flash') {
   try {
     const response = await fetch(`${FIREBASE_FUNCTIONS_URL}/geminiCustom`, {
       method: 'POST',
