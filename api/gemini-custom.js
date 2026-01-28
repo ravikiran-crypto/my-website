@@ -17,7 +17,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { body, model = 'gemini-2.0-flash-exp' } = req.body;
+    const { body, model = 'gemini-2.5-flash' } = req.body;
 
     if (!body) {
       res.status(400).json({ error: 'Request body is required' });

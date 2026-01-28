@@ -17,7 +17,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { prompt, model = 'gemini-2.0-flash-exp' } = req.body;
+    const { prompt, model = 'gemini-2.5-flash' } = req.body;
 
     if (!prompt) {
       res.status(400).json({ error: 'Prompt is required' });

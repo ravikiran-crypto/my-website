@@ -1452,7 +1452,7 @@ CRITICAL REQUIREMENTS:
 
 Return ONLY a valid JSON array with NO markdown formatting:
 [{"date": "Jan 2, 2026", "headline": "Actual Article Title", "summary": "Clear 2-3 sentence summary of the article content", "url": "https://complete-direct-url-to-article"}]`,
-            'gemini-2.0-flash-exp'
+            'gemini-2.5-flash'
         );
 
         if (data.error) throw new Error(data.error.message);
@@ -1478,7 +1478,7 @@ Prefer: official AI/company blogs, Hugging Face blog, GitHub blog, arXiv, projec
 
 Return ONLY valid JSON array:
 [{"date":"Jan 2, 2026","headline":"Title","summary":"2-3 sentences","url":"https://direct-url"}]`,
-                'gemini-2.0-flash-exp'
+                'gemini-2.5-flash'
             );
             let txt = more.candidates?.[0]?.content?.parts?.[0]?.text || '';
             let cj = String(txt).trim().replace(/```json\s*|```/g, '');
@@ -1509,7 +1509,7 @@ CRITICAL REQUIREMENTS:
 
 Return ONLY valid JSON array:
 [{"date":"Jan 2, 2026","headline":"Title","summary":"2-3 sentences","url":"https://direct-url"}]`,
-                'gemini-2.0-flash-exp'
+                'gemini-2.5-flash'
             );
             let txt = fallback.candidates?.[0]?.content?.parts?.[0]?.text || '';
             let cj = String(txt).trim().replace(/```json\s*|```/g, '');
@@ -1585,7 +1585,7 @@ async function fetchAIUpdates() {
     async function fetchUpdatesWithPrompt(prompt) {
         const data = await callGeminiAPI(
             prompt,
-            'gemini-2.0-flash-exp'
+            'gemini-2.5-flash'
         );
         if (data.error) throw new Error(data.error.message);
 
@@ -2424,7 +2424,7 @@ Rules:
 Return ONLY valid JSON array (no markdown):
 [{"question":"...","options":["A) ...","B) ...","C) ...","D) ..."],"correctAnswer":"A"}]`;
 
-        const data = await callGeminiAPI(prompt, 'gemini-2.0-flash-exp');
+        const data = await callGeminiAPI(prompt, 'gemini-2.5-flash');
         if (data.error) throw new Error(data.error.message);
 
         const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
@@ -3543,7 +3543,7 @@ async function generateQuestions() {
             ? `Generate exactly 20 multiple-choice questions covering Web Development, Large Language Models (LLMs), Transformers, OCR tools, Artificial Intelligence, Machine Learning, and related technologies. Each question should have 4 options with only one correct answer. Return a JSON array with this exact structure: [{"question": "...", "options": ["A) ...", "B) ...", "C) ...", "D) ..."], "correctAnswer": "A"}]. Make questions challenging and practical.`
             : `Based on the video topic "${currentVideoAssessmentCourse.topic}", generate exactly 10 multiple-choice questions that test understanding of the concepts covered. Each question should have 4 options with only one correct answer. Return a JSON array with this exact structure: [{"question": "...", "options": ["A) ...", "B) ...", "C) ...", "D) ..."], "correctAnswer": "A"}]. Focus on key concepts, definitions, and applications.`;
 
-        const data = await callGeminiAPI(prompt, 'gemini-2.0-flash-exp');
+        const data = await callGeminiAPI(prompt, 'gemini-2.5-flash');
         if (data.error) throw new Error(data.error.message);
 
         let textResponse = data.candidates[0].content.parts[0].text;
@@ -3720,7 +3720,7 @@ DO NOT return videos that show gray thumbnails or have embedding disabled.`;
                 ? `IMPORTANT: The previous candidate was rejected because: ${lastReject}. Pick a DIFFERENT video that is playable in embed.`
                 : `IMPORTANT: Prefer long-form tutorials (20+ minutes) from the listed channels.`;
 
-            const data = await callGeminiAPI(buildPrompt(extra), 'gemini-2.0-flash-exp');
+            const data = await callGeminiAPI(buildPrompt(extra), 'gemini-2.5-flash');
             if (data.error) throw new Error(data.error.message);
 
             let textResponse = data.candidates[0].content.parts[0].text;
@@ -4440,7 +4440,7 @@ async function sendHubBotMessage(source) {
 
         const fullPrompt = `${HUB_BOT_SYSTEM_PROMPT}\n\nConversation so far (do NOT repeat this back; use it only as context):\n${convo}\n\nCourse data (only if needed):\n${context}\n\nAnswer ONLY the user's last message as Hub Bot (no "User:" / "Assistant:" labels).`;
         console.log('🤖 Hub Bot: Sending request to Gemini API...');
-        const data = await callGeminiAPI(fullPrompt, 'gemini-2.0-flash-exp');
+        const data = await callGeminiAPI(fullPrompt, 'gemini-2.5-flash');
         console.log('🤖 Hub Bot: Received response:', data);
         let answer = 'Sorry, I could not fetch an answer right now.';
         if (data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) {

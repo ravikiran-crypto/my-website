@@ -48,7 +48,7 @@ app.get('/api/health', (req, res) => {
 // Gemini API proxy endpoint
 app.post('/api/gemini', async (req, res) => {
   try {
-    const { prompt, model = 'gemini-2.0-flash-exp' } = req.body;
+    const { prompt, model = 'gemini-2.5-flash' } = req.body;
 
     if (!prompt) {
       return res.status(400).json({ error: 'Prompt is required' });
@@ -89,7 +89,7 @@ app.post('/api/gemini', async (req, res) => {
 // Advanced Gemini API endpoint (with custom body)
 app.post('/api/gemini/custom', async (req, res) => {
   try {
-    const { model = 'gemini-2.0-flash-exp', body } = req.body;
+    const { model = 'gemini-2.5-flash', body } = req.body;
 
     if (!body) {
       return res.status(400).json({ error: 'Request body is required' });

@@ -8,7 +8,7 @@ const API_BASE_URL = window.location.origin;
  * @param {string} model - The Gemini model to use (default: 'gemini-2.5-flash')
  * @returns {Promise<Object>} - The API response
  */
-async function callGeminiAPI(prompt, model = 'gemini-2.0-flash-exp') {
+async function callGeminiAPI(prompt, model = 'gemini-2.5-flash') {
   try {
     const response = await fetch(`${API_BASE_URL}/api/gemini`, {
       method: 'POST',

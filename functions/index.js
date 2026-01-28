@@ -8,7 +8,7 @@ const GEMINI_API_KEY = functions.config().gemini?.api_key;
 /**
  * Gemini API Proxy - Simple endpoint
  * POST /gemini
- * Body: { "prompt": "your prompt here", "model": "gemini-2.0-flash-exp" }
+ * Body: { "prompt": "your prompt here", "model": "gemini-2.5-flash" }
  */
 exports.gemini = functions.https.onRequest(async (req, res) => {
   // Enable CORS
@@ -26,7 +26,7 @@ exports.gemini = functions.https.onRequest(async (req, res) => {
   }
 
   try {
-    const { prompt, model = 'gemini-2.0-flash-exp' } = req.body;
+    const { prompt, model = 'gemini-2.5-flash' } = req.body;
 
     if (!prompt) {
       return res.status(400).json({ error: 'Prompt is required' });
@@ -67,7 +67,7 @@ exports.gemini = functions.https.onRequest(async (req, res) => {
 /**
  * Gemini API Proxy - Custom body endpoint
  * POST /geminiCustom
- * Body: { "model": "gemini-2.0-flash-exp", "body": { your custom Gemini API body } }
+ * Body: { "model": "gemini-2.5-flash", "body": { your custom Gemini API body } }
  */
 exports.geminiCustom = functions.https.onRequest(async (req, res) => {
   // Enable CORS
@@ -85,7 +85,7 @@ exports.geminiCustom = functions.https.onRequest(async (req, res) => {
   }
 
   try {
-    const { model = 'gemini-2.0-flash-exp', body } = req.body;
+    const { model = 'gemini-2.5-flash', body } = req.body;
 
     if (!body) {
       return res.status(400).json({ error: 'Request body is required' });
