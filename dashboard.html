@@ -1460,6 +1460,11 @@ Return ONLY a valid JSON array with NO markdown formatting:
         let textResponse = data.candidates[0].content.parts[0].text;
         let cleanJson = textResponse.trim().replace(/```json\s*|```/g, '');
         
+        // Validate JSON response
+        if (cleanJson.startsWith('I ') || cleanJson.startsWith('Sorry') || !cleanJson.trim().startsWith('[')) {
+            throw new Error('API returned invalid format. Please try refreshing.');
+        }
+        
         const jsonMatch = cleanJson.match(/\[\s*\{[\s\S]*\}\s*\]/);
         if (jsonMatch) cleanJson = jsonMatch[0];
         
@@ -1582,15 +1587,21 @@ async function fetchAIUpdates() {
 
     container.innerHTML = '<div class="news-item">Fetching AI updates...</div>';
 
-    async function fetchUpdatesWithPrompt(prompt) {
-        const data = await callGeminiAPI(
-            prompt,
-            'gemini-2.5-flash'
-        );
-        if (data.error) throw new Error(data.error.message);
-
-        let textResponse = data.candidates[0].content.parts[0].text;
+async function fetchUpdatesWithPrompt(prompt) {
+    const data = await callGeminiAPI(
+        prompt,
+        'gemini-2.5-flash'
+    );
+    if (data.error) throw new Error(data.error.message);
+    
+    let textResponse = data.candidates[0].content.parts[0].text;
         let cleanJson = textResponse.trim().replace(/```json\s*|```/g, '');
+        
+        // Validate JSON response
+        if (cleanJson.startsWith('I ') || cleanJson.startsWith('Sorry') || !cleanJson.trim().startsWith('[')) {
+            throw new Error('API returned invalid format. Please try refreshing.');
+        }
+        
         const jsonMatch = cleanJson.match(/\[\s*\{[\s\S]*\}\s*\]/);
         if (jsonMatch) cleanJson = jsonMatch[0];
 
