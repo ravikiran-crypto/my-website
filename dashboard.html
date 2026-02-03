@@ -1120,11 +1120,12 @@ body.light-theme .user-badge {
                             <th>Email</th>
                             <th style="width:140px;">Points</th>
                             <th style="width:170px;">Last Updated</th>
+                            <th id="leaderboardViewColView" style="width:90px; text-align:center; display:none;">View</th>
                         </tr>
                     </thead>
                     <tbody id="leaderboardTableBody">
                         <tr>
-                            <td colspan="5" style="color:var(--text-secondary);">Loading…</td>
+                            <td colspan="6" style="color:var(--text-secondary);">Loading…</td>
                         </tr>
                     </tbody>
                 </table>
@@ -1964,7 +1965,7 @@ function backupAndRestoreData() {
             <button class="course-player-close" onclick="closeCoursePlayer()">✕</button>
         </div>
         <div class="course-player-frame">
-            <iframe id="coursePlayerFrame" src="" allowfullscreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"></iframe>
+            <div id="coursePlayerFrame" style="width:100%; height:100%;"></div>
             <button id="coursePlayerPlay" class="course-player-play" onclick="startCoursePlayer()">▶</button>
         </div>
         <div style="margin-top: 15px; padding: 15px; background: rgba(66,133,244,0.1); border: 1px solid var(--primary-blue); border-radius: 8px; text-align: center;">
@@ -1980,8 +1981,25 @@ function backupAndRestoreData() {
             </div>
 
             <div style="margin-top: 12px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
-                <button class="btn-secondary" onclick="startCatalogAssessmentFromPlayer()">Take Assessment</button>
+                <button id="coursePlayerAssessmentBtn" class="btn-secondary" onclick="startCatalogAssessmentFromPlayer()" disabled>Take Assessment</button>
             </div>
+            <div id="coursePlayerAssessmentHint" style="margin-top:8px; font-size:12px; color:var(--text-secondary);">Finish watching the full video to unlock the assessment.</div>
+        </div>
+    </div>
+</div>
+
+<!-- Admin: View employee course progress -->
+<div id="employeeProgressModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.82); z-index:3500; align-items:center; justify-content:center;">
+    <div style="background:var(--card-bg); border:1px solid var(--border-color); border-radius:12px; width:min(980px, 96vw); max-height:86vh; overflow:hidden; box-shadow:0 18px 48px rgba(0,0,0,0.55);">
+        <div style="display:flex; align-items:center; justify-content:space-between; padding:14px 16px; border-bottom:1px solid var(--border-color);">
+            <div>
+                <div id="employeeProgressTitle" style="color:var(--text-main); font-weight:900; font-size:16px;">User Progress</div>
+                <div id="employeeProgressSub" style="color:var(--text-secondary); font-size:12px; margin-top:2px;"></div>
+            </div>
+            <button class="course-player-close" onclick="closeEmployeeProgressModal()">✕</button>
+        </div>
+        <div style="padding:14px 16px; overflow:auto; max-height: calc(86vh - 58px);">
+            <div id="employeeProgressBody" style="color:var(--text-secondary);">Loading…</div>
         </div>
     </div>
 </div>
@@ -2206,14 +2224,33 @@ async function computeMyPoints() {
     const progressMap = await getAllProgressMap();
 
     let points = 0;
+    const counted = new Set();
     for (const c of (Array.isArray(courses) ? courses : [])) {
         const vid = String(c?.videoId || '').trim();
         if (!vid) continue;
         const p = progressMap[vid] || {};
         const passed = Boolean(p?.assessment?.passed);
         if (!passed) continue;
-        points += pointsForType(c?.type || p?.courseType || 'beginner');
+        if (!counted.has(vid)) {
+            points += pointsForType(c?.type || p?.courseType || 'beginner');
+            counted.add(vid);
+        }
     }
+
+    // Include Measure & Master assigned courses (local) with same point rules
+    try {
+        const assigned = JSON.parse(localStorage.getItem('assignedCourses') || '[]');
+        for (const c of (Array.isArray(assigned) ? assigned : [])) {
+            const vid = String(c?.videoId || '').trim();
+            if (!vid || counted.has(vid)) continue;
+            const p = progressMap[vid] || {};
+            const passed = Boolean(p?.assessment?.passed) || Boolean(c?.passed);
+            if (!passed) continue;
+            points += pointsForType(String(c?.level || p?.courseType || 'beginner').toLowerCase());
+            counted.add(vid);
+        }
+    } catch (_) {}
+
     return points;
 }
 
@@ -2235,6 +2272,75 @@ async function updateMyLeaderboardPoints() {
 
 function safeUserEmail() {
     return (localStorage.getItem('userEmail') || '').trim();
+}
+
+function isAdminSession() {
+    const SUPERADMIN_EMAIL = 'ravikiran@oneorigin.us';
+    const userEmail = (localStorage.getItem('userEmail') || '').toLowerCase();
+    const role = (localStorage.getItem('userRole') || '').toLowerCase();
+    return role === 'admin' || userEmail === SUPERADMIN_EMAIL.toLowerCase();
+}
+
+function formatSecondsToHms(totalSeconds) {
+    const s = Math.max(0, Math.floor(Number(totalSeconds) || 0));
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const ss = s % 60;
+    const pad = (n) => String(n).padStart(2, '0');
+    return h > 0 ? `${h}:${pad(m)}:${pad(ss)}` : `${m}:${pad(ss)}`;
+}
+
+function safeIsoToDate(iso) {
+    try {
+        if (!iso) return null;
+        const d = new Date(iso);
+        return Number.isNaN(d.getTime()) ? null : d;
+    } catch (_) {
+        return null;
+    }
+}
+
+function normalizeCourseLevel(levelOrType) {
+    const t = String(levelOrType || '').toLowerCase();
+    if (t.includes('advanced')) return 'advanced';
+    if (t.includes('intermediate')) return 'intermediate';
+    if (t.includes('beginner')) return 'beginner';
+    return t || 'beginner';
+}
+
+function extractJsonArrayFromText(text) {
+    const raw = String(text || '').trim();
+    if (!raw) throw new Error('Empty response');
+    let cleaned = raw.replace(/```json\s*|```/g, '').trim();
+    const m = cleaned.match(/\[[\s\S]*\]/);
+    if (!m) throw new Error('API returned invalid format. Please try refreshing.');
+    cleaned = m[0];
+    const parsed = JSON.parse(cleaned);
+    if (!Array.isArray(parsed)) throw new Error('API returned invalid format. Please try refreshing.');
+    return parsed;
+}
+
+function coursePlayerSetAssessmentLock(locked, reason = '') {
+    const btn = document.getElementById('coursePlayerAssessmentBtn');
+    const hint = document.getElementById('coursePlayerAssessmentHint');
+    if (btn) btn.disabled = !!locked;
+    if (hint) {
+        hint.textContent = locked
+            ? (reason || 'Finish watching the full video to unlock the assessment.')
+            : 'Unlocked. You can now take the assessment.';
+        hint.style.color = locked ? 'var(--text-secondary)' : '#4CAF50';
+    }
+}
+
+async function ensureWatchCompletedOrBlock(videoId) {
+    const vid = String(videoId || '').trim();
+    if (!vid) return false;
+    const map = await getAllProgressMap();
+    const p = map[vid] || {};
+    const completed = p?.watch?.completed === true;
+    if (completed) return true;
+    alert('Assessment is locked until you watch the full course video.');
+    return false;
 }
 
 function loadCatalogProgressLocal() {
@@ -2311,11 +2417,14 @@ async function inferCourseTypeByVideoId(videoId) {
 
 async function recordCourseOpened(videoId, title, type) {
     const nowIso = new Date().toISOString();
+    const key = String(videoId || '').trim();
+    const existingMap = await getAllProgressMap();
+    const existing = existingMap[key] || {};
     await upsertCourseProgress(videoId, {
         courseName: String(title || '').trim() || 'Untitled',
         courseType: String(type || '').toLowerCase() || '',
         lastOpenedAt: nowIso,
-        startedAt: nowIso
+        startedAt: existing?.startedAt || nowIso
     });
 }
 
@@ -2345,9 +2454,9 @@ function openCoursePlayer(videoId, title, type = '') {
         if (videoIdDisplay) {
             videoIdDisplay.textContent = videoId;
         }
-        
+
         // Do not autoplay; wait for explicit play click
-        frame.src = '';
+        coursePlayerSetAssessmentLock(true);
     }
 
     // Best-effort progress tracking
@@ -2356,6 +2465,15 @@ function openCoursePlayer(videoId, title, type = '') {
         if (!courseType) courseType = await inferCourseTypeByVideoId(videoId);
         currentCourseType = courseType;
         await recordCourseOpened(videoId, title, courseType);
+
+        // Unlock assessment only if watch is complete
+        try {
+            const map = await getAllProgressMap();
+            const p = map[String(videoId || '').trim()] || {};
+            coursePlayerSetAssessmentLock(!(p?.watch?.completed === true));
+        } catch (_) {
+            coursePlayerSetAssessmentLock(true);
+        }
     })();
 }
 
@@ -2392,6 +2510,10 @@ function startCatalogAssessmentFromPlayer() {
 async function startCatalogAssessment(videoId, title, type = '') {
     const vid = String(videoId || '').trim();
     if (!vid) return;
+
+    // Enforce watch-before-assessment
+    const ok = await ensureWatchCompletedOrBlock(vid);
+    if (!ok) return;
 
     let courseType = String(type || '').trim();
     if (!courseType) courseType = await inferCourseTypeByVideoId(vid);
@@ -2535,6 +2657,7 @@ async function catalogAssessmentSubmit() {
         courseName: meta?.title || 'Course',
         courseType: String(meta?.type || '').toLowerCase(),
         lastActivityAt: nowIso,
+        ...(passed ? { completedAt: nowIso } : {}),
         assessment: {
             questionCount: total,
             correct,
@@ -2583,7 +2706,10 @@ async function loadLeaderboard() {
     const tbody = document.getElementById('leaderboardTableBody');
     if (!tbody) return;
 
-    tbody.innerHTML = '<tr><td colspan="5" style="color:var(--text-secondary);">Loading…</td></tr>';
+    const admin = isAdminSession();
+    const thView = document.getElementById('leaderboardViewColView');
+    if (thView) thView.style.display = admin ? 'table-cell' : 'none';
+    tbody.innerHTML = `<tr><td colspan="${admin ? 6 : 5}" style="color:var(--text-secondary);">Loading…</td></tr>`;
 
     // Ensure current user's points are up-to-date (best effort)
     await updateMyLeaderboardPoints();
@@ -2619,7 +2745,7 @@ async function loadLeaderboard() {
         .filter(u => u.email);
 
     if (registered.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" style="color:var(--text-secondary);">No users found in Role Management yet.</td></tr>';
+        tbody.innerHTML = `<tr><td colspan="${admin ? 6 : 5}" style="color:var(--text-secondary);">No users found in Role Management yet.</td></tr>`;
         return;
     }
 
@@ -2653,10 +2779,19 @@ async function loadLeaderboard() {
         };
     }).sort((a, b) => (b.points - a.points) || a.email.localeCompare(b.email));
 
-    tbody.innerHTML = merged.map((e, idx) => {
-        const rank = idx + 1; // ascending rank numbers
+    // Tie-aware ranking (dense ranking): 1,1,2,2,3...
+    let lastPoints = null;
+    let rank = 0;
+    tbody.innerHTML = merged.map((e) => {
+        if (lastPoints === null || e.points !== lastPoints) {
+            rank += 1;
+            lastPoints = e.points;
+        }
         const last = e.updatedAt ? new Date(e.updatedAt).toLocaleDateString() : '—';
         const displayName = e.name || (e.email ? e.email.split('@')[0] : 'User');
+        const viewBtn = admin
+            ? `<button class="btn-secondary" title="View progress" onclick="openEmployeeProgressModal('${String(e.email).replace(/'/g, "\\'")}', '${String(displayName).replace(/'/g, "\\'")}')" style="padding:6px 10px;">👁</button>`
+            : '';
         return `
             <tr>
                 <td>${rank}</td>
@@ -2664,9 +2799,118 @@ async function loadLeaderboard() {
                 <td>${e.email}</td>
                 <td><b>${e.points}</b></td>
                 <td>${last}</td>
+                ${admin ? `<td style="text-align:center;">${viewBtn}</td>` : ''}
             </tr>
         `;
     }).join('');
+}
+
+function closeEmployeeProgressModal() {
+    const modal = document.getElementById('employeeProgressModal');
+    if (modal) modal.style.display = 'none';
+    const body = document.getElementById('employeeProgressBody');
+    if (body) body.innerHTML = '';
+}
+
+async function openEmployeeProgressModal(email, name) {
+    if (!isAdminSession()) {
+        alert('Only Admins can view employee progress.');
+        return;
+    }
+
+    const modal = document.getElementById('employeeProgressModal');
+    const title = document.getElementById('employeeProgressTitle');
+    const sub = document.getElementById('employeeProgressSub');
+    const body = document.getElementById('employeeProgressBody');
+    if (!modal || !body) return;
+
+    const e = String(email || '').trim();
+    const displayName = String(name || '').trim() || (e ? e.split('@')[0] : 'User');
+    if (title) title.textContent = `${displayName} — Progress`;
+    if (sub) sub.textContent = e;
+    body.innerHTML = '<div style="color:var(--text-secondary);">Loading…</div>';
+    modal.style.display = 'flex';
+
+    try {
+        if (!window.firestoreDB || typeof window.firestoreDB.getUserCourses !== 'function') {
+            throw new Error('Progress API unavailable');
+        }
+
+        const rows = await window.firestoreDB.getUserCourses(e);
+        const list = Array.isArray(rows) ? rows : [];
+
+        if (list.length === 0) {
+            body.innerHTML = '<div style="color:var(--text-secondary);">No course activity found for this user yet.</div>';
+            return;
+        }
+
+        const normalized = list.map(r => {
+            const startedAt = safeIsoToDate(r?.startedAt || r?.lastOpenedAt);
+            const completedAt = safeIsoToDate(r?.completedAt || r?.assessment?.lastAttemptedAt);
+            const watchDuration = Number(r?.watch?.durationSeconds || r?.watch?.duration || 0);
+            const marks = (typeof r?.assessment?.percent === 'number')
+                ? `${r.assessment.percent}%`
+                : (r?.assessment?.correct != null && r?.assessment?.questionCount != null)
+                    ? `${r.assessment.correct}/${r.assessment.questionCount}`
+                    : '—';
+            const passed = !!r?.assessment?.passed;
+            const timeTakenSec = (startedAt && completedAt) ? Math.round((completedAt.getTime() - startedAt.getTime()) / 1000) : null;
+            const lastActivity = safeIsoToDate(r?.lastActivityAt || r?.assessment?.lastAttemptedAt || r?.lastOpenedAt || r?.updatedAt);
+            return {
+                courseName: String(r?.courseName || r?.topic || r?.name || r?.videoId || 'Course'),
+                videoId: String(r?.videoId || ''),
+                level: prettyLevel(r?.courseType || r?.level || ''),
+                watchDuration,
+                timeTakenSec,
+                marks,
+                passed,
+                lastActivity
+            };
+        }).sort((a, b) => (b.lastActivity?.getTime?.() || 0) - (a.lastActivity?.getTime?.() || 0));
+
+        body.innerHTML = `
+            <table class="admin-table" style="margin-top: 0;">
+                <thead>
+                    <tr>
+                        <th>Course</th>
+                        <th style="width:120px;">Level</th>
+                        <th style="width:140px;">Duration</th>
+                        <th style="width:160px;">Time Taken</th>
+                        <th style="width:130px;">Marks</th>
+                        <th style="width:140px;">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${normalized.map(n => {
+                        const durationText = n.watchDuration ? formatSecondsToHms(n.watchDuration) : '—';
+                        const timeTakenText = (n.timeTakenSec != null && n.timeTakenSec >= 0)
+                            ? formatSecondsToHms(n.timeTakenSec)
+                            : 'In progress';
+                        const status = n.passed ? '<span style="color:#4CAF50; font-weight:800;">Passed</span>' : '<span style="color:var(--text-secondary);">In progress</span>';
+                        const marks = n.passed ? `<span style="color:#4CAF50; font-weight:800;">${n.marks}</span>` : n.marks;
+                        return `
+                            <tr>
+                                <td>
+                                    <div style="color:var(--text-main); font-weight:800;">${n.courseName}</div>
+                                    ${n.videoId ? `<div style="color:var(--text-secondary); font-size:11px; font-family:monospace;">${n.videoId}</div>` : ''}
+                                </td>
+                                <td>${n.level}</td>
+                                <td>${durationText}</td>
+                                <td>${timeTakenText}</td>
+                                <td>${marks}</td>
+                                <td>${status}</td>
+                            </tr>
+                        `;
+                    }).join('')}
+                </tbody>
+            </table>
+            <div style="margin-top:10px; color:var(--text-secondary); font-size:12px;">
+                Time Taken is measured from first course open to assessment completion.
+            </div>
+        `;
+    } catch (err) {
+        body.innerHTML = `<div class="news-item" style="color:#f85149;">⚠️ Error loading progress: ${err && err.message ? err.message : 'Unknown error'}</div>`;
+    }
 }
 
 async function loadMyProgress() {
@@ -3264,30 +3508,156 @@ function handleCSVUpload(event) {
     reader.readAsText(file);
 }
 
-function startCoursePlayer(auto = false) {
-    const frame = document.getElementById('coursePlayerFrame');
+let __ytApiPromise = null;
+let __coursePlayer = null;
+let __coursePlayerTick = null;
+let __courseWatch = { videoId: '', maxSeconds: 0, durationSeconds: 0, completed: false };
+
+function loadYouTubeIFrameApiOnce() {
+    if (__ytApiPromise) return __ytApiPromise;
+    __ytApiPromise = new Promise((resolve, reject) => {
+        if (window.YT && window.YT.Player) {
+            resolve();
+            return;
+        }
+        const tag = document.createElement('script');
+        tag.src = 'https://www.youtube.com/iframe_api';
+        tag.async = true;
+        tag.onerror = () => reject(new Error('Failed loading YouTube API'));
+        document.head.appendChild(tag);
+        const prev = window.onYouTubeIframeAPIReady;
+        window.onYouTubeIframeAPIReady = () => {
+            try { if (typeof prev === 'function') prev(); } catch (_) {}
+            resolve();
+        };
+    });
+    return __ytApiPromise;
+}
+
+function stopCoursePlayerTick() {
+    if (__coursePlayerTick) {
+        clearInterval(__coursePlayerTick);
+        __coursePlayerTick = null;
+    }
+}
+
+async function startCoursePlayer(auto = false) {
+    const container = document.getElementById('coursePlayerFrame');
     const playBtn = document.getElementById('coursePlayerPlay');
-    if (!frame) return;
-    const hasValidId = currentCourseVideoId && currentCourseVideoId.length >= 6;
-    const fallbackQuery = encodeURIComponent(currentCourseTitle || 'web development tutorial');
-    frame.src = hasValidId
-        ? `https://www.youtube.com/embed/${currentCourseVideoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1`
-        : `https://www.youtube.com/embed?listType=search&list=${fallbackQuery}&autoplay=1&rel=0&modestbranding=1&playsinline=1`;
-    frame.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share');
-    frame.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+    if (!container) return;
+
+    const hasValidId = currentCourseVideoId && String(currentCourseVideoId).trim().length === 11;
+    if (!hasValidId) {
+        alert('Invalid course video.');
+        return;
+    }
+
+    await loadYouTubeIFrameApiOnce();
+
+    __courseWatch = { videoId: String(currentCourseVideoId).trim(), maxSeconds: 0, durationSeconds: 0, completed: false };
+    coursePlayerSetAssessmentLock(true);
+
+    const onEnded = async () => {
+        stopCoursePlayerTick();
+        __courseWatch.completed = true;
+        const nowIso = new Date().toISOString();
+        await upsertCourseProgress(__courseWatch.videoId, {
+            lastActivityAt: nowIso,
+            watch: {
+                ...(typeof __courseWatch.durationSeconds === 'number' && __courseWatch.durationSeconds > 0 ? { durationSeconds: __courseWatch.durationSeconds } : {}),
+                completed: true,
+                completedAt: nowIso,
+                maxSeconds: __courseWatch.maxSeconds
+            }
+        });
+        coursePlayerSetAssessmentLock(false);
+    };
+
+    const startTick = () => {
+        stopCoursePlayerTick();
+        __coursePlayerTick = setInterval(async () => {
+            try {
+                if (!__coursePlayer || typeof __coursePlayer.getCurrentTime !== 'function') return;
+                const t = Number(__coursePlayer.getCurrentTime() || 0);
+                const dur = Number(__coursePlayer.getDuration?.() || 0);
+                if (dur > 0) __courseWatch.durationSeconds = dur;
+
+                // Anti-skip: prevent large forward jumps
+                if (__courseWatch.maxSeconds > 0 && t > (__courseWatch.maxSeconds + 8)) {
+                    __coursePlayer.seekTo(__courseWatch.maxSeconds, true);
+                    return;
+                }
+
+                if (t > __courseWatch.maxSeconds) __courseWatch.maxSeconds = t;
+
+                // Consider completed when max watched time reaches end
+                if (!__courseWatch.completed && dur > 0 && __courseWatch.maxSeconds >= (dur - 3)) {
+                    await onEnded();
+                } else {
+                    // Periodically persist duration/max progress (best-effort)
+                    if (dur > 0 && Math.floor(t) % 20 === 0) {
+                        await upsertCourseProgress(__courseWatch.videoId, {
+                            watch: {
+                                durationSeconds: dur,
+                                maxSeconds: __courseWatch.maxSeconds,
+                                completed: false
+                            }
+                        });
+                    }
+                }
+            } catch (_) {}
+        }, 1000);
+    };
+
+    if (!__coursePlayer) {
+        __coursePlayer = new window.YT.Player('coursePlayerFrame', {
+            videoId: __courseWatch.videoId,
+            playerVars: { autoplay: 1, rel: 0, modestbranding: 1, playsinline: 1 },
+            events: {
+                onReady: async () => {
+                    try {
+                        const dur = Number(__coursePlayer.getDuration?.() || 0);
+                        if (dur > 0) {
+                            __courseWatch.durationSeconds = dur;
+                            await upsertCourseProgress(__courseWatch.videoId, { watch: { durationSeconds: dur } });
+                        }
+                    } catch (_) {}
+                    try { __coursePlayer.playVideo?.(); } catch (_) {}
+                },
+                onStateChange: async (ev) => {
+                    if (!ev) return;
+                    if (ev.data === 0) {
+                        await onEnded();
+                    } else if (ev.data === 1) {
+                        startTick();
+                    } else if (ev.data === 2) {
+                        stopCoursePlayerTick();
+                    }
+                }
+            }
+        });
+    } else {
+        try {
+            __coursePlayer.loadVideoById(__courseWatch.videoId);
+        } catch (_) {
+            try { __coursePlayer.destroy?.(); } catch (_) {}
+            __coursePlayer = null;
+            return startCoursePlayer(auto);
+        }
+    }
+
     if (playBtn) playBtn.style.display = 'none';
 }
 
 function closeCoursePlayer() {
     const overlay = document.getElementById('coursePlayerOverlay');
-    const frame = document.getElementById('coursePlayerFrame');
     const playBtn = document.getElementById('coursePlayerPlay');
-    if (overlay && frame) {
-        frame.src = '';
-        overlay.style.display = 'none';
-    }
+    stopCoursePlayerTick();
+    try { __coursePlayer?.stopVideo?.(); } catch (_) {}
+    if (overlay) overlay.style.display = 'none';
     if (playBtn) playBtn.style.display = 'flex';
     currentCourseVideoId = '';
+    coursePlayerSetAssessmentLock(true);
 }
 
 function overlayBackdropClick(event) {
@@ -3874,7 +4244,7 @@ function updateInitialAssessmentStatus() {
     }
 }
 
-function loadAssignedCourses() {
+async function loadAssignedCourses() {
     const courses = JSON.parse(localStorage.getItem('assignedCourses') || '[]');
     const upcomingCourse = JSON.parse(localStorage.getItem('upcomingCourse') || 'null');
     const assignedGrid = document.getElementById('assignedCoursesGrid');
@@ -3884,6 +4254,9 @@ function loadAssignedCourses() {
     updateInitialAssessmentStatus();
     
     if (!assignedGrid || !passedGrid) return;
+
+    // Pull watch completion from the shared progress store
+    const progressMap = await getAllProgressMap();
 
     const activeCourses = courses.filter(c => !c.passed);
     const passedCourses = courses.filter(c => c.passed);
@@ -3896,6 +4269,10 @@ function loadAssignedCourses() {
             // Only the first active course is unlocked
             const isLocked = index > 0;
             const previousCourse = index > 0 ? activeCourses[index - 1] : null;
+
+            const vid = String(course?.videoId || '').trim();
+            const p = vid ? (progressMap[vid] || {}) : {};
+            const watched = p?.watch?.completed === true;
             
             return `
             <div class="assigned-course-card" style="${isLocked ? 'opacity: 0.5; position: relative;' : ''}">
@@ -3924,8 +4301,12 @@ function loadAssignedCourses() {
                                <div style="color:var(--text-secondary); font-size:12px; margin-top:3px;">Last: ${course.attemptedDate}</div>
                                ${course.lastScore < 80 ? `<button onclick="startVideoAssessment(${course.id})" style="width:100%; margin-top:8px; background:#f0ad4e; color:white; border:none; padding:8px; border-radius:6px; cursor:pointer; font-weight:bold; font-size:12px;">Retake Assessment</button>` : ''}
                            </div>`
-                        : `<button onclick='openCoursePlayer("${course.videoId}", "${course.topic.replace(/"/g, '&quot;')}")' style="width:100%; margin-top:15px; background:var(--primary-blue); color:white; border:none; padding:10px; border-radius:6px; cursor:pointer; font-weight:bold;">▶ Start Training</button>
-                           <button onclick="startVideoAssessment(${course.id})" style="width:100%; margin-top:10px; background:#4CAF50; color:white; border:none; padding:10px; border-radius:6px; cursor:pointer; font-weight:bold;">Attend Assessment</button>`
+                                : `<button onclick='openCoursePlayer("${course.videoId}", "${course.topic.replace(/"/g, '&quot;')}")' style="width:100%; margin-top:15px; background:var(--primary-blue); color:white; border:none; padding:10px; border-radius:6px; cursor:pointer; font-weight:bold;">▶ Start Training</button>
+                                    ${watched
+                                          ? `<button onclick="startVideoAssessment(${course.id})" style="width:100%; margin-top:10px; background:#4CAF50; color:white; border:none; padding:10px; border-radius:6px; cursor:pointer; font-weight:bold;">Attend Assessment</button>`
+                                          : `<button disabled style="width:100%; margin-top:10px; background:#161b22; color:#484f58; border:1px solid #30363d; padding:10px; border-radius:6px; cursor:not-allowed; font-weight:bold;">Attend Assessment</button>
+                                              <div style="margin-top:8px; padding:10px; background:rgba(248,81,73,0.08); border:1px solid #f85149; border-radius:6px; text-align:center; color:#f85149; font-size:12px;">Finish watching the full video to unlock the assessment.</div>`
+                                    }`
                 }
             </div>
         `;
@@ -4017,6 +4398,10 @@ async function startVideoAssessment(courseId) {
     
     if (!currentVideoAssessmentCourse) return;
 
+    // Enforce watch-before-assessment
+    const ok = await ensureWatchCompletedOrBlock(currentVideoAssessmentCourse.videoId);
+    if (!ok) return;
+
     // Hide assigned courses, show quiz
     document.getElementById('initialAssessmentContainer').style.display = 'none';
     document.getElementById('assessmentResults').style.display = 'none';
@@ -4038,6 +4423,7 @@ async function showVideoAssessmentResults(score) {
     
     const scorePercentage = (score / assessmentQuestions.length * 100).toFixed(0);
     const passed = scorePercentage >= 80;
+    const nowIso = new Date().toISOString();
     
     // Generate upcoming course suggestion immediately (before passing)
     const nextLevel = currentVideoAssessmentCourse.level === 'Beginner' ? 'Intermediate' : currentVideoAssessmentCourse.level === 'Intermediate' ? 'Advanced' : null;
@@ -4080,6 +4466,31 @@ async function showVideoAssessmentResults(score) {
         }
         
         loadAssignedCourses();
+    }
+
+    // Persist into shared progress so Admin can view it (and for leaderboard)
+    try {
+        const vid = String(currentVideoAssessmentCourse.videoId || '').trim();
+        if (vid) {
+            const patch = {
+                courseName: String(currentVideoAssessmentCourse.topic || 'Course'),
+                courseType: normalizeCourseLevel(currentVideoAssessmentCourse.level || ''),
+                lastActivityAt: nowIso,
+                ...(passed ? { completedAt: nowIso } : {}),
+                assessment: {
+                    questionCount: assessmentQuestions.length,
+                    correct: score,
+                    percent: Number(scorePercentage),
+                    passed,
+                    lastAttemptedAt: nowIso,
+                    attempts: Number((course && course.attemptCount) ? course.attemptCount : 1)
+                }
+            };
+            await upsertCourseProgress(vid, patch);
+            if (passed) await updateMyLeaderboardPoints();
+        }
+    } catch (e) {
+        console.warn('Failed persisting Measure & Master progress:', e);
     }
     
     const resultsDiv = document.getElementById('assessmentResults');
