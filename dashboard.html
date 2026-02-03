@@ -1051,6 +1051,7 @@ body.light-theme .user-badge {
                 <div id="videoSuggestionContainer" style="margin-top:30px;">
                     <p style="color:var(--text-secondary); margin-bottom:15px;">Fetching personalized course recommendation...</p>
                 </div>
+                <div id="answersReviewContainer" style="margin-top:18px; text-align:left;"></div>
             </div>
 
             <!-- My Assigned Courses Section -->
@@ -2692,6 +2693,9 @@ async function catalogAssessmentSubmit() {
                     <button class="btn-secondary" onclick="loadMyProgress(); switchTab('my-progress-view', null)">View My Progress</button>
                 </div>
             </div>
+            ${renderAssessmentAnswersReviewHtml(catalogAssessmentQuestions, catalogAssessmentAnswers, {
+                title: 'Answer Review'
+            })}
         `;
     }
 
@@ -4022,6 +4026,11 @@ async function showInitialResults(score) {
     document.getElementById('scoreDisplay').textContent = `${scoreOutOf10}/10`;
     document.getElementById('levelDisplay').innerHTML = `Level: <span style="color:var(--primary-blue);">${level}</span>`;
 
+    // Show answer review (selected vs correct)
+    setAssessmentAnswersReview(assessmentQuestions, userAnswers, {
+        title: 'Answer Review (Gateway Assessment)'
+    });
+
     // Refresh the top status UI
     updateInitialAssessmentStatus();
 
@@ -4381,6 +4390,8 @@ function resetAllAssessments() {
         document.getElementById('assessmentResults').style.display = 'none';
         document.getElementById('assessmentQuizContainer').style.display = 'none';
         document.getElementById('initialAssessmentContainer').style.display = 'block';
+        const review = document.getElementById('answersReviewContainer');
+        if (review) review.innerHTML = '';
         
         assessmentQuestions = [];
         currentQuestionIndex = 0;
@@ -4505,12 +4516,19 @@ async function showVideoAssessmentResults(score) {
             <button onclick="resetAssessment()" style="margin-top:15px; background:var(--primary-blue); color:white; border:none; padding:10px 20px; border-radius:6px; cursor:pointer; font-weight:bold;">Back to Courses</button>
         </div>
     `;
+
+    // Show answer review (selected vs correct)
+    setAssessmentAnswersReview(assessmentQuestions, userAnswers, {
+        title: `Answer Review (${currentVideoAssessmentCourse?.topic || 'Course'})`
+    });
 }
 
 function resetAssessment() {
     document.getElementById('assessmentResults').style.display = 'none';
     document.getElementById('assessmentQuizContainer').style.display = 'none';
     document.getElementById('initialAssessmentContainer').style.display = 'block';
+    const review = document.getElementById('answersReviewContainer');
+    if (review) review.innerHTML = '';
     assessmentQuestions = [];
     currentQuestionIndex = 0;
     userAnswers = [];
@@ -4813,6 +4831,78 @@ function escapeHtml(str) {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
+}
+
+function normalizeAnswerLetter(letter) {
+    const s = String(letter || '').trim().toUpperCase();
+    if (!s) return '';
+    // Accept "A", "A)" or "A." etc.
+    const m = s.match(/^[A-D]/);
+    return m ? m[0] : '';
+}
+
+function optionTextByLetter(options, letter) {
+    if (!Array.isArray(options)) return '';
+    const l = normalizeAnswerLetter(letter);
+    if (!l) return '';
+    const idx = l.charCodeAt(0) - 65;
+    if (idx >= 0 && idx < options.length) return String(options[idx] ?? '');
+    // Fallback: try to find "A)" style prefix
+    const found = options.find(o => String(o || '').trim().toUpperCase().startsWith(`${l})`));
+    return found ? String(found) : '';
+}
+
+function renderAssessmentAnswersReviewHtml(questions, answers, opts = {}) {
+    if (!Array.isArray(questions) || questions.length === 0) return '';
+    const title = escapeHtml(opts.title || 'Answer Review');
+    const maxHeight = opts.maxHeight || 360;
+
+    const items = questions.map((q, idx) => {
+        const qText = escapeHtml(q?.question || `Question ${idx + 1}`);
+        const options = Array.isArray(q?.options) ? q.options : [];
+        const selected = normalizeAnswerLetter(Array.isArray(answers) ? answers[idx] : '');
+        const correct = normalizeAnswerLetter(q?.correctAnswer || '');
+        const isCorrect = selected && correct && selected === correct;
+
+        const selectedText = escapeHtml(optionTextByLetter(options, selected) || '');
+        const correctText = escapeHtml(optionTextByLetter(options, correct) || '');
+
+        const border = isCorrect ? '#4CAF50' : '#f85149';
+        const bg = isCorrect ? 'rgba(76,175,80,0.06)' : 'rgba(248,81,73,0.06)';
+
+        const yourLine = selected
+            ? `<span style="color:${isCorrect ? '#4CAF50' : '#f85149'}; font-weight:800;">${escapeHtml(selected)}</span>${selectedText ? ` <span style="color:var(--text-secondary); font-weight:600;">—</span> <span style="color:var(--text-main);">${selectedText}</span>` : ''}`
+            : `<span style="color:#f85149; font-weight:800;">Not answered</span>`;
+
+        const correctLine = correct
+            ? `<span style="color:#4CAF50; font-weight:900;">${escapeHtml(correct)}</span>${correctText ? ` <span style="color:var(--text-secondary); font-weight:600;">—</span> <span style="color:var(--text-main);">${correctText}</span>` : ''}`
+            : `<span style="color:var(--text-secondary);">(Missing correct answer)</span>`;
+
+        return `
+            <div style="border:1px solid ${border}; background:${bg}; border-radius:12px; padding:12px; margin-top:10px;">
+                <div style="color:var(--text-main); font-weight:900; margin-bottom:8px;">Q${idx + 1}. ${qText}</div>
+                <div style="display:flex; gap:10px; flex-wrap:wrap; font-size:13px; margin-bottom:6px;">
+                    <div style="min-width:240px;"><span style="color:var(--text-secondary);">Your answer:</span> ${yourLine}</div>
+                    <div style="min-width:240px;"><span style="color:var(--text-secondary);">Correct:</span> ${correctLine}</div>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    return `
+        <details style="margin-top:14px;">
+            <summary style="cursor:pointer; color:var(--primary-blue); font-weight:900;">${title}</summary>
+            <div style="margin-top:10px; max-height:${Number(maxHeight)}px; overflow:auto; padding-right:4px;">
+                ${items}
+            </div>
+        </details>
+    `;
+}
+
+function setAssessmentAnswersReview(questions, answers, opts = {}) {
+    const container = document.getElementById('answersReviewContainer');
+    if (!container) return;
+    container.innerHTML = renderAssessmentAnswersReviewHtml(questions, answers, opts);
 }
 
 function renderHubBotMessages(targetId) {
