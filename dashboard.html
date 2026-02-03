@@ -1387,49 +1387,17 @@ async function filterAccessibleItems(items, urlField = 'url') {
 }
 
 async function fetchAINews() {
-    const CACHE_KEY = 'aiNews';
-    const TIMESTAMP_KEY = 'aiNewsTimestamp';
-    const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
-    const now = Date.now();
     const newsContainer = document.getElementById('news-container');
 
     if (!newsContainer) return;
-
-    // Check if we have cached news that's still valid
-    const cachedNews = localStorage.getItem(CACHE_KEY);
-    const cachedTimestamp = localStorage.getItem(TIMESTAMP_KEY);
-    
-    if (cachedNews && cachedTimestamp) {
-        const age = now - parseInt(cachedTimestamp);
-        if (age < CACHE_DURATION) {
-            // Use cached news if it's still fresh
-            try {
-                const newsArray = JSON.parse(cachedNews);
-                // Never show placeholder/bad links from cache (e.g., example.com)
-                const hasBad = Array.isArray(newsArray) && newsArray.some(n => {
-                    const u = (n && n.url) ? String(n.url).trim() : '';
-                    return !u || isPlaceholderOrBadUrl(u);
-                });
-                if (!hasBad) {
-                    displayNews(newsArray);
-                    console.log('Displaying cached AI news');
-                    return;
-                }
-                // Invalidate bad cache and fetch fresh
-                localStorage.removeItem(CACHE_KEY);
-                localStorage.removeItem(TIMESTAMP_KEY);
-            } catch (e) {
-                console.error('Error parsing cached news:', e);
-            }
-        }
-    }
 
     // Fetch fresh news
     newsContainer.innerHTML = '<div class="news-item">Fetching real-time AI news...</div>';
 
     try {
+        const today = promptTodayShortDate();
         const data = await callGeminiAPI(
-            `Use Google Search to find exactly 10 REAL, ACCESSIBLE AI news articles published TODAY (January 2, 2026) or in the LAST 24 HOURS ONLY.
+            `Use Google Search to find exactly 10 REAL, ACCESSIBLE AI news articles published in the LAST 24 HOURS ONLY (today: ${today}).
 
 Only use OPEN-ACCESS sources where employees can read the full article without paywall/login.
 
@@ -1443,14 +1411,14 @@ Preferred open sources (pick from these first):
 Avoid paywalled sources (do NOT use): Bloomberg, WSJ, Financial Times, The Economist.
 
 CRITICAL REQUIREMENTS:
-1. Articles MUST be from the LAST 24 HOURS ONLY (today or yesterday)
+1. Articles MUST be from the LAST 24 HOURS ONLY
 2. Sources MUST be reputable AND open-access. Prefer official blogs, arXiv, and release notes.
 3. The "url" field MUST be the COMPLETE, DIRECT URL to the specific article page (not homepage)
 4. URLs must be real, working links that users can click and read the full article WITHOUT login/paywall
 5. NEVER use placeholder links like example.com (do not fabricate URLs)
-5. Focus on TOP/TRENDING AI news stories only
-6. Each article must have the actual publication date in "MMM D, YYYY" format
-7. Summary should be 2-3 sentences about what the article covers
+6. Focus on TOP/TRENDING AI news stories only
+7. Each article must have the actual publication date in "MMM D, YYYY" format
+8. Summary should be 2-3 sentences about what the article covers
 
 Return ONLY a valid JSON array with NO markdown formatting:
 [{"date": "Jan 2, 2026", "headline": "Actual Article Title", "summary": "Clear 2-3 sentence summary of the article content", "url": "https://complete-direct-url-to-article"}]`,
@@ -1459,18 +1427,11 @@ Return ONLY a valid JSON array with NO markdown formatting:
 
         if (data.error) throw new Error(data.error.message);
 
-        let textResponse = data.candidates[0].content.parts[0].text;
-        let cleanJson = textResponse.trim().replace(/```json\s*|```/g, '');
-        
-        // Validate JSON response
-        if (cleanJson.startsWith('I ') || cleanJson.startsWith('Sorry') || !cleanJson.trim().startsWith('[')) {
-            throw new Error('API returned invalid format. Please try refreshing.');
-        }
-        
-        const jsonMatch = cleanJson.match(/\[\s*\{[\s\S]*\}\s*\]/);
-        if (jsonMatch) cleanJson = jsonMatch[0];
-        
-        const rawNewsArray = JSON.parse(cleanJson);
+        const textResponse = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        const rawNewsArray = await parseJsonArrayFromGeminiText(
+            textResponse,
+            `[{"date":"${today}","headline":"Title","summary":"2-3 sentences","url":"https://direct-url"}]`
+        );
 
         // Validate links via server so we don't show broken/blank articles
         let newsArray = await filterAccessibleItems(rawNewsArray, 'url');
@@ -1478,7 +1439,7 @@ Return ONLY a valid JSON array with NO markdown formatting:
         // If we got too few items after filtering, broaden slightly (still open-access) and merge.
         if (!newsArray || newsArray.length < 8) {
             const more = await callGeminiAPI(
-                `Use Google Search to find 15 REAL, OPEN-ACCESS AI news links from the LAST 24 HOURS (today: January 2, 2026).
+                `Use Google Search to find 15 REAL, OPEN-ACCESS AI news links from the LAST 24 HOURS (today: ${today}).
 
 Only include sources where the full article is readable without paywall/login.
 Prefer: official AI/company blogs, Hugging Face blog, GitHub blog, arXiv, project release posts.
@@ -1487,11 +1448,11 @@ Return ONLY valid JSON array:
 [{"date":"Jan 2, 2026","headline":"Title","summary":"2-3 sentences","url":"https://direct-url"}]`,
                 'gemini-2.5-flash'
             );
-            let txt = more.candidates?.[0]?.content?.parts?.[0]?.text || '';
-            let cj = String(txt).trim().replace(/```json\s*|```/g, '');
-            const jm = cj.match(/\[\s*\{[\s\S]*\}\s*\]/);
-            if (jm) cj = jm[0];
-            const rawMore = JSON.parse(cj);
+            const txt = more?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            const rawMore = await parseJsonArrayFromGeminiText(
+                txt,
+                `[{"date":"${today}","headline":"Title","summary":"2-3 sentences","url":"https://direct-url"}]`
+            );
             const merged = [...rawNewsArray, ...(Array.isArray(rawMore) ? rawMore : [])];
             newsArray = await filterAccessibleItems(merged, 'url');
         }
@@ -1504,7 +1465,7 @@ Return ONLY valid JSON array:
         // If filtering removed everything, fall back to latest (last 7 days) so users still see real links
         if (!newsArray || newsArray.length === 0) {
             const fallback = await callGeminiAPI(
-                `Use Google Search to find up to 10 REAL, ACCESSIBLE AI news articles from the LAST 7 DAYS (including today: January 2, 2026).
+                `Use Google Search to find up to 10 REAL, ACCESSIBLE AI news articles from the LAST 7 DAYS (including today: ${today}).
 
 Only use OPEN-ACCESS sources (no paywalls/logins). Prefer official AI blogs, Hugging Face, GitHub blog, arXiv, and project release posts.
 
@@ -1518,11 +1479,11 @@ Return ONLY valid JSON array:
 [{"date":"Jan 2, 2026","headline":"Title","summary":"2-3 sentences","url":"https://direct-url"}]`,
                 'gemini-2.5-flash'
             );
-            let txt = fallback.candidates?.[0]?.content?.parts?.[0]?.text || '';
-            let cj = String(txt).trim().replace(/```json\s*|```/g, '');
-            const jm = cj.match(/\[\s*\{[\s\S]*\}\s*\]/);
-            if (jm) cj = jm[0];
-            const raw2 = JSON.parse(cj);
+            const txt = fallback?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            const raw2 = await parseJsonArrayFromGeminiText(
+                txt,
+                `[{"date":"${today}","headline":"Title","summary":"2-3 sentences","url":"https://direct-url"}]`
+            );
             newsArray = await filterAccessibleItems(raw2, 'url');
         }
 
@@ -1541,8 +1502,6 @@ Return ONLY valid JSON array:
 
         // Validate that we got proper news data
         if (Array.isArray(newsArray) && newsArray.length > 0) {
-            localStorage.setItem(CACHE_KEY, JSON.stringify(newsArray));
-            localStorage.setItem(TIMESTAMP_KEY, now.toString());
             displayNews(newsArray);
             console.log('Fetched and displayed fresh AI news');
         } else {
@@ -1551,41 +1510,13 @@ Return ONLY valid JSON array:
 
     } catch (error) {
         console.error("AI News fetch error:", error);
-        // Try to show cached news if available
-        const cachedNews = localStorage.getItem(CACHE_KEY);
-        if (cachedNews) {
-            try {
-                const newsArray = JSON.parse(cachedNews);
-                displayNews(newsArray);
-                newsContainer.innerHTML += '<div class="news-item" style="color:#f85149; font-size:12px; margin-top:10px;">⚠️ Showing cached news due to API error.</div>';
-            } catch (e) {
-                newsContainer.innerHTML = `<div class="news-item" style="color:#f85149;">⚠️ Error loading news: ${error.message}</div>`;
-            }
-        } else {
-            newsContainer.innerHTML = `<div class="news-item" style="color:#f85149;">⚠️ Error loading news: ${error.message}<br><small>No cached news available.</small></div>`;
-        }
+        newsContainer.innerHTML = `<div class="news-item" style="color:#f85149;">⚠️ Error loading news: ${error.message}<br><small>Please click Refresh News again.</small></div>`;
     }
 }
 
 async function fetchAIUpdates() {
-    const CACHE_KEY = 'aiUpdates';
-    const TIMESTAMP_KEY = 'aiUpdatesTimestamp';
-    const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
-    const now = Date.now();
     const container = document.getElementById('ai-updates-container');
     if (!container) return;
-
-    const cached = localStorage.getItem(CACHE_KEY);
-    const ts = localStorage.getItem(TIMESTAMP_KEY);
-    if (cached && ts) {
-        const age = now - parseInt(ts, 10);
-        if (!Number.isNaN(age) && age < CACHE_DURATION) {
-            try {
-                displayAIUpdates(JSON.parse(cached));
-                return;
-            } catch (_) {}
-        }
-    }
 
     container.innerHTML = '<div class="news-item">Fetching AI updates...</div>';
 
@@ -1595,25 +1526,20 @@ async function fetchUpdatesWithPrompt(prompt) {
         'gemini-2.5-flash'
     );
     if (data.error) throw new Error(data.error.message);
-    
-    let textResponse = data.candidates[0].content.parts[0].text;
-        let cleanJson = textResponse.trim().replace(/```json\s*|```/g, '');
-        
-        // Validate JSON response
-        if (cleanJson.startsWith('I ') || cleanJson.startsWith('Sorry') || !cleanJson.trim().startsWith('[')) {
-            throw new Error('API returned invalid format. Please try refreshing.');
-        }
-        
-        const jsonMatch = cleanJson.match(/\[\s*\{[\s\S]*\}\s*\]/);
-        if (jsonMatch) cleanJson = jsonMatch[0];
 
-        const raw = JSON.parse(cleanJson);
-        return await filterAccessibleItems(raw, 'url');
+    const textResponse = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const today = promptTodayShortDate();
+    const raw = await parseJsonArrayFromGeminiText(
+        textResponse,
+        `[{"date":"${today}","title":"Release title","summary":"What changed","url":"https://direct-url"}]`
+    );
+    return await filterAccessibleItems(raw, 'url');
     }
 
     try {
+        const today = promptTodayShortDate();
         let filtered = await fetchUpdatesWithPrompt(
-            `Use Google Search to find exactly 8 REAL AI updates from TODAY (January 2, 2026) or the LAST 24 HOURS ONLY.
+            `Use Google Search to find exactly 8 REAL AI updates from the LAST 24 HOURS ONLY (today: ${today}).
 
 These are NOT general news headlines—focus on releases/updates such as:
 - New AI model releases or updates (OpenAI, Google, Anthropic, Meta, etc.)
@@ -1636,7 +1562,7 @@ Return ONLY a valid JSON array with NO markdown:
         // If none found in last 24h, fall back to latest available updates (last 7 days)
         if (!filtered || filtered.length === 0) {
             filtered = await fetchUpdatesWithPrompt(
-                `Use Google Search to find exactly 8 REAL AI updates from the LAST 7 DAYS (including today: January 2, 2026).
+                `Use Google Search to find exactly 8 REAL AI updates from the LAST 7 DAYS (including today: ${today}).
 
 Focus on releases/updates such as model releases, library/framework releases, and product update notes.
 
@@ -1651,20 +1577,9 @@ Return ONLY valid JSON array:
 [{"date":"Jan 2, 2026","title":"Release title","summary":"What changed","url":"https://direct-url"}]`
             );
         }
-
-        localStorage.setItem(CACHE_KEY, JSON.stringify(filtered));
-        localStorage.setItem(TIMESTAMP_KEY, now.toString());
         displayAIUpdates(filtered);
     } catch (error) {
         console.error('AI Updates fetch error:', error);
-        const cached = localStorage.getItem(CACHE_KEY);
-        if (cached) {
-            try {
-                displayAIUpdates(JSON.parse(cached));
-                container.innerHTML += '<div class="news-item" style="color:#f85149; font-size:12px; margin-top:10px;">⚠️ Showing cached updates due to API error.</div>';
-                return;
-            } catch (_) {}
-        }
         container.innerHTML = `<div class="news-item" style="color:#f85149;">⚠️ Error loading updates: ${error.message}</div>`;
     }
 }
@@ -2319,6 +2234,34 @@ function extractJsonArrayFromText(text) {
     const parsed = JSON.parse(cleaned);
     if (!Array.isArray(parsed)) throw new Error('API returned invalid format. Please try refreshing.');
     return parsed;
+}
+
+function promptTodayShortDate() {
+    const d = new Date();
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function truncateForPrompt(text, maxChars = 8000) {
+    const s = String(text || '');
+    if (s.length <= maxChars) return s;
+    return s.slice(0, maxChars) + `\n\n... (truncated ${s.length - maxChars} chars)`;
+}
+
+async function parseJsonArrayFromGeminiText(text, schemaHint = '') {
+    try {
+        return extractJsonArrayFromText(text);
+    } catch (_) {
+        // One repair attempt: ask Gemini to output only JSON.
+        const repairPrompt = `Convert the following into ONLY a valid JSON array.${schemaHint ? `\n\nRequired structure example:\n${schemaHint}` : ''}
+
+Return ONLY the JSON array, no markdown, no commentary.
+
+TEXT TO CONVERT:\n${truncateForPrompt(text, 8000)}`;
+        const repaired = await callGeminiAPI(repairPrompt, 'gemini-2.5-flash');
+        if (repaired?.error) throw new Error(repaired.error.message);
+        const repairedText = repaired?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        return extractJsonArrayFromText(repairedText);
+    }
 }
 
 function coursePlayerSetAssessmentLock(locked, reason = '') {
@@ -3881,12 +3824,12 @@ async function syncCurrentUserRole() {
 
 function forceRefreshNews() {
     if (confirm('This will refresh the AI news for all users. Continue?')) {
-        // Clear the cache
+        // Best-effort cleanup of old cached keys (news is now always fetched fresh)
         localStorage.removeItem('aiNews');
         localStorage.removeItem('aiNewsTimestamp');
         localStorage.removeItem('aiUpdates');
         localStorage.removeItem('aiUpdatesTimestamp');
-        // Fetch fresh news
+        // Fetch fresh news (no cache)
         fetchAINews();
         fetchAIUpdates();
         alert('News refreshed successfully! All users will see the updated news.');
