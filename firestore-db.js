@@ -225,7 +225,7 @@ export async function getLeaderboardEntries() {
 // ============ MIGRATION from localStorage ============
 
 export async function migrateLocalStorageToFirestore(userEmail) {
-    console.log('🔄 Migrating data from localStorage to Firestore...');
+    console.log('Migrating data from localStorage to Firestore...');
     
     try {
         // Migrate user's assigned courses
@@ -254,10 +254,10 @@ export async function migrateLocalStorageToFirestore(userEmail) {
             await saveAnnouncement(announcement);
         }
         
-        console.log('✅ Migration complete!');
+        console.log('Migration complete!');
         return { success: true };
     } catch (error) {
-        console.error('❌ Migration error:', error);
+        console.error('Migration error:', error);
         return { success: false, error: error.message };
     }
 }

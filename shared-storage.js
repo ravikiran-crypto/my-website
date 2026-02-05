@@ -18,7 +18,7 @@ const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 getAuth(app);
 const db = getFirestore(app);
 
-console.log('✅ Firestore initialized successfully');
+console.log('Firestore initialized successfully');
 
 function normalizeCourse(rawCourse, fallbackIndex = 0) {
     const course = rawCourse && typeof rawCourse === 'object' ? rawCourse : {};
@@ -40,7 +40,7 @@ function normalizeCourse(rawCourse, fallbackIndex = 0) {
 // Get shared courses from Firestore
 async function getSharedCourses() {
     try {
-        console.log('📚 Fetching courses from Firestore...');
+        console.log('Fetching courses from Firestore...');
         const coursesCol = collection(db, 'courses');
         const snapshot = await getDocs(coursesCol);
         const courses = snapshot.docs.map((docSnap, index) => {
@@ -48,11 +48,11 @@ async function getSharedCourses() {
             // If legacy docs didn't store id in the payload, use Firestore doc id.
             return normalizeCourse({ id: data.id || docSnap.id, ...data }, index);
         });
-        console.log(`✅ Found ${courses.length} courses in Firestore:`, courses);
+        console.log(`Found ${courses.length} courses in Firestore:`, courses);
         return courses;
     } catch (error) {
-        console.error('❌ Error getting courses from Firestore:', error);
-        console.log('⚠️ Falling back to localStorage');
+        console.error('Error getting courses from Firestore:', error);
+        console.log('Falling back to localStorage');
         // Fallback to localStorage
         const local = localStorage.getItem('courses');
         const parsed = local ? JSON.parse(local) : [];
@@ -74,14 +74,14 @@ async function addSharedCourse(course) {
     localStorage.setItem('courses', JSON.stringify(localCourses));
     
     try {
-        console.log('➕ Adding course to Firestore:', normalized);
+        console.log('Adding course to Firestore:', normalized);
         const courseRef = doc(db, 'courses', normalized.id.toString());
         await setDoc(courseRef, normalized);
-        console.log('✅ Course added successfully to Firestore');
+        console.log('Course added successfully to Firestore');
         return localCourses;
     } catch (error) {
-        console.error('❌ Error adding course to Firestore:', error);
-        console.log('⚠️ Course saved to localStorage only');
+        console.error('Error adding course to Firestore:', error);
+        console.log('Course saved to localStorage only');
         return localCourses;
     }
 }
@@ -92,7 +92,7 @@ async function deleteSharedCourse(courseId) {
         const key = (courseId ?? '').toString().trim();
         if (!key) throw new Error('Missing course identifier');
 
-        console.log('🗑️ Deleting course from Firestore, key:', key);
+        console.log('Deleting course from Firestore, key:', key);
 
         // 1) Best-effort delete by doc id (works for normal courses)
         await deleteDoc(doc(db, 'courses', key));
@@ -110,18 +110,18 @@ async function deleteSharedCourse(courseId) {
             await Promise.all(matches.map(d => deleteDoc(doc(db, 'courses', d.id))));
         }
 
-        console.log('✅ Deleted from Firestore (direct and legacy match)');
+        console.log('Deleted from Firestore (direct and legacy match)');
         // Also update localStorage
         const courses = await getSharedCourses();
         localStorage.setItem('courses', JSON.stringify(courses));
         return courses;
     } catch (error) {
-        console.error('❌ Error deleting course from Firestore:', error);
-        console.log('⚠️ Falling back to localStorage delete');
+        console.error('Error deleting course from Firestore:', error);
+        console.log('Falling back to localStorage delete');
         // Fallback to localStorage
         const key = (courseId ?? '').toString().trim();
         let courses = JSON.parse(localStorage.getItem('courses') || '[]');
-        console.log('📦 Before delete, localStorage has', courses.length, 'courses');
+        console.log('Before delete, localStorage has', courses.length, 'courses');
         courses = courses
             .map((c, i) => normalizeCourse(c, i))
             .filter(c => {
@@ -130,7 +130,7 @@ async function deleteSharedCourse(courseId) {
                 // Delete by id match OR by videoId match (legacy)
                 return !(cid === key || vid === key);
             });
-        console.log('📦 After delete, localStorage has', courses.length, 'courses');
+        console.log('After delete, localStorage has', courses.length, 'courses');
         localStorage.setItem('courses', JSON.stringify(courses));
         return courses;
     }
@@ -146,24 +146,24 @@ async function syncSharedCourses() {
         return courses;
     }
     // If Firestore returned empty but localStorage has data, use localStorage
-    console.log('⚠️ Using localStorage courses as Firestore returned empty');
+    console.log('Using localStorage courses as Firestore returned empty');
     return localCourses;
 }
 
 // One-time cleanup: delete ALL courses (Firestore + localStorage)
 async function deleteAllSharedCourses() {
     try {
-        console.log('🧹 Clearing ALL courses from Firestore...');
+        console.log('Clearing ALL courses from Firestore...');
         const coursesCol = collection(db, 'courses');
         const snapshot = await getDocs(coursesCol);
         await Promise.all(snapshot.docs.map(d => deleteDoc(doc(db, 'courses', d.id))));
-        console.log('✅ All courses deleted from Firestore');
+        console.log('All courses deleted from Firestore');
 
         localStorage.setItem('courses', '[]');
         return [];
     } catch (error) {
-        console.error('❌ Error clearing all courses from Firestore:', error);
-        console.log('⚠️ Falling back to localStorage clear only');
+        console.error('Error clearing all courses from Firestore:', error);
+        console.log('Falling back to localStorage clear only');
         localStorage.setItem('courses', '[]');
         return [];
     }
@@ -243,7 +243,7 @@ async function getSharedUserByEmail(email) {
         if (!snap.exists()) return null;
         return { id: snap.id, ...snap.data() };
     } catch (error) {
-        console.error('❌ Error getting user by email from Firestore:', error);
+        console.error('Error getting user by email from Firestore:', error);
         return null;
     }
 }
@@ -291,7 +291,7 @@ async function upsertSharedUser(userData) {
 
         return await getSharedUserByEmail(emailRaw);
     } catch (error) {
-        console.error('❌ Error upserting user in Firestore:', error);
+        console.error('Error upserting user in Firestore:', error);
         return null;
     }
 }
@@ -304,7 +304,7 @@ async function getSharedUsers() {
         users.sort((a, b) => String(a.email || '').localeCompare(String(b.email || '')));
         return users;
     } catch (error) {
-        console.error('❌ Error getting users from Firestore:', error);
+        console.error('Error getting users from Firestore:', error);
         // Fallback to localStorage for single-device mode
         const local = localStorage.getItem('users');
         return local ? JSON.parse(local) : [];
@@ -326,7 +326,7 @@ async function updateSharedUserRoleByEmail(email, newRole) {
         });
         return { success: true };
     } catch (error) {
-        console.error('❌ Error updating user role in Firestore:', error);
+        console.error('Error updating user role in Firestore:', error);
         return { success: false, error: error.message };
     }
 }
@@ -341,7 +341,7 @@ async function deleteSharedUserByEmail(email) {
         await deleteDoc(doc(db, 'users', userDocIdFromEmail(normalized)));
         return { success: true };
     } catch (error) {
-        console.error('❌ Error deleting user in Firestore:', error);
+        console.error('Error deleting user in Firestore:', error);
         return { success: false, error: error.message };
     }
 }
@@ -357,7 +357,7 @@ async function setUserResetAssessmentFlag(email, flag) {
         });
         return { success: true };
     } catch (error) {
-        console.error('❌ Error setting resetAssessmentFlag:', error);
+        console.error('Error setting resetAssessmentFlag:', error);
         return { success: false, error: error.message };
     }
 }

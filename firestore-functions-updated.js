@@ -252,7 +252,7 @@ async function assignCourseToUser(videoData, level) {
     if (window.firestoreDB) {
         const result = await window.firestoreDB.saveUserCourse(userEmail, courseData);
         if (result.success) {
-            console.log('✅ Course saved to Firestore');
+            console.log('Course saved to Firestore');
             loadAssignedCourses();
         }
     } else {

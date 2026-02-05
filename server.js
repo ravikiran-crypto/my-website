@@ -354,15 +354,15 @@ app.get('/api/url/check', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`\n🚀 Server running on http://localhost:${PORT}`);
-  console.log(`📡 API endpoints available at http://localhost:${PORT}/api/`);
-  console.log(`🌐 Network access enabled (listening on all interfaces)`);
+  console.log(`\nServer running on http://localhost:${PORT}`);
+  console.log(`API endpoints available at http://localhost:${PORT}/api/`);
+  console.log(`Network access enabled (listening on all interfaces)`);
   
   const apiKey = process.env.GEMINI_API_KEY;
   if (apiKey) {
-    console.log(`✅ GEMINI_API_KEY loaded: ${apiKey.substring(0, 10)}...${apiKey.substring(apiKey.length - 4)}`);
+    console.log(`GEMINI_API_KEY loaded: ${apiKey.substring(0, 10)}...${apiKey.substring(apiKey.length - 4)}`);
   } else {
-    console.log(`❌ GEMINI_API_KEY not found! Check your .env file`);
+    console.log(`GEMINI_API_KEY not found! Check your .env file`);
   }
   console.log('');
 });

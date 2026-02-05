@@ -1,0 +1,3719 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TalkSpace | OneOrigin Hub</title>
+
+  <!-- Firebase (modular) -->
+  <script type="module">
+    import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import {
+      getFirestore,
+      collection,
+      doc,
+      getDoc,
+      getDocs,
+      addDoc,
+      setDoc,
+      updateDoc,
+      onSnapshot,
+      query,
+      orderBy,
+      serverTimestamp,
+      runTransaction,
+      writeBatch,
+      limit
+    } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+    import {
+      getStorage,
+      ref,
+      uploadBytesResumable,
+      getDownloadURL
+    } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDnfIJQxO6mi2_NEGqXRGH5EAxeaNcb7qc",
+      authDomain: "oneorigin-learning-hub.firebaseapp.com",
+      projectId: "oneorigin-learning-hub",
+      storageBucket: "oneorigin-learning-hub.firebasestorage.app",
+      messagingSenderId: "4168147692",
+      appId: "1:4168147692:web:43a1205a0af9770f633bc9"
+    };
+
+    const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+    const storage = getStorage(app);
+
+    // ====== Theme constants (replica palette) ======
+    const COLORS = {
+      canvas: "#1F1F1F",
+      elevation: "#2D2E30",
+      stroke: "#444746",
+      text: "#E3E3E3",
+      muted: "#8E918F",
+      blue: "#A8C7FA",
+      hover: "#333537",
+      reaction: "#37393B",
+      reactionActive: "#004A77"
+    };
+
+    // ====== Space / identity ======
+    const DEFAULT_SPACE_ID = "main";
+    const spaceId = new URLSearchParams(location.search).get("space") || DEFAULT_SPACE_ID;
+
+    const state = {
+      user: null,
+      displayName: "User",
+      role: "user", // 'user' | 'admin'
+      spaceName: "TalkSpace",
+      spaceClearedAt: 0,
+      lastFeedList: [],
+      members: [],
+      messagesUnsub: null,
+      threadUnsub: null,
+      spaceUnsub: null,
+      activeThread: null,
+      messageCache: new Map(),
+      localKey: `talkspace:${spaceId}:localMessages`,
+      localThreadKeyPrefix: `talkspace:${spaceId}:thread:`,
+
+      pendingMain: [],
+      pendingThread: [],
+
+      editing: {
+        messageId: null,
+        draft: "",
+        threadReplyId: null,
+        threadDraft: ""
+      },
+
+      mention: {
+        open: false,
+        anchor: "main", // 'main' | 'thread'
+        items: [],
+        index: 0,
+        atPos: -1
+      }
+    };
+
+    // ====== DOM refs ======
+    const el = {
+      headerName: document.getElementById("tsSpaceName"),
+      memberCount: document.getElementById("tsMemberCount"),
+      avatarStack: document.getElementById("tsAvatarStack"),
+      searchBtn: document.getElementById("tsSearchBtn"),
+      clearChatBtn: document.getElementById("tsClearChatBtn"),
+      searchWrap: document.getElementById("tsSearchWrap"),
+      searchInput: document.getElementById("tsSearchInput"),
+      feed: document.getElementById("tsFeed"),
+      composer: document.getElementById("tsComposer"),
+      input: document.getElementById("tsInput"),
+      sendBtn: document.getElementById("tsSend"),
+      emojiBtn: document.getElementById("tsEmoji"),
+      attachBtn: document.getElementById("tsAttach"),
+      attachInput: document.getElementById("tsAttachInput"),
+      dropHint: document.getElementById("tsDropHint"),
+
+      toast: document.getElementById("tsToast"),
+
+      pendingMain: document.getElementById("tsPendingMain"),
+
+      mentionBox: document.getElementById("tsMentionBox"),
+      mentionList: document.getElementById("tsMentionList"),
+
+      memberModal: document.getElementById("tsMemberModal"),
+      memberModalClose: document.getElementById("tsMemberModalClose"),
+      memberSearch: document.getElementById("tsMemberSearch"),
+      memberList: document.getElementById("tsMemberList"),
+
+      confirmModal: document.getElementById("tsConfirmModal"),
+      confirmTitle: document.getElementById("tsConfirmTitle"),
+      confirmMsg: document.getElementById("tsConfirmMsg"),
+      confirmX: document.getElementById("tsConfirmX"),
+      confirmCancel: document.getElementById("tsConfirmCancel"),
+      confirmOk: document.getElementById("tsConfirmOk"),
+
+      // Emoji picker
+      emojiPicker: document.getElementById("tsEmojiPicker"),
+      emojiSearch: document.getElementById("tsEmojiSearch"),
+      emojiGrid: document.getElementById("tsEmojiGrid"),
+
+      // Thread panel
+      threadPanel: document.getElementById("tsThread"),
+      threadClose: document.getElementById("tsThreadClose"),
+      threadTitle: document.getElementById("tsThreadTitle"),
+      threadRoot: document.getElementById("tsThreadRoot"),
+      threadList: document.getElementById("tsThreadList"),
+      threadInput: document.getElementById("tsThreadInput"),
+      threadSend: document.getElementById("tsThreadSend"),
+      threadEmoji: document.getElementById("tsThreadEmoji"),
+      threadAttach: document.getElementById("tsThreadAttach"),
+      threadAttachInput: document.getElementById("tsThreadAttachInput"),
+
+      pendingThread: document.getElementById("tsPendingThread"),
+
+      threadMentionBox: document.getElementById("tsThreadMentionBox"),
+      threadMentionList: document.getElementById("tsThreadMentionList"),
+
+      // View receipts
+      viewsModal: document.getElementById("tsViewsModal"),
+      viewsClose: document.getElementById("tsViewsClose"),
+      viewsTitle: document.getElementById("tsViewsTitle"),
+      viewsList: document.getElementById("tsViewsList")
+    };
+
+    // ====== Utilities ======
+    const escapeHtml = (s) => String(s || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+
+    function showToast(message, kind = "error") {
+      const t = el.toast;
+      if (!t) {
+        try { console.warn(String(message || "")); } catch (_) {}
+        return;
+      }
+      t.textContent = String(message || "");
+      t.classList.remove("ok", "warn", "error");
+      if (kind === "ok") t.classList.add("ok");
+      else if (kind === "warn") t.classList.add("warn");
+      else t.classList.add("error");
+      t.classList.add("show");
+      if (state._toastTimer) clearTimeout(state._toastTimer);
+      state._toastTimer = setTimeout(() => {
+        try { t.classList.remove("show"); } catch (_) {}
+      }, 4200);
+    }
+
+    function safeEmail() {
+      return (state.user?.email || localStorage.getItem("userEmail") || "").trim();
+    }
+
+    function isAdmin() {
+      const r = String(state.role || localStorage.getItem("userRole") || "user").trim().toLowerCase();
+      return r === "admin";
+    }
+
+    function isClearChatAdmin() {
+      return String(safeEmail() || "").trim().toLowerCase() === "ravikiran@oneorigin.us";
+    }
+
+    async function loadMyRole() {
+      const stored = String(localStorage.getItem("userRole") || "").trim().toLowerCase();
+      if (stored === "admin" || stored === "user") state.role = stored;
+
+      const email = safeEmail();
+      if (!email) return;
+      try {
+        const normalized = email.toLowerCase();
+        const [a, b] = await Promise.allSettled([
+          getDoc(doc(db, "users", normalized)),
+          getDoc(doc(db, "users", email))
+        ]);
+        const snap = (a.status === "fulfilled" && a.value?.exists?.() && a.value)
+          || (b.status === "fulfilled" && b.value?.exists?.() && b.value)
+          || null;
+        const role = String(snap?.data?.()?.role || "").trim().toLowerCase();
+        if (role === "admin" || role === "user") state.role = role;
+      } catch (_) {
+        // ignore
+      }
+    }
+
+    function deriveDisplayName() {
+      const stored = (localStorage.getItem("userName") || "").trim();
+      if (stored) return stored;
+      const email = safeEmail();
+      if (!email) return "User";
+      const local = email.split("@")[0] || "";
+      const parts = local.split(/[._]/).filter(Boolean);
+      return parts.length ? parts.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(" ") : email;
+    }
+
+    function formatTime(ts) {
+      try {
+        const d = ts instanceof Date ? ts : new Date(ts);
+        if (Number.isNaN(d.getTime())) return "";
+        return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      } catch (_) {
+        return "";
+      }
+    }
+
+    function toMillis(createdAt) {
+      if (!createdAt) return 0;
+      if (typeof createdAt === "number") return createdAt;
+      if (createdAt?.toMillis) return createdAt.toMillis();
+      const d = new Date(createdAt);
+      return Number.isNaN(d.getTime()) ? 0 : d.getTime();
+    }
+
+    function listAfterClear(list) {
+      const clearedAt = Number(state.spaceClearedAt || 0);
+      if (!clearedAt) return list;
+      return (list || []).filter((m) => {
+        const ms = toMillis(m?.data?.createdAt);
+        if (!ms) return true;
+        return ms >= clearedAt;
+      });
+    }
+
+    function renderTextWithMentions(text) {
+      const raw = escapeHtml(text);
+
+      // Mention token format inserted by picker: @{Display Name|email}
+      const withMentions = raw.replace(/@\{([^|}]{1,80})\|([^}]{3,120})\}/g, (_m, name, email) => {
+        const n = escapeHtml(String(name || "").trim());
+        const e = escapeHtml(String(email || "").trim());
+        return `<span class="ts-mention" data-email="${e}">@${n}</span>`;
+      });
+
+      // Convert URLs
+      const urlified = withMentions.replace(
+        /(https?:\/\/[^\s<]+)/g,
+        (m) => `<a class="ts-link" href="${m}" target="_blank" rel="noopener noreferrer">${m}</a>`
+      );
+
+      // Highlight simple @handles (no spaces)
+      return urlified.replace(/(^|\s)@([a-zA-Z0-9._-]{2,32})/g, (m, pre, handle) => {
+        return `${pre}<span class="ts-mention">@${escapeHtml(handle)}</span>`;
+      });
+    }
+
+    function fileTypeIcon(name, mime) {
+      const n = String(name || "").toLowerCase();
+      const m = String(mime || "").toLowerCase();
+      if (m.startsWith("image/")) return "image";
+      if (n.endsWith(".pdf")) return "pdf";
+      if (n.endsWith(".doc") || n.endsWith(".docx")) return "doc";
+      if (n.endsWith(".xls") || n.endsWith(".xlsx")) return "sheet";
+      if (n.endsWith(".ppt") || n.endsWith(".pptx")) return "slide";
+      if (n.endsWith(".zip") || n.endsWith(".rar") || n.endsWith(".7z")) return "zip";
+      return "file";
+    }
+
+    function iconSvg(kind) {
+      const icons = {
+        search: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 2a8 8 0 1 1 5 14.2L20.7 22 19.3 23.4l-5.7-5.7A8 8 0 0 1 10 2zm0 2a6 6 0 1 0 0 12 6 6 0 0 0 0-12z"/></svg>`,
+        back: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 5 8.5 12l7 7-1.5 1.5L5.5 12 14 3.5 15.5 5z"/></svg>`,
+        smile: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zm-4 9a1.2 1.2 0 1 0 0-2.4A1.2 1.2 0 0 0 8 11zm8 0a1.2 1.2 0 1 0 0-2.4A1.2 1.2 0 0 0 16 11zm-8.2 2.6a1 1 0 0 1 1.4.2 4 4 0 0 0 6.6 0 1 1 0 0 1 1.6 1.2 6 6 0 0 1-9.8 0 1 1 0 0 1 .2-1.6z"/></svg>`,
+        attach: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.5 6.5 9 14a3 3 0 0 0 4.2 4.2l7.1-7.1a5 5 0 0 0-7.1-7.1L5.8 11.3a7 7 0 0 0 9.9 9.9l7-7 1.4 1.4-7 7A9 9 0 0 1 4.4 10L11.8 2.6A7 7 0 0 1 21.7 12l-7.1 7.1a5 5 0 0 1-7.1-7.1l7.5-7.5 1.5 1.5z"/></svg>`,
+        send: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 21 23 12 2 3v7l15 2-15 2v7z"/></svg>`,
+        reply: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 9V5l-7 7 7 7v-4.1c6 0 9.4 2 12 6.1-1-6-4-12-12-12z"/></svg>`,
+        edit: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17.25V21h3.75L18 9.75l-3.75-3.75L3 17.25zm2.92 2.33H5v-.92l9.06-9.06.92.92-9.06 9.06zM20.71 7.04a1 1 0 0 0 0-1.41L18.37 3.3a1 1 0 0 0-1.41 0l-1.84 1.84 3.75 3.75 1.84-1.85z"/></svg>`,
+        trash: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l1 2h5v2H3V5h5l1-2zm1 6h2v10h-2V9zm4 0h2v10h-2V9zM6 9h2v10H6V9z"/></svg>`,
+        more: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm0 7a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm0 7a2 2 0 1 1 0-4 2 2 0 0 1 0 4z"/></svg>`,
+        dots: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm0 7a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm0 7a2 2 0 1 1 0-4 2 2 0 0 1 0 4z"/></svg>`,
+        mic: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a1 1 0 0 1 2 0 7 7 0 0 1-6 6.92V20h2a1 1 0 1 1 0 2H9a1 1 0 1 1 0-2h2v-2.08A7 7 0 0 1 5 11a1 1 0 0 1 2 0 5 5 0 0 0 10 0z"/></svg>`,
+        calendar: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 2a1 1 0 0 1 1 1v1h8V3a1 1 0 1 1 2 0v1h1a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3h1V3a1 1 0 0 1 1-1zm13 8H4v9a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-9zM5 6a1 1 0 0 0-1 1v1h16V7a1 1 0 0 0-1-1H5z"/></svg>`,
+        translate: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3h9v2h-4.2a16.7 16.7 0 0 1-3.2 6.1l2 2-1.4 1.4-2-2a16.8 16.8 0 0 1-4 2.6l-.8-1.8a14.7 14.7 0 0 0 3.4-2.2A14.8 14.8 0 0 1 8.6 7H7V5h5V3zm-1.9 4a13 13 0 0 0 1.9 2.8A13 13 0 0 0 13.9 7H10.1z"/></svg>`,
+        file: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2h9l5 5v15a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm8 1.5V8h4.5L14 3.5z"/></svg>`,
+        pdf: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2h9l5 5v15a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm8 1.5V8h4.5L14 3.5zM8 13h2.2a2 2 0 0 1 0 4H8v-4zm2.2 2a.8.8 0 0 0 0-1.6H9.6V15h.6zM12 13h1.6a2.4 2.4 0 0 1 0 4H12v-4zm1.6 3a1.4 1.4 0 0 0 0-2.8H13.6V16h0zM16 13h3v1.2h-1.6V15H19v1.2h-1.6V17H16v-4z"/></svg>`,
+        image: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v14a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V5zm3-1a1 1 0 0 0-1 1v9l3.2-3.2a2 2 0 0 1 2.8 0L16 14l2-2a2 2 0 0 1 2 0V5a1 1 0 0 0-1-1H7zm13 10.8-2.3-2.3L17 13.2l3 3V14.8zM6 19a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-.6l-5.6-5.6a.8.8 0 0 0-1.2 0L6 18.6V19zm3-9a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/></svg>`,
+        doc: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2h9l5 5v15a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm8 1.5V8h4.5L14 3.5zM8 12h8v2H8v-2zm0 4h8v2H8v-2z"/></svg>`,
+        sheet: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2h9l5 5v15a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm8 1.5V8h4.5L14 3.5zM8 12h8v2H8v-2zm0 3h5v2H8v-2z"/></svg>`,
+        slide: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v12H4V4zm2 2v8h12V6H6zm6 11h2v3h-2v-3z"/></svg>`,
+        zip: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2h9l5 5v15a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm8 1.5V8h4.5L14 3.5zM11 10h2v2h-2v-2zm0 3h2v2h-2v-2zm0 3h2v2h-2v-2z"/></svg>`
+      };
+      return icons[kind] || icons.file;
+    }
+
+    // ====== Emoji picker data ======
+    const EMOJI = (
+      "😀 😃 😄 😁 😆 😅 😂 🤣 😊 🙂 🙃 😉 😌 😍 🥰 😘 😗 😙 😚 🤩 😎 🤓 🥳 🤗 🤔 🫡 🤨 😐 😑 😶 🫥 😶‍🌫️ 🙄 😏 😒 🫤 😕 🙁 ☹️ 😣 😖 😫 😩 🥺 😢 😭 😮 😯 😲 😳 🥵 🥶 😱 😨 😰 😥 😓 🤯 😤 😡 🤬 🤐 🥴 🤢 🤮 🤧 😷 🤒 🤕 🤑 🤠 😇 🫠"
+      + " 👍 👎 👊 ✊ 🤛 🤜 🤞 ✌️ 🤟 🤘 👌 🤌 🤏 ✋ 🤚 🖐️ 🖖 👋 🤙 💪 🦾 🫶 🙏 🤝 👏 👐 🙌"
+      + " ❤️ 🧡 💛 💚 💙 💜 🤎 🖤 🤍 💔 ❤️‍🔥 ❤️‍🩹 💞 💕 💓 💗 💖 💘 💝 💟"
+      + " ✅ ☑️ ✔️ ❌ ❗ ❓ ❕ ❔ ⚠️ 🚫 ⛔ 🛑 ℹ️ 🔥 💡 🎉 🎊 🎈 ⭐ 🌟 ✨ 💥 💯"
+      + " 🧠 👀 👁️ 👂 🦻 👃 👄 🫦 👅 💬 🗨️ 🗯️ 📌 📍 📎 🧾 📄 📝 🗒️ 📚"
+      + " 🚀 🛸 ✈️ 🛫 🛬 🚗 🚕 🚌 🚎 🚑 🚒 🚓 🏍️ 🚲 🛴 🛵 🏁"
+      + " 🍕 🍔 🍟 🌭 🥪 🌮 🌯 🥗 🍜 🍝 🍣 🍱 🥟 🍩 🍪 🍫 ☕ 🧋 🥤"
+      + " 🐶 🐱 🐭 🐹 🐰 🦊 🐻 🐼 🐨 🐯 🦁 🐮 🐷 🐸 🐵 🐔 🐧 🐦 🦉"
+      + " 🌍 🌎 🌏 🌙 ⭐ 🌤️ ⛅ 🌧️ ⛈️ ❄️ 🌊 🌈 🌸 🌹 🌻 🌴"
+      + " 🎮 🎧 🎵 🎶 🎤 🎬 📷 📸 🖼️ 🎨 🧩 🧸 🎁 🎯"
+    ).split(/\s+/).filter(Boolean);
+
+    const QUICK_REACTIONS = ["👍","❤️","😂","🎉","👀","😮"];
+
+    function openEmojiPicker(anchorEl, onPick) {
+      const picker = el.emojiPicker;
+      picker.dataset.onpick = "1";
+      picker._onPick = onPick;
+      picker.classList.add("open");
+
+      // Position near anchor
+      const r = anchorEl.getBoundingClientRect();
+      const px = Math.min(window.innerWidth - 320, Math.max(16, r.left - 8));
+      const py = Math.max(16, r.top - 360);
+      picker.style.left = `${px}px`;
+      picker.style.top = `${py}px`;
+
+      el.emojiSearch.value = "";
+      renderEmojiGrid("");
+      setTimeout(() => el.emojiSearch.focus(), 0);
+    }
+
+    function closeEmojiPicker() {
+      el.emojiPicker.classList.remove("open");
+      el.emojiPicker._onPick = null;
+    }
+
+    function renderEmojiGrid(filter) {
+      const q = String(filter || "").trim().toLowerCase();
+      const list = EMOJI.filter(e => !q || e.includes(q));
+      el.emojiGrid.innerHTML = list.map(e => `<button class="ts-emoji" type="button" data-e="${e}">${e}</button>`).join("");
+    }
+
+    // ====== @mention suggestions ======
+    function getMentionUI(which) {
+      return which === "thread"
+        ? { input: el.threadInput, box: el.threadMentionBox, list: el.threadMentionList }
+        : { input: el.input, box: el.mentionBox, list: el.mentionList };
+    }
+
+    function findMention(text, caret) {
+      const before = String(text || "").slice(0, Math.max(0, caret));
+      const at = before.lastIndexOf("@");
+      if (at < 0) return null;
+      const pre = at === 0 ? "" : before[at - 1];
+      if (pre && !/\s/.test(pre)) return null;
+      const after = before.slice(at + 1);
+      if (after.includes("{") || after.includes("}") || after.includes("\n")) return null;
+      const m = after.match(/^([a-zA-Z0-9._-]{0,32})$/);
+      if (!m) return null;
+      return { at, q: m[1] || "" };
+    }
+
+    function mentionScore(member, q) {
+      const needle = String(q || "").trim().toLowerCase();
+      if (!needle) return 1;
+      const name = String(member.name || "").toLowerCase();
+      const email = String(member.email || "").toLowerCase();
+      if (name.startsWith(needle)) return 100;
+      if (email.startsWith(needle)) return 90;
+      if (name.includes(needle)) return 70;
+      if (email.includes(needle)) return 60;
+      return 0;
+    }
+
+    function updateMention(which) {
+      const ui = getMentionUI(which);
+      if (!ui.input || !ui.box || !ui.list) return;
+
+      const caret = ui.input.selectionStart ?? String(ui.input.value || "").length;
+      const found = findMention(ui.input.value, caret);
+      if (!found) {
+        ui.box.classList.remove("open");
+        state.mention.open = false;
+        return;
+      }
+
+      const items = (state.members || [])
+        .map(m => ({ m, s: mentionScore(m, found.q) }))
+        .filter(x => x.s > 0)
+        .sort((a, b) => b.s - a.s)
+        .slice(0, 8)
+        .map(x => x.m);
+
+      if (items.length === 0) {
+        ui.box.classList.remove("open");
+        state.mention.open = false;
+        return;
+      }
+
+      state.mention.open = true;
+      state.mention.anchor = which;
+      state.mention.items = items;
+      state.mention.index = 0;
+      state.mention.atPos = found.at;
+
+      ui.list.innerHTML = items.map((m, idx) => {
+        const rawName = String(m.name || "").trim();
+        const rawEmail = String(m.email || "").trim();
+        const name = escapeHtml(rawName || (rawEmail ? rawEmail.split("@")[0].split(/[._]/).filter(Boolean).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(" ") : "") || "User");
+        const color = userColorSeed(m.email);
+        return `
+          <button type="button" class="ts-ment ${idx === 0 ? "is-active" : ""}" data-i="${idx}">
+            <span class="ts-avatar sm" style="--av:${color}">${escapeHtml(initials(m.name))}</span>
+            <span class="ts-ment-t">
+              <span class="ts-ment-n">${name}</span>
+            </span>
+          </button>
+        `;
+      }).join("");
+
+      ui.box.classList.add("open");
+    }
+
+    function setMentionActive(which, idx) {
+      const ui = getMentionUI(which);
+      const max = state.mention.items.length;
+      const next = Math.max(0, Math.min(max - 1, idx));
+      state.mention.index = next;
+      ui.list.querySelectorAll(".ts-ment").forEach(b => b.classList.remove("is-active"));
+      const btn = ui.list.querySelector(`.ts-ment[data-i="${next}"]`);
+      if (btn) {
+        btn.classList.add("is-active");
+        btn.scrollIntoView({ block: "nearest" });
+      }
+    }
+
+    function acceptMention(which, idx = null) {
+      const ui = getMentionUI(which);
+      const i = idx == null ? state.mention.index : idx;
+      const m = state.mention.items[i];
+      if (!m || !ui.input) return;
+
+      const caret = ui.input.selectionStart ?? String(ui.input.value || "").length;
+      const at = state.mention.atPos;
+      if (at < 0 || at > caret) return;
+
+      const before = ui.input.value.slice(0, at);
+      const after = ui.input.value.slice(caret);
+      const token = `@{${String(m.name || m.email || "User").trim()}|${String(m.email || "").trim()}}`;
+      ui.input.value = `${before}${token} ${after}`;
+      const nextPos = (before + token + " ").length;
+      ui.input.setSelectionRange(nextPos, nextPos);
+
+      ui.box.classList.remove("open");
+      state.mention.open = false;
+      ui.input.focus();
+    }
+
+    // ====== Message rendering ======
+    function messageKey(docId) {
+      return String(docId || "");
+    }
+
+    function initials(name) {
+      const s = String(name || "User").trim();
+      const parts = s.split(/\s+/).filter(Boolean).slice(0, 2);
+      const letters = parts.map(p => p[0]?.toUpperCase() || "U").join("");
+      return letters || "U";
+    }
+
+    function userColorSeed(email) {
+      const s = String(email || "");
+      let h = 0;
+      for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+      const hue = h % 360;
+      return `hsl(${hue} 70% 55%)`;
+    }
+
+    function renderAttachments(attList) {
+      const list = Array.isArray(attList) ? attList : [];
+      if (list.length === 0) return "";
+
+      return `<div class="ts-att-wrap">${list.map(a => {
+        const name = escapeHtml(a?.name || "File");
+        const url = escapeHtml(a?.url || "");
+        const mime = escapeHtml(a?.mime || "");
+        const size = Number(a?.size || 0);
+        const sizeText = size > 0 ? formatBytes(size) : "";
+        const kind = fileTypeIcon(a?.name, a?.mime);
+
+        if (String(a?.mime || "").toLowerCase().startsWith("image/") && url) {
+          return `
+            <div class="ts-att-card">
+              <div class="ts-att-thumb"><img src="${url}" alt="${name}" /></div>
+              <div class="ts-att-meta">
+                <div class="ts-att-name">${name}</div>
+                <div class="ts-att-sub">${sizeText || mime}</div>
+                <div class="ts-att-actions">
+                  <a class="ts-att-btn" href="${url}" target="_blank" rel="noopener">View</a>
+                  <a class="ts-att-btn" href="${url}" download>Download</a>
+                </div>
+              </div>
+            </div>
+          `;
+        }
+
+        return `
+          <div class="ts-att-card">
+            <div class="ts-att-ico" aria-hidden="true">${iconSvg(kind)}</div>
+            <div class="ts-att-meta">
+              <div class="ts-att-name">${name}</div>
+              <div class="ts-att-sub">${sizeText || mime || ""}</div>
+              <div class="ts-att-actions">
+                <a class="ts-att-btn" href="${url}" target="_blank" rel="noopener">Open</a>
+                <a class="ts-att-btn" href="${url}" download>Download</a>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join("")}</div>`;
+    }
+
+    function formatBytes(bytes) {
+      const b = Number(bytes || 0);
+      if (!b) return "";
+      const units = ["B","KB","MB","GB"];
+      let v = b;
+      let u = 0;
+      while (v >= 1024 && u < units.length - 1) { v /= 1024; u++; }
+      return `${v.toFixed(v >= 10 || u === 0 ? 0 : 1)} ${units[u]}`;
+    }
+
+    function renderReactions(msg) {
+      const reactions = msg?.reactions && typeof msg.reactions === "object" ? msg.reactions : {};
+      const me = safeEmail();
+      const entries = Object.entries(reactions)
+        .filter(([, v]) => v && typeof v === "object" && Number(v.count || 0) > 0)
+        .sort((a, b) => Number(b[1].count || 0) - Number(a[1].count || 0));
+      if (entries.length === 0) return "";
+
+      const shortDisplayName = (full) => {
+        const raw = String(full || "").trim().replace(/\s+/g, " ");
+        if (!raw) return "User";
+        const parts = raw.split(" ").filter(Boolean);
+        if (parts.length === 1) return parts[0];
+        const first = parts[0];
+        const last = parts[parts.length - 1];
+        const initial = last ? `${last.charAt(0).toUpperCase()}.` : "";
+        return initial ? `${first} ${initial}` : first;
+      };
+
+      const memberLabel = (email) => {
+        const em = String(email || "").trim();
+        if (!em) return "User";
+        const norm = em.toLowerCase();
+        const m = (state.members || []).find(x => String(x?.email || "").trim().toLowerCase() === norm) || null;
+        const nm = String(m?.name || "").trim();
+        if (nm) return nm;
+        const local = em.split("@")[0] || "";
+        const parts = local.split(/[._]/).filter(Boolean);
+        return parts.length ? parts.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(" ") : em;
+      };
+
+      const reactionTooltip = (emoji, usersObj) => {
+        const users = usersObj && typeof usersObj === "object" ? usersObj : {};
+        const emails = Object.keys(users).filter(k => users[k] === true);
+        if (emails.length === 0) return "";
+        const items = emails.map((em) => {
+          const full = memberLabel(em);
+          return { name: shortDisplayName(full) };
+        })
+          .filter(x => x.name)
+          .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+
+        const MAX = 12;
+        const shown = items.slice(0, MAX);
+        const more = Math.max(0, items.length - shown.length);
+
+        return `
+          <div class="ts-react-tip" role="tooltip">
+            <div class="ts-react-tip-head">
+              <span>Reacted by</span>
+              <span class="ts-react-tip-emoji">${escapeHtml(emoji)}</span>
+            </div>
+            <div class="ts-react-tip-list">
+              ${shown.map(v => {
+                const n = escapeHtml(v.name);
+                return `
+                  <div class="ts-react-tip-item">
+                    <div class="ts-react-tip-name">${n}</div>
+                  </div>
+                `;
+              }).join("")}
+              ${more ? `<div class="ts-react-tip-more">+ ${more} more</div>` : ""}
+            </div>
+          </div>
+        `;
+      };
+
+      return `
+        <div class="ts-react-row">
+          ${entries.map(([emoji, data]) => {
+            const users = data?.users && typeof data.users === "object" ? data.users : {};
+            const active = me && users[me] === true;
+            const count = Number(data.count || 0);
+            const tip = reactionTooltip(emoji, users);
+            const title = Object.keys(users)
+              .filter(k => users[k] === true)
+              .map((em) => shortDisplayName(memberLabel(em)))
+              .slice(0, 10)
+              .join(", ") || "React";
+            return `
+              <button type="button" class="ts-react-pill ${active ? "is-active" : ""}" data-react="${escapeHtml(emoji)}" title="${escapeHtml(title)}">
+                <span class="ts-react-e">${escapeHtml(emoji)}</span>
+                <span class="ts-react-c">${count}</span>
+                ${tip}
+              </button>
+            `;
+          }).join("")}
+        </div>
+      `;
+    }
+
+    function shouldGroup(prev, curr) {
+      if (!prev || !curr) return false;
+      if (String(prev.userEmail || "") !== String(curr.userEmail || "")) return false;
+      const dt = Math.abs(toMillis(curr.createdAt) - toMillis(prev.createdAt));
+      return dt <= 5 * 60 * 1000; // 5 minutes
+    }
+
+    function canDeleteMessage(msg) {
+      const me = String(safeEmail() || "").trim().toLowerCase();
+      if (!me) return false;
+      if (isAdmin()) return true;
+      const owner = String(msg?.userEmail || "").trim().toLowerCase();
+      return owner && owner === me;
+    }
+
+    function confirmDialog({ title, message }) {
+      return new Promise((resolve) => {
+        // If modal elements aren't present yet, fall back to a safe no-op.
+        if (!el.confirmModal || !el.confirmTitle || !el.confirmMsg || !el.confirmCancel || !el.confirmOk) {
+          resolve(false);
+          return;
+        }
+        el.confirmTitle.textContent = title || "Confirm";
+        el.confirmMsg.textContent = message || "Are you sure?";
+
+        const close = (v) => {
+          el.confirmModal.classList.remove("open");
+          el.confirmModal.setAttribute("aria-hidden", "true");
+          el.confirmCancel.removeEventListener("click", onCancel);
+          el.confirmX?.removeEventListener?.("click", onCancel);
+          el.confirmOk.removeEventListener("click", onOk);
+          resolve(v);
+        };
+        const onCancel = () => close(false);
+        const onOk = () => close(true);
+
+        el.confirmCancel.addEventListener("click", onCancel);
+        el.confirmX?.addEventListener?.("click", onCancel);
+        el.confirmOk.addEventListener("click", onOk);
+        el.confirmModal.classList.add("open");
+        el.confirmModal.setAttribute("aria-hidden", "false");
+      });
+    }
+
+    async function deleteMessageDoc(messageId) {
+      const ok = await confirmDialog({
+        title: "Delete message",
+        message: "This will delete the message for everyone in this space. Continue?"
+      });
+      if (!ok) return;
+      await updateDoc(messageDocRef(messageId), {
+        deleted: true,
+        deletedAt: serverTimestamp(),
+        deletedBy: safeEmail(),
+        deletedByRole: isAdmin() ? "admin" : "user"
+      });
+    }
+
+    async function deleteReplyDoc(rootMessageId, replyId) {
+      const ok = await confirmDialog({
+        title: "Delete reply",
+        message: "This will delete the reply for everyone in this space. Continue?"
+      });
+      if (!ok) return;
+      const ref = doc(db, "talkspaceSpaces", spaceId, "messages", rootMessageId, "replies", replyId);
+      await updateDoc(ref, {
+        deleted: true,
+        deletedAt: serverTimestamp(),
+        deletedBy: safeEmail(),
+        deletedByRole: isAdmin() ? "admin" : "user"
+      });
+    }
+
+    async function editMessageDoc(messageId, nextText) {
+      const id = String(messageId || "");
+      if (!id || id.startsWith("local_")) return;
+      const t = String(nextText || "").trim();
+      if (!t) return;
+      await updateDoc(messageDocRef(id), {
+        text: t,
+        edited: true,
+        editedAt: serverTimestamp(),
+        editedBy: safeEmail()
+      });
+    }
+
+    async function editReplyDoc(rootMessageId, replyId, nextText) {
+      const rid = String(replyId || "");
+      const mid = String(rootMessageId || "");
+      if (!mid || !rid || rid.startsWith("local_")) return;
+      const t = String(nextText || "").trim();
+      if (!t) return;
+      const ref = doc(db, "talkspaceSpaces", spaceId, "messages", mid, "replies", rid);
+      await updateDoc(ref, {
+        text: t,
+        edited: true,
+        editedAt: serverTimestamp(),
+        editedBy: safeEmail()
+      });
+    }
+
+    function renderMessage(docId, msg, prevMsg) {
+      const grouped = shouldGroup(prevMsg, msg);
+      const name = escapeHtml(msg?.userName || "User");
+      const email = escapeHtml(msg?.userEmail || "");
+      const ts = formatTime(toMillis(msg?.createdAt));
+      const deleted = msg?.deleted === true;
+      const text = deleted ? `<span class="ts-deleted">This message was deleted</span>` : renderTextWithMentions(msg?.text || "");
+      const att = deleted ? "" : renderAttachments(msg?.attachments);
+      const reacts = deleted ? "" : renderReactions(msg);
+      const replyCount = Math.max(0, Number(msg?.replyCount || 0));
+      const replies = replyCount > 0
+        ? `<div class="ts-replies"><button class="ts-replies-btn" type="button" data-action="reply">${replyCount} repl${replyCount === 1 ? "y" : "ies"}</button></div>`
+        : "";
+
+      const me = String(safeEmail() || "").trim().toLowerCase();
+      const owner = String(msg?.userEmail || "").trim().toLowerCase();
+      const isMine = me && owner && me === owner;
+
+      const isEditing = state.editing?.messageId && String(state.editing.messageId) === String(docId);
+      const edited = !!(msg?.editedAt || msg?.edited === true);
+      const editedTag = edited ? `<span class="ts-edited" title="Edited">Edited</span>` : "";
+
+      const viewed = (msg && msg.viewedBy && typeof msg.viewedBy === "object") ? msg.viewedBy : {};
+      const viewers = Object.values(viewed)
+        .filter(v => v && typeof v === "object")
+        .filter(v => String(v.email || "").trim().toLowerCase() && String(v.email || "").trim().toLowerCase() !== owner);
+      const viewsBtn = isMine
+        ? `<button class="ts-views-btn" type="button" data-action="views" title="Viewed by">Seen by ${viewers.length}</button>`
+        : "";
+
+      const color = userColorSeed(msg?.userEmail);
+      const avatar = `<div class="ts-avatar" style="--av:${color}">${escapeHtml(initials(msg?.userName))}</div>`;
+
+      const canEdit = !deleted && isMine;
+      const editBtn = canEdit ? `<button class="ts-hbtn" type="button" data-action="edit" title="Edit">${iconSvg("edit")}</button>` : "";
+
+      const editBox = (canEdit && isEditing) ? `
+        <div class="ts-edit">
+          <textarea class="ts-edit-ta" data-edit-ta="1">${escapeHtml(state.editing.draft || "")}</textarea>
+          <div class="ts-edit-actions">
+            <button class="ts-ebtn" type="button" data-action="editCancel">Cancel</button>
+            <button class="ts-ebtn primary" type="button" data-action="editSave">Save</button>
+          </div>
+        </div>
+      ` : "";
+
+      const bubbleBody = (canEdit && isEditing)
+        ? `${editBox}`
+        : `
+          <div class="ts-msg-text">${text}</div>
+          ${att}
+          ${reacts}
+        `;
+
+      return `
+        <div class="ts-msg ${grouped ? "is-grouped" : ""} ${isMine ? "is-mine" : "is-other"}" data-id="${escapeHtml(docId)}">
+          <div class="ts-msg-left">${grouped ? "" : avatar}</div>
+          <div class="ts-msg-main">
+            <div class="ts-stack">
+              <div class="ts-msg-top">
+                <div class="ts-msg-name">${name}</div>
+                <div class="ts-msg-time" title="${ts}">${ts}</div>
+                ${editedTag}
+                ${viewsBtn}
+              </div>
+              <div class="ts-msg-bubble">
+                ${bubbleBody}
+              </div>
+              ${replies}
+            </div>
+
+            <div class="ts-hoverbar" aria-hidden="true">
+              <div class="ts-hover-actions">
+                <button class="ts-hbtn" type="button" data-action="react" title="Add reaction">😊</button>
+                ${editBtn}
+                <button class="ts-hbtn" type="button" data-action="reply" title="Reply in thread">${iconSvg("reply")}</button>
+                ${(!deleted && canDeleteMessage(msg)) ? `<button class="ts-hbtn" type="button" data-action="delete" title="Delete">${iconSvg("trash")}</button>` : ""}
+                <div class="ts-quick">
+                  ${QUICK_REACTIONS.map(e => `<button class="ts-q" type="button" data-q="${escapeHtml(e)}" title="${escapeHtml(e)}">${escapeHtml(e)}</button>`).join("")}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderFeed(list) {
+      const search = String(el.searchInput.value || "").trim().toLowerCase();
+
+      // Keep cache in sync even for local fallback renders
+      try {
+        if (Array.isArray(list)) {
+          for (const m of list) {
+            if (m && m.id) state.messageCache.set(m.id, m.data);
+          }
+        }
+      } catch (_) {}
+
+      const visible = listAfterClear(list);
+
+      let html = "";
+      for (let i = 0; i < visible.length; i++) {
+        const prev = i > 0 ? visible[i - 1]?.data : null;
+        html += renderMessage(visible[i].id, visible[i].data, prev);
+      }
+      el.feed.innerHTML = html || `<div class="ts-empty">No messages yet. Start the conversation.</div>`;
+
+      if (search) {
+        // Highlight visible hits without filtering messages out
+        const nodes = el.feed.querySelectorAll(".ts-msg");
+        nodes.forEach((node) => {
+          const id = node.getAttribute("data-id");
+          const data = state.messageCache?.get?.(id) || null;
+          const t = String(data?.text || "").toLowerCase();
+          const u = String(data?.userName || "").toLowerCase();
+          const r = String(data?.replySearchText || "").toLowerCase();
+          const hit = t.includes(search) || u.includes(search) || r.includes(search);
+          node.classList.toggle("ts-search-hit", !!hit);
+        });
+      } else {
+        el.feed.querySelectorAll(".ts-msg.ts-search-hit").forEach(n => n.classList.remove("ts-search-hit"));
+      }
+
+      // Mark viewed via observer (best-effort)
+      try { attachViewObserver(); } catch (_) {}
+
+      // Auto-scroll to bottom if near bottom
+      requestAnimationFrame(() => {
+        const nearBottom = (el.feed.scrollHeight - el.feed.scrollTop - el.feed.clientHeight) < 240;
+        if (nearBottom) el.feed.scrollTop = el.feed.scrollHeight;
+      });
+    }
+
+    function encodeFieldKey(s) {
+      return String(s || "").trim().toLowerCase().replace(/[.#$/\[\]]/g, "_");
+    }
+
+    async function markMessageViewed(messageId) {
+      const id = String(messageId || "");
+      if (!id || id.startsWith("local_")) return;
+      const email = safeEmail();
+      if (!email) return;
+      const msg = state.messageCache?.get?.(id);
+      if (!msg || msg.deleted === true) return;
+
+      if (!state._viewedSent) state._viewedSent = new Set();
+      const key = `${id}|${email.toLowerCase()}`;
+      if (state._viewedSent.has(key)) return;
+      state._viewedSent.add(key);
+
+      try {
+        const fieldKey = encodeFieldKey(email);
+        const payload = {
+          email: email,
+          name: state.displayName || deriveDisplayName(),
+          at: serverTimestamp()
+        };
+        await updateDoc(messageDocRef(id), {
+          [`viewedBy.${fieldKey}`]: payload
+        });
+      } catch (_) {
+        // ignore (rules/offline)
+      }
+    }
+
+    async function markReplyViewed(rootMessageId, replyId) {
+      const mid = String(rootMessageId || "");
+      const rid = String(replyId || "");
+      if (!mid || !rid || rid.startsWith("local_")) return;
+      const email = safeEmail();
+      if (!email) return;
+
+      const msg = state.threadMessageById?.get?.(rid);
+      if (!msg || msg.deleted === true) return;
+
+      if (!state._viewedSent) state._viewedSent = new Set();
+      const key = `reply|${mid}|${rid}|${email.toLowerCase()}`;
+      if (state._viewedSent.has(key)) return;
+      state._viewedSent.add(key);
+
+      try {
+        const fieldKey = encodeFieldKey(email);
+        const payload = {
+          email: email,
+          name: state.displayName || deriveDisplayName(),
+          at: serverTimestamp()
+        };
+        const ref = doc(db, "talkspaceSpaces", spaceId, "messages", mid, "replies", rid);
+        await updateDoc(ref, {
+          [`viewedBy.${fieldKey}`]: payload
+        });
+      } catch (_) {
+        // ignore (rules/offline)
+      }
+    }
+
+    function attachViewObserver() {
+      if (!("IntersectionObserver" in window)) return;
+      if (!state._viewObserver) {
+        state._viewObserver = new IntersectionObserver((entries) => {
+          for (const e of entries) {
+            if (!e.isIntersecting || e.intersectionRatio < 0.65) continue;
+            const node = e.target;
+            const id = node.getAttribute("data-id");
+            if (id) markMessageViewed(id);
+          }
+        }, { root: el.feed, threshold: [0.65] });
+      }
+
+      try { state._viewObserver.disconnect(); } catch (_) {}
+      el.feed.querySelectorAll(".ts-msg").forEach((node) => {
+        try { state._viewObserver.observe(node); } catch (_) {}
+      });
+    }
+
+    function attachThreadViewObserver() {
+      if (!state.activeThread) return;
+      if (!el.threadList) return;
+      if (!("IntersectionObserver" in window)) return;
+
+      if (!state._threadViewObserver) {
+        state._threadViewObserver = new IntersectionObserver((entries) => {
+          for (const e of entries) {
+            if (!e.isIntersecting || e.intersectionRatio < 0.65) continue;
+            const node = e.target;
+            const rid = node.getAttribute("data-rid");
+            if (rid) markReplyViewed(state.activeThread, rid);
+          }
+        }, { root: el.threadList, threshold: [0.65] });
+      }
+
+      try { state._threadViewObserver.disconnect(); } catch (_) {}
+      el.threadList.querySelectorAll(".ts-tmsg").forEach((node) => {
+        try { state._threadViewObserver.observe(node); } catch (_) {}
+      });
+    }
+
+    function openViewsModalFrom({ ownerEmail, viewedBy, title }) {
+      if (!el.viewsModal || !el.viewsList || !el.viewsTitle) return;
+      const owner = String(ownerEmail || "").trim().toLowerCase();
+      const viewed = (viewedBy && typeof viewedBy === "object") ? viewedBy : {};
+
+      const items = Object.values(viewed)
+        .filter(v => v && typeof v === "object")
+        .map(v => ({
+          name: String(v.name || v.email || "User"),
+          email: String(v.email || ""),
+          at: v.at
+        }))
+        .filter(v => v.email)
+        .filter(v => String(v.email).trim().toLowerCase() !== owner)
+        .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+
+      el.viewsTitle.textContent = title || `Viewed by (${items.length})`;
+      el.viewsList.innerHTML = items.map(v => {
+        const n = escapeHtml(v.name);
+        const em = escapeHtml(v.email);
+        const when = formatTime(toMillis(v.at));
+        const sub = when ? `${em} • ${escapeHtml(when)}` : em;
+        const color = userColorSeed(v.email);
+        return `
+          <div class="ts-mrow">
+            <div class="ts-avatar sm" style="--av:${color}">${escapeHtml(initials(v.name))}</div>
+            <div class="ts-mmeta">
+              <div class="ts-mname">${n}</div>
+              <div class="ts-msub">${sub}</div>
+            </div>
+          </div>
+        `;
+      }).join("") || `<div class="ts-empty" style="margin:10px 0;">No views yet.</div>`;
+
+      el.viewsModal.classList.add("open");
+      el.viewsModal.setAttribute("aria-hidden", "false");
+    }
+
+    function openViewsModal(messageId) {
+      const id = String(messageId || "");
+      const msg = state.messageCache?.get?.(id) || {};
+      openViewsModalFrom({ ownerEmail: msg.userEmail, viewedBy: msg.viewedBy, title: null });
+    }
+
+    function openViewsModalForReply(rootMessageId, replyId) {
+      const rid = String(replyId || "");
+      if (!rid) return;
+      const msg = state.threadMessageById?.get?.(rid) || {};
+      openViewsModalFrom({ ownerEmail: msg.userEmail, viewedBy: msg.viewedBy, title: null });
+    }
+
+    function closeViewsModal() {
+      if (!el.viewsModal) return;
+      el.viewsModal.classList.remove("open");
+      el.viewsModal.setAttribute("aria-hidden", "true");
+    }
+
+    // ====== Firestore data model ======
+    function spaceDocRef() {
+      return doc(db, "talkspaceSpaces", spaceId);
+    }
+    function messagesColRef() {
+      return collection(db, "talkspaceSpaces", spaceId, "messages");
+    }
+    function messageDocRef(id) {
+      return doc(db, "talkspaceSpaces", spaceId, "messages", id);
+    }
+    function repliesColRef(messageId) {
+      return collection(db, "talkspaceSpaces", spaceId, "messages", messageId, "replies");
+    }
+
+    async function ensureSpaceDoc() {
+      const ref = spaceDocRef();
+      const snap = await getDoc(ref);
+      if (!snap.exists()) {
+        await setDoc(ref, {
+          id: spaceId,
+          name: spaceId === DEFAULT_SPACE_ID ? "TalkSpace" : `TalkSpace: ${spaceId}`,
+          createdAt: serverTimestamp()
+        }, { merge: true });
+      }
+      const next = (await getDoc(ref)).data() || {};
+      state.spaceName = String(next.name || "TalkSpace");
+      state.spaceClearedAt = toMillis(next.clearedAt) || 0;
+      el.headerName.textContent = state.spaceName;
+      document.title = `${state.spaceName} | TalkSpace`;
+      if (el.input) el.input.placeholder = `Message #${state.spaceName}`;
+    }
+
+    async function clearChatForSpace() {
+      if (!isClearChatAdmin()) return;
+      const ok = await confirmDialog({
+        title: "Clear chat",
+        message: "This will PERMANENTLY delete the entire chat history in this space for everyone (messages + replies) from the database. Continue?"
+      });
+      if (!ok) return;
+
+      const btn = el.clearChatBtn;
+      const prevText = btn ? btn.textContent : "";
+      try {
+        if (btn) {
+          btn.disabled = true;
+          btn.textContent = "Clearing…";
+        }
+
+        // Immediate local effect (hide while deletion runs)
+        const now = Date.now();
+        state.spaceClearedAt = now;
+        try { renderFeed(state.lastFeedList || []); } catch (_) {}
+        try { if (state.activeThread) renderThread(state._threadLastList || []); } catch (_) {}
+
+        // Clear local caches so cleared messages don't reappear offline.
+        try { localStorage.removeItem(state.localKey); } catch (_) {}
+        try {
+          const keys = Object.keys(localStorage);
+          const prefix = String(state.localThreadKeyPrefix || "");
+          for (const k of keys) {
+            if (prefix && k.startsWith(prefix)) {
+              try { localStorage.removeItem(k); } catch (_) {}
+            }
+          }
+        } catch (_) {}
+
+        // Hard delete from Firestore (replies first, then messages)
+        const BATCH_LIMIT = 450;
+        let batch = writeBatch(db);
+        let ops = 0;
+        const commitIfNeeded = async (force = false) => {
+          if (!force && ops < BATCH_LIMIT) return;
+          if (ops <= 0) return;
+          await batch.commit();
+          batch = writeBatch(db);
+          ops = 0;
+        };
+
+        const msgsSnap = await getDocs(messagesColRef());
+        for (const m of msgsSnap.docs) {
+          // Delete replies subcollection
+          try {
+            const rs = await getDocs(collection(m.ref, "replies"));
+            for (const r of rs.docs) {
+              batch.delete(r.ref);
+              ops++;
+              if (ops >= BATCH_LIMIT) await commitIfNeeded(true);
+            }
+          } catch (_) {
+            // ignore
+          }
+
+          batch.delete(m.ref);
+          ops++;
+          if (ops >= BATCH_LIMIT) await commitIfNeeded(true);
+        }
+
+        await commitIfNeeded(true);
+
+        // Record the clear event (optional audit / helps other clients hide instantly)
+        try {
+          await updateDoc(spaceDocRef(), {
+            clearedAt: serverTimestamp(),
+            clearedBy: safeEmail()
+          });
+        } catch (_) {
+          // ignore
+        }
+
+        // Close any open thread (its root may be deleted now)
+        try { if (state.activeThread) closeThread(); } catch (_) {}
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = prevText || "Clear Chat";
+        }
+      }
+    }
+
+    function openMemberModal() {
+      if (!el.memberModal) return;
+      el.memberModal.classList.add("open");
+      el.memberModal.setAttribute("aria-hidden", "false");
+      if (el.memberSearch) el.memberSearch.value = "";
+      try { renderMemberList(); } catch (_) {}
+      setTimeout(() => el.memberSearch?.focus?.(), 0);
+    }
+
+    function closeMemberModal() {
+      if (!el.memberModal) return;
+      el.memberModal.classList.remove("open");
+      el.memberModal.setAttribute("aria-hidden", "true");
+    }
+
+    function renderMemberList() {
+      if (!el.memberList) return;
+      const q = String(el.memberSearch?.value || "").trim().toLowerCase();
+      const list = (state.members || []).filter(m => {
+        if (!q) return true;
+        return String(m.name || "").toLowerCase().includes(q) || String(m.email || "").toLowerCase().includes(q);
+      });
+
+      el.memberList.innerHTML = list.map(m => {
+        const name = escapeHtml(m.name || m.email || "User");
+        const email = escapeHtml(m.email || "");
+        const role = escapeHtml(String(m.role || "user").toLowerCase() === "admin" ? "Admin" : "User");
+        const color = userColorSeed(m.email);
+        return `
+          <div class="ts-mrow">
+            <div class="ts-avatar sm" style="--av:${color}">${escapeHtml(initials(m.name))}</div>
+            <div class="ts-mmeta">
+              <div class="ts-mname">${name}</div>
+              <div class="ts-msub">${email}</div>
+            </div>
+            <div class="ts-mrole">${role}</div>
+          </div>
+        `;
+      }).join("") || `<div class="ts-empty" style="margin:10px 0;">No matching members.</div>`;
+    }
+
+    async function loadMembers() {
+      // Best effort: list users (if readable) else fallback to only current user.
+      const me = { name: state.displayName, email: safeEmail(), role: state.role };
+      const render = (members) => {
+        state.members = members;
+        el.memberCount.textContent = `${members.length} member${members.length === 1 ? "" : "s"}`;
+        if (el.avatarStack) el.avatarStack.innerHTML = "";
+      };
+
+      render([me]);
+
+      try {
+        const qy = query(collection(db, "users"), limit(500));
+        onSnapshot(qy, (snap) => {
+          const next = [{ name: state.displayName, email: safeEmail(), role: state.role }];
+          snap.forEach(d => {
+            const u = d.data() || {};
+            const email = String(u.email || "").trim();
+            if (!email) return;
+            if (!email.toLowerCase().endsWith("@oneorigin.us")) return;
+            const name = String(u.name || u.employeeName || u.employeeId || "").trim() || email;
+            const role = String(u.role || "user").trim().toLowerCase();
+            if (next.some(m => String(m.email || "").toLowerCase() === email.toLowerCase())) return;
+            next.push({ name, email, role });
+          });
+          render(next);
+          // Member modal list updates (if open)
+          if (el.memberModal?.classList?.contains("open")) {
+            // If modal exists, re-render list
+            try { renderMemberList(); } catch (_) {}
+          }
+        });
+      } catch (_) {
+        // ignore
+      }
+    }
+
+    function startMessagesListener() {
+      if (state.messagesUnsub) { try { state.messagesUnsub(); } catch (_) {} }
+
+      const qy = query(messagesColRef(), orderBy("createdAt", "asc"));
+      state.messagesUnsub = onSnapshot(qy, (snap) => {
+        const list = [];
+        snap.forEach((d) => {
+          const data = d.data();
+          state.messageCache.set(d.id, data);
+          list.push({ id: d.id, data });
+        });
+        state.lastFeedList = list;
+        renderFeed(list);
+      }, () => {
+        // Fallback: render local messages if Firestore fails
+        const raw = localStorage.getItem(state.localKey);
+        const local = raw ? JSON.parse(raw) : [];
+        state.lastFeedList = local;
+        renderFeed(local);
+      });
+    }
+
+    function startSpaceListener() {
+      if (state.spaceUnsub) { try { state.spaceUnsub(); } catch (_) {} }
+      try {
+        let lastCleared = Number(state.spaceClearedAt || 0);
+        state.spaceUnsub = onSnapshot(spaceDocRef(), (snap) => {
+          const d = snap?.data?.() || {};
+          const nextCleared = toMillis(d.clearedAt) || 0;
+          state.spaceClearedAt = nextCleared;
+
+          const nm = String(d.name || state.spaceName || "TalkSpace");
+          state.spaceName = nm;
+          if (el.headerName) el.headerName.textContent = nm;
+          document.title = `${nm} | TalkSpace`;
+          if (el.input) el.input.placeholder = `Message #${nm}`;
+
+          if (Number(nextCleared || 0) !== Number(lastCleared || 0)) {
+            lastCleared = Number(nextCleared || 0);
+            try { renderFeed(state.lastFeedList || []); } catch (_) {}
+            try {
+              if (state.activeThread) {
+                const root = state.messageCache?.get?.(state.activeThread) || {};
+                const rootMs = toMillis(root.createdAt);
+                if (rootMs && nextCleared && rootMs < nextCleared) {
+                  closeThread();
+                } else {
+                  renderThread(state._threadLastList || []);
+                }
+              }
+            } catch (_) {}
+          }
+        });
+      } catch (_) {
+        state.spaceUnsub = null;
+      }
+    }
+
+    async function sendMessage({ text, attachments = [] }) {
+      const t = String(text || "").trim();
+      if (!t && attachments.length === 0) return;
+
+      const docData = {
+        text: t,
+        attachments,
+        userEmail: safeEmail(),
+        userName: state.displayName,
+        createdAt: serverTimestamp(),
+        reactions: {}
+      };
+
+      // Optimistic local insert (in case Firestore is slow)
+      try {
+        const raw = localStorage.getItem(state.localKey);
+        const local = raw ? JSON.parse(raw) : [];
+        local.push({
+          id: `local_${Date.now()}`,
+          data: { ...docData, createdAt: Date.now() }
+        });
+        localStorage.setItem(state.localKey, JSON.stringify(local.slice(-200)));
+      } catch (_) {}
+
+      await addDoc(messagesColRef(), docData);
+    }
+
+    async function sendThreadReply(messageId, { text, attachments = [] }) {
+      const t = String(text || "").trim();
+      if (!t && attachments.length === 0) return;
+
+      const docData = {
+        text: t,
+        attachments,
+        userEmail: safeEmail(),
+        userName: state.displayName,
+        createdAt: serverTimestamp(),
+        reactions: {}
+      };
+
+      const key = `${state.localThreadKeyPrefix}${messageId}`;
+      try {
+        const raw = localStorage.getItem(key);
+        const local = raw ? JSON.parse(raw) : [];
+        local.push({ id: `local_${Date.now()}`, data: { ...docData, createdAt: Date.now() } });
+        localStorage.setItem(key, JSON.stringify(local.slice(-200)));
+      } catch (_) {}
+
+      await addDoc(repliesColRef(messageId), docData);
+
+      // Update parent summary for reply count + search
+      try {
+        await runTransaction(db, async (tx) => {
+          const ref = messageDocRef(messageId);
+          const snap = await tx.get(ref);
+          if (!snap.exists()) return;
+          const cur = snap.data() || {};
+          const nextCount = Math.max(0, Number(cur.replyCount || 0)) + 1;
+          const existing = String(cur.replySearchText || "");
+          const snippet = t ? t.slice(0, 280) : "";
+          const joined = snippet ? `${existing}\n${snippet}` : existing;
+          const nextSearch = joined.length > 4000 ? joined.slice(joined.length - 4000) : joined;
+          tx.update(ref, {
+            replyCount: nextCount,
+            replySearchText: nextSearch,
+            lastReplyAt: serverTimestamp()
+          });
+        });
+      } catch (_) {}
+    }
+
+    async function toggleReaction(messageId, emoji) {
+      const me = safeEmail();
+      if (!me) return;
+
+      const ref = messageDocRef(messageId);
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        if (!snap.exists()) return;
+        const msg = snap.data() || {};
+        const reactions = msg.reactions && typeof msg.reactions === "object" ? { ...msg.reactions } : {};
+        const key = String(emoji || "");
+        const entry = reactions[key] && typeof reactions[key] === "object" ? { ...reactions[key] } : { count: 0, users: {} };
+        const users = entry.users && typeof entry.users === "object" ? { ...entry.users } : {};
+
+        if (users[me] === true) {
+          delete users[me];
+          entry.count = Math.max(0, Number(entry.count || 0) - 1);
+        } else {
+          users[me] = true;
+          entry.count = Number(entry.count || 0) + 1;
+        }
+
+        entry.users = users;
+        reactions[key] = entry;
+        tx.update(ref, { reactions });
+      });
+    }
+
+    async function toggleReplyReaction(rootMessageId, replyId, emoji) {
+      const me = safeEmail();
+      if (!me) return;
+      const mid = String(rootMessageId || "");
+      const rid = String(replyId || "");
+      if (!mid || !rid || rid.startsWith("local_")) return;
+
+      const ref = doc(db, "talkspaceSpaces", spaceId, "messages", mid, "replies", rid);
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        if (!snap.exists()) return;
+        const msg = snap.data() || {};
+        const reactions = msg.reactions && typeof msg.reactions === "object" ? { ...msg.reactions } : {};
+        const key = String(emoji || "");
+        const entry = reactions[key] && typeof reactions[key] === "object" ? { ...reactions[key] } : { count: 0, users: {} };
+        const users = entry.users && typeof entry.users === "object" ? { ...entry.users } : {};
+
+        if (users[me] === true) {
+          delete users[me];
+          entry.count = Math.max(0, Number(entry.count || 0) - 1);
+        } else {
+          users[me] = true;
+          entry.count = Number(entry.count || 0) + 1;
+        }
+
+        entry.users = users;
+        reactions[key] = entry;
+        tx.update(ref, { reactions });
+      });
+    }
+
+    // ====== Storage attachments ======
+
+    let _canvasWebpSupport = null;
+    function canvasSupportsWebp() {
+      if (_canvasWebpSupport !== null) return _canvasWebpSupport;
+      try {
+        const c = document.createElement("canvas");
+        _canvasWebpSupport = c.toDataURL("image/webp").startsWith("data:image/webp");
+      } catch (_) {
+        _canvasWebpSupport = false;
+      }
+      return _canvasWebpSupport;
+    }
+
+    async function decodeImageFromFile(file) {
+      if (typeof createImageBitmap === "function") {
+        try { return await createImageBitmap(file); } catch (_) {}
+      }
+
+      return await new Promise((resolve, reject) => {
+        const img = new Image();
+        let url = "";
+        img.onload = () => {
+          try { if (url) URL.revokeObjectURL(url); } catch (_) {}
+          resolve(img);
+        };
+        img.onerror = (e) => {
+          try { if (url) URL.revokeObjectURL(url); } catch (_) {}
+          reject(e);
+        };
+        try {
+          url = URL.createObjectURL(file);
+          img.src = url;
+        } catch (e) {
+          reject(e);
+        }
+      });
+    }
+
+    async function maybeCompressImage(file) {
+      const type = String(file?.type || "").toLowerCase();
+      if (!type.startsWith("image/")) return { file, changed: false };
+      if (type === "image/gif") return { file, changed: false }; // keep animations
+
+      // Only compress when it likely helps.
+      const inputBytes = Number(file?.size || 0);
+      const tryCompress = inputBytes >= 220 * 1024;
+      if (!tryCompress) return { file, changed: false };
+
+      const supportsWebp = canvasSupportsWebp();
+      if (type === "image/png" && !supportsWebp) return { file, changed: false }; // avoid losing transparency on older browsers
+
+      const bmp = await decodeImageFromFile(file);
+      const w = Number(bmp?.width || bmp?.naturalWidth || 0);
+      const h = Number(bmp?.height || bmp?.naturalHeight || 0);
+      if (!w || !h) return { file, changed: false };
+
+      const maxDim = 1600;
+      const scale = Math.min(1, maxDim / Math.max(w, h));
+      const outW = Math.max(1, Math.round(w * scale));
+      const outH = Math.max(1, Math.round(h * scale));
+
+      const canvas = document.createElement("canvas");
+      canvas.width = outW;
+      canvas.height = outH;
+      const ctx = canvas.getContext("2d", { alpha: true });
+      if (!ctx) return { file, changed: false };
+      ctx.drawImage(bmp, 0, 0, outW, outH);
+
+      const outType = supportsWebp ? "image/webp" : "image/jpeg";
+      const quality = outType === "image/jpeg" ? 0.82 : 0.86;
+      const blob = await new Promise((resolve) => {
+        try {
+          canvas.toBlob((b) => resolve(b), outType, quality);
+        } catch (_) {
+          resolve(null);
+        }
+      });
+
+      if (!blob) return { file, changed: false };
+      const outputBytes = Number(blob.size || 0);
+      if (!outputBytes || outputBytes >= inputBytes * 0.95) return { file, changed: false };
+
+      const base = String(file?.name || "image").replace(/\.[^/.]+$/, "") || "image";
+      const ext = outType === "image/webp" ? "webp" : "jpg";
+      const name = `${base}.${ext}`;
+      const outFile = new File([blob], name, { type: outType });
+      return { file: outFile, changed: true, savedBytes: inputBytes - outputBytes };
+    }
+
+    async function uploadFiles(files, onProgress) {
+      const email = safeEmail() || "anon";
+      const out = [];
+      const list = Array.from(files || []).slice(0, 10);
+
+      const safeStorageFilename = (name) => {
+        const raw = String(name || "file").trim() || "file";
+        const cleaned = raw
+          .replace(/[\\/]/g, "_")
+          .replace(/[\u0000-\u001F\u007F]/g, "")
+          .replace(/\s+/g, " ")
+          .replace(/[^a-zA-Z0-9._()\- +]/g, "_")
+          .slice(0, 120);
+        return cleaned || `file_${Date.now()}`;
+      };
+
+      for (let i = 0; i < list.length; i++) {
+        const f = list[i];
+
+        try { if (typeof onProgress === "function") onProgress(i, { stage: "preparing" }); } catch (_) {}
+
+        let fileToUpload = f;
+        try {
+          const maybe = await maybeCompressImage(f);
+          if (maybe?.file) fileToUpload = maybe.file;
+        } catch (_) {
+          fileToUpload = f;
+        }
+
+        const safeName = safeStorageFilename(fileToUpload?.name || f?.name);
+        const path = `talkspace/${spaceId}/${email}/${Date.now()}_${safeName}`;
+        const r = ref(storage, path);
+
+        const task = uploadBytesResumable(r, fileToUpload, {
+          contentType: fileToUpload?.type || f?.type || "application/octet-stream"
+        });
+
+        await new Promise((resolve, reject) => {
+          task.on(
+            "state_changed",
+            (snap) => {
+              const bt = Number(snap?.bytesTransferred || 0);
+              const tt = Math.max(1, Number(snap?.totalBytes || fileToUpload?.size || f?.size || 1));
+              const pct = Math.max(0, Math.min(100, Math.floor((bt / tt) * 100)));
+              try { if (typeof onProgress === "function") onProgress(i, { stage: "uploading", pct, bytesTransferred: bt, totalBytes: tt }); } catch (_) {}
+            },
+            (err) => reject(err),
+            () => resolve()
+          );
+        });
+
+        const url = await getDownloadURL(task.snapshot.ref);
+        out.push({ name: safeName, mime: fileToUpload?.type || f?.type || "", size: fileToUpload?.size || f?.size || 0, url });
+
+        try { if (typeof onProgress === "function") onProgress(i, { stage: "done" }); } catch (_) {}
+      }
+      return out;
+    }
+
+    function renderPending(which) {
+      const host = which === "thread" ? el.pendingThread : el.pendingMain;
+      const list = which === "thread" ? state.pendingThread : state.pendingMain;
+      if (!host) return;
+      if (!Array.isArray(list) || list.length === 0) {
+        host.innerHTML = "";
+        host.classList.remove("open");
+        return;
+      }
+
+      host.classList.add("open");
+      host.innerHTML = list.map((a, idx) => {
+        const name = escapeHtml(a?.name || "File");
+        const url = escapeHtml(a?.url || "");
+        const mime = String(a?.mime || "").toLowerCase();
+        const isImg = mime.startsWith("image/") && url;
+        const uploading = a?.__uploading === true;
+        const uplText = uploading ? escapeHtml(a?.__uplText || "Uploading…") : "";
+        return `
+          <div class="ts-pitem ${uploading ? "is-uploading" : ""}" data-upl="${uplText}" title="${name}">
+            ${isImg ? `<img src="${url}" alt="${name}" />` : `<div class="ts-pfile" aria-hidden="true">${iconSvg(fileTypeIcon(a?.name, a?.mime))}</div>`}
+            <button type="button" class="ts-prm" data-i="${idx}" aria-label="Remove">×</button>
+          </div>
+        `;
+      }).join("");
+    }
+
+    async function addFilesToPending(which, files) {
+      const f = Array.from(files || []).filter(Boolean);
+      if (f.length === 0) return;
+
+      const group = `upl_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+      const placeholders = f.slice(0, 10).map((file) => {
+        const mime = String(file?.type || "");
+        const isImg = mime.toLowerCase().startsWith("image/");
+        let preview = "";
+        try { if (isImg) preview = URL.createObjectURL(file); } catch (_) {}
+        return {
+          name: String(file?.name || "File"),
+          mime,
+          size: Number(file?.size || 0),
+          url: preview,
+          __uploading: true,
+          __uplText: "Preparing…",
+          __uplGroup: group,
+          __previewUrl: preview
+        };
+      });
+
+      const addTo = (list) => [...list, ...placeholders].slice(0, 10);
+      if (which === "thread") state.pendingThread = addTo(state.pendingThread);
+      else state.pendingMain = addTo(state.pendingMain);
+      renderPending(which);
+
+      try {
+        let lastPaint = 0;
+        const paint = () => {
+          const now = Date.now();
+          if (now - lastPaint < 120) return;
+          lastPaint = now;
+          renderPending(which);
+        };
+
+        const attachments = await uploadFiles(f, (idx, info) => {
+          const p = placeholders[idx];
+          if (!p) return;
+          if (info?.stage === "preparing") p.__uplText = "Preparing…";
+          if (info?.stage === "uploading") p.__uplText = `${Number(info?.pct || 0)}%`;
+          if (info?.stage === "done") p.__uplText = "Finalizing…";
+          paint();
+        });
+
+        const clean = (list) => {
+          const keep = [];
+          for (const a of list) {
+            if (a?.__uplGroup === group) {
+              try { if (a.__previewUrl) URL.revokeObjectURL(a.__previewUrl); } catch (_) {}
+              continue;
+            }
+            keep.push(a);
+          }
+          return keep;
+        };
+
+        if (which === "thread") state.pendingThread = [...clean(state.pendingThread), ...attachments].slice(0, 10);
+        else state.pendingMain = [...clean(state.pendingMain), ...attachments].slice(0, 10);
+        renderPending(which);
+      } catch (err) {
+        const clean = (list) => {
+          const keep = [];
+          for (const a of list) {
+            if (a?.__uplGroup === group) {
+              try { if (a.__previewUrl) URL.revokeObjectURL(a.__previewUrl); } catch (_) {}
+              continue;
+            }
+            keep.push(a);
+          }
+          return keep;
+        };
+        if (which === "thread") state.pendingThread = clean(state.pendingThread);
+        else state.pendingMain = clean(state.pendingMain);
+        renderPending(which);
+
+        const msg = String(err?.message || err || "Upload failed");
+        showToast(`Attachment upload failed: ${msg}. Check Storage rules/login and try again.`, "error");
+      }
+    }
+
+    function takePending(which) {
+      const list = which === "thread" ? state.pendingThread : state.pendingMain;
+      if (which === "thread") state.pendingThread = [];
+      else state.pendingMain = [];
+      renderPending(which);
+      return Array.isArray(list) ? list : [];
+    }
+
+    function hasPendingUploads(which) {
+      const list = which === "thread" ? state.pendingThread : state.pendingMain;
+      return Array.isArray(list) && list.some((a) => a && a.__uploading === true);
+    }
+
+    async function dataUrlToFile(dataUrl, fallbackName = "pasted-image.png") {
+      try {
+        const res = await fetch(dataUrl);
+        const blob = await res.blob();
+        const mime = String(blob.type || "image/png");
+        const ext = mime.includes("png") ? "png" : (mime.includes("jpeg") ? "jpg" : (mime.includes("gif") ? "gif" : "img"));
+        const name = fallbackName.includes(".") ? fallbackName : `${fallbackName}.${ext}`;
+        return new File([blob], name, { type: mime });
+      } catch (_) {
+        return null;
+      }
+    }
+
+    async function handlePasteImages(which, ev) {
+      const dt = ev.clipboardData;
+      if (!dt) return;
+      if (ev.__tsPasteHandled) return;
+
+      const files = [];
+
+      // Some browsers expose pasted images via clipboardData.files
+      if (dt.files && dt.files.length) {
+        for (const f of Array.from(dt.files)) {
+          const type = String(f?.type || "").toLowerCase();
+          if (type.startsWith("image/")) files.push(f);
+        }
+      }
+
+      // Standard path: clipboardData.items
+      if (dt.items && dt.items.length) {
+        for (const it of Array.from(dt.items)) {
+          if (it.kind !== "file") continue;
+          const f = it.getAsFile();
+          if (!f) continue;
+          const type = String(f.type || "").toLowerCase();
+          if (type.startsWith("image/")) files.push(f);
+        }
+      }
+
+      if (files.length > 0) {
+        ev.__tsPasteHandled = true;
+        ev.preventDefault();
+        await addFilesToPending(which, files);
+        return;
+      }
+
+      // Fallback: some apps paste HTML with embedded data:image
+      const htmlItem = dt.items ? Array.from(dt.items).find((it) => it.kind === "string" && String(it.type || "").toLowerCase() === "text/html") : null;
+      if (!htmlItem) return;
+
+      await new Promise((resolve) => {
+        htmlItem.getAsString(async (html) => {
+          try {
+            const m = String(html || "").match(/src\s*=\s*"(data:image\/[^"]+)"/i);
+            const dataUrl = m ? m[1] : "";
+            if (!dataUrl.startsWith("data:image/")) return resolve();
+            const f = await dataUrlToFile(dataUrl, `pasted-${Date.now()}.png`);
+            if (!f) return resolve();
+            ev.__tsPasteHandled = true;
+            ev.preventDefault();
+            await addFilesToPending(which, [f]);
+            resolve();
+          } catch (_) {
+            resolve();
+          }
+        });
+      });
+    }
+
+    // ====== Thread panel ======
+    function openThread(messageId) {
+      state.activeThread = messageId;
+      el.threadPanel.classList.add("open");
+      el.threadPanel.setAttribute("aria-hidden", "false");
+      el.threadInput.value = "";
+
+      // Root message render from feed DOM data if possible
+      const node = el.feed.querySelector(`[data-id="${CSS.escape(messageId)}"]`);
+      if (node) {
+        const clone = node.cloneNode(true);
+        clone.classList.add("is-thread-root");
+        const hover = clone.querySelector(".ts-hoverbar");
+        if (hover) hover.remove();
+        el.threadRoot.innerHTML = "";
+        el.threadRoot.appendChild(clone);
+      } else {
+        el.threadRoot.innerHTML = `<div class="ts-thread-root-fallback">Thread</div>`;
+      }
+
+      startThreadListener(messageId);
+      setTimeout(() => el.threadInput.focus(), 0);
+    }
+
+    function closeThread() {
+      state.activeThread = null;
+      el.threadPanel.classList.remove("open");
+      el.threadPanel.setAttribute("aria-hidden", "true");
+      el.threadList.innerHTML = "";
+      el.threadRoot.innerHTML = "";
+      if (state.threadUnsub) { try { state.threadUnsub(); } catch (_) {} }
+      state.threadUnsub = null;
+    }
+
+    function renderThread(list) {
+      const visible = listAfterClear(list);
+      state.threadMessageById = new Map(visible.map((m) => [m.id, m.data]));
+      let html = "";
+      for (let i = 0; i < visible.length; i++) {
+        const m = visible[i];
+        const ts = formatTime(toMillis(m.data?.createdAt));
+        const deleted = m.data?.deleted === true;
+        const text = deleted ? `<span class="ts-deleted">This message was deleted</span>` : renderTextWithMentions(m.data?.text || "");
+        const att = deleted ? "" : renderAttachments(m.data?.attachments);
+        const reacts = deleted ? "" : renderReactions(m.data);
+        const name = escapeHtml(m.data?.userName || "User");
+        const grouped = i > 0 ? shouldGroup(visible[i - 1].data, m.data) : false;
+        const color = userColorSeed(m.data?.userEmail);
+        const canDel = !deleted && canDeleteMessage(m.data);
+        const me = String(safeEmail() || "").trim().toLowerCase();
+        const owner = String(m.data?.userEmail || "").trim().toLowerCase();
+        const isMine = me && owner && me === owner;
+        const canEdit = !deleted && isMine;
+        const isEditing = state.editing?.threadReplyId && String(state.editing.threadReplyId) === String(m.id);
+        const edited = !!(m.data?.editedAt || m.data?.edited === true);
+        const editedTag = edited ? `<span class="ts-edited" title="Edited">Edited</span>` : "";
+
+        const viewed = (m.data && m.data.viewedBy && typeof m.data.viewedBy === "object") ? m.data.viewedBy : {};
+        const viewers = Object.values(viewed)
+          .filter(v => v && typeof v === "object")
+          .filter(v => String(v.email || "").trim().toLowerCase() && String(v.email || "").trim().toLowerCase() !== owner);
+        const viewsBtn = isMine
+          ? `<button class="ts-views-btn" type="button" data-action="tviews" title="Viewed by">Seen by ${viewers.length}</button>`
+          : "";
+
+        const editBtn = (canEdit && !isEditing)
+          ? `<button class="ts-hbtn" type="button" data-action="tedit" title="Edit">${iconSvg("edit")}</button>`
+          : "";
+
+        const editBox = (canEdit && isEditing) ? `
+          <div class="ts-edit">
+            <textarea class="ts-edit-ta" data-tedit-ta="1">${escapeHtml(state.editing.threadDraft || "")}</textarea>
+            <div class="ts-edit-actions">
+              <button class="ts-ebtn" type="button" data-action="teditCancel">Cancel</button>
+              <button class="ts-ebtn primary" type="button" data-action="teditSave">Save</button>
+            </div>
+          </div>
+        ` : "";
+
+        const body = (canEdit && isEditing)
+          ? `${editBox}`
+          : `
+              <div class="ts-msg-text">${text}</div>
+              ${att}
+              ${reacts}
+            `;
+        html += `
+          <div class="ts-tmsg ${grouped ? "is-grouped" : ""} ${isMine ? "is-mine" : "is-other"}" data-rid="${escapeHtml(m.id)}">
+            ${grouped ? "" : `<div class="ts-avatar sm" style="--av:${color}">${escapeHtml(initials(m.data?.userName))}</div>`}
+            <div class="ts-tmain">
+              <div class="ts-stack ts-tstack">
+                <div class="ts-ttop">
+                  <div class="ts-msg-name">${name}</div>
+                  <div class="ts-msg-time" title="${ts}">${ts}</div>
+                  ${editedTag}
+                  ${viewsBtn}
+                </div>
+                <div class="ts-tbubble">
+                ${body}
+                </div>
+              </div>
+
+              ${(!deleted && !isEditing) ? `
+                <div class="ts-hoverbar" aria-hidden="true">
+                  <div class="ts-hover-actions">
+                    <button class="ts-hbtn" type="button" data-action="react" title="Add reaction">😊</button>
+                    ${editBtn}
+                    ${canDel ? `<button class="ts-hbtn" type="button" data-action="tdelete" title="Delete">${iconSvg("trash")}</button>` : ""}
+                    <div class="ts-quick">
+                      ${QUICK_REACTIONS.map(e => `<button class="ts-q" type="button" data-q="${escapeHtml(e)}" title="${escapeHtml(e)}">${escapeHtml(e)}</button>`).join("")}
+                    </div>
+                  </div>
+                </div>
+              ` : ""}
+            </div>
+          </div>
+        `;
+      }
+      el.threadList.innerHTML = html || `<div class="ts-empty">No replies yet.</div>`;
+
+      // Mark viewed via observer (best-effort)
+      try { attachThreadViewObserver(); } catch (_) {}
+
+      requestAnimationFrame(() => {
+        el.threadList.scrollTop = el.threadList.scrollHeight;
+      });
+    }
+
+    function buildReplySearchText(list) {
+      const items = (list || [])
+        .map(x => x?.data || {})
+        .filter(d => d && d.deleted !== true)
+        .map(d => String(d.text || "").trim())
+        .filter(Boolean);
+      const joined = items.slice(-25).join("\n");
+      return joined.length > 4000 ? joined.slice(joined.length - 4000) : joined;
+    }
+
+    function scheduleThreadSummaryUpdate(messageId, list) {
+      if (!state._threadSummaryTimers) state._threadSummaryTimers = new Map();
+      const prev = state._threadSummaryTimers.get(messageId);
+      if (prev) clearTimeout(prev);
+      const timer = setTimeout(async () => {
+        try {
+          const visible = Array.isArray(list) ? list.filter(x => (x?.data || {}).deleted !== true) : [];
+          await updateDoc(messageDocRef(messageId), {
+            replyCount: visible.length,
+            replySearchText: buildReplySearchText(visible)
+          });
+        } catch (_) {}
+      }, 700);
+      state._threadSummaryTimers.set(messageId, timer);
+    }
+
+    function startThreadListener(messageId) {
+      if (state.threadUnsub) { try { state.threadUnsub(); } catch (_) {} }
+
+      const qy = query(repliesColRef(messageId), orderBy("createdAt", "asc"));
+      state.threadUnsub = onSnapshot(qy, (snap) => {
+        const list = [];
+        snap.forEach(d => list.push({ id: d.id, data: d.data() }));
+        state._threadLastList = list;
+        renderThread(list);
+        scheduleThreadSummaryUpdate(messageId, list);
+      }, () => {
+        const key = `${state.localThreadKeyPrefix}${messageId}`;
+        const raw = localStorage.getItem(key);
+        const local = raw ? JSON.parse(raw) : [];
+        state._threadLastList = local;
+        renderThread(local);
+      });
+    }
+
+    // ====== Events ======
+    function wireEvents() {
+      // Clear Chat (admin-only)
+      try {
+        if (el.clearChatBtn) {
+          el.clearChatBtn.style.display = isClearChatAdmin() ? "inline-flex" : "none";
+          if (!state._clearChatWired) {
+            state._clearChatWired = true;
+            el.clearChatBtn.addEventListener("click", clearChatForSpace);
+          }
+        }
+      } catch (_) {}
+
+      // Members modal
+      el.memberCount?.addEventListener?.("click", openMemberModal);
+      el.memberModalClose?.addEventListener?.("click", closeMemberModal);
+      el.memberModal?.addEventListener?.("click", (ev) => {
+        if (ev.target === el.memberModal) closeMemberModal();
+      });
+      el.memberSearch?.addEventListener?.("input", () => renderMemberList());
+
+      // Search
+      const closeSearch = () => {
+        el.searchWrap.classList.remove("open");
+        el.searchInput.value = "";
+        el.searchInput.dispatchEvent(new Event("input"));
+      };
+      el.searchBtn.addEventListener("click", () => {
+        el.searchWrap.classList.toggle("open");
+        if (el.searchWrap.classList.contains("open")) {
+          el.searchInput.focus();
+        } else {
+          closeSearch();
+        }
+      });
+      el.searchInput.addEventListener("keydown", (ev) => {
+        if (ev.key !== "Enter") return;
+        ev.preventDefault();
+        const first = el.feed.querySelector(".ts-msg.ts-search-hit");
+        if (first) {
+          first.scrollIntoView({ block: "center", behavior: "smooth" });
+          first.classList.add("ts-search-pulse");
+          setTimeout(() => first.classList.remove("ts-search-pulse"), 650);
+        }
+      });
+
+      document.addEventListener("click", (ev) => {
+        if (!el.searchWrap.classList.contains("open")) return;
+        const within = ev.target.closest("#tsSearchWrap");
+        const trigger = ev.target.closest("#tsSearchBtn");
+        if (within || trigger) return;
+        closeSearch();
+      });
+
+      // Feed interactions
+      el.feed.addEventListener("click", async (ev) => {
+        const msgEl = ev.target.closest(".ts-msg");
+        if (!msgEl) return;
+        const id = msgEl.getAttribute("data-id");
+
+        const reactBtn = ev.target.closest("[data-action=react]");
+        const replyBtn = ev.target.closest("[data-action=reply]");
+        const delBtn = ev.target.closest("[data-action=delete]");
+        const views = ev.target.closest("[data-action=views]");
+        const edit = ev.target.closest("[data-action=edit]");
+        const editSave = ev.target.closest("[data-action=editSave]");
+        const editCancel = ev.target.closest("[data-action=editCancel]");
+        const quick = ev.target.closest("[data-q]");
+        const pill = ev.target.closest(".ts-react-pill");
+
+        if (views) {
+          openViewsModal(id);
+          return;
+        }
+
+        if (editCancel) {
+          state.editing.messageId = null;
+          state.editing.draft = "";
+          el.searchInput.dispatchEvent(new Event("input"));
+          return;
+        }
+
+        if (editSave) {
+          const ta = msgEl.querySelector("[data-edit-ta]");
+          const next = ta ? ta.value : state.editing.draft;
+          await editMessageDoc(id, next);
+          state.editing.messageId = null;
+          state.editing.draft = "";
+          return;
+        }
+
+        if (edit) {
+          const cur = state.messageCache?.get?.(id) || {};
+          state.editing.messageId = id;
+          state.editing.draft = String(cur.text || "");
+          el.searchInput.dispatchEvent(new Event("input"));
+          setTimeout(() => {
+            const ta = msgEl.querySelector("[data-edit-ta]");
+            ta?.focus?.();
+            try { ta?.setSelectionRange?.(ta.value.length, ta.value.length); } catch (_) {}
+          }, 0);
+          return;
+        }
+
+        if (quick) {
+          const emoji = quick.getAttribute("data-q");
+          await toggleReaction(id, emoji);
+          msgEl.classList.add("ts-react-pop");
+          setTimeout(() => msgEl.classList.remove("ts-react-pop"), 220);
+          return;
+        }
+
+        if (pill) {
+          const emoji = pill.getAttribute("data-react");
+          await toggleReaction(id, emoji);
+          msgEl.classList.add("ts-react-pop");
+          setTimeout(() => msgEl.classList.remove("ts-react-pop"), 220);
+          return;
+        }
+
+        if (reactBtn) {
+          openEmojiPicker(reactBtn, async (emoji) => {
+            await toggleReaction(id, emoji);
+          });
+          return;
+        }
+
+        if (replyBtn) {
+          openThread(id);
+          return;
+        }
+
+        if (delBtn) {
+          await deleteMessageDoc(id);
+          return;
+        }
+      });
+
+      // Composer send
+      el.sendBtn.addEventListener("click", async () => {
+        if (hasPendingUploads("main")) {
+          showToast("Please wait for attachments to finish uploading.", "warn");
+          return;
+        }
+        const text = el.input.value;
+        const attachments = takePending("main");
+        el.input.value = "";
+        closeEmojiPicker();
+        await sendMessage({ text, attachments });
+      });
+
+      el.input.addEventListener("keydown", async (ev) => {
+        if (state.mention.open && state.mention.anchor === "main") {
+          if (ev.key === "ArrowDown") { ev.preventDefault(); setMentionActive("main", state.mention.index + 1); return; }
+          if (ev.key === "ArrowUp") { ev.preventDefault(); setMentionActive("main", state.mention.index - 1); return; }
+          if (ev.key === "Enter" && !ev.shiftKey) { ev.preventDefault(); acceptMention("main"); return; }
+          if (ev.key === "Escape") { el.mentionBox?.classList?.remove?.("open"); state.mention.open = false; return; }
+        }
+        if (ev.key === "Enter" && !ev.shiftKey) {
+          ev.preventDefault();
+          el.sendBtn.click();
+        }
+      });
+
+      el.input.addEventListener("input", () => updateMention("main"));
+      el.input.addEventListener("click", () => updateMention("main"));
+      el.mentionBox?.addEventListener?.("click", (ev) => {
+        const b = ev.target.closest(".ts-ment");
+        if (!b) return;
+        const idx = Number(b.getAttribute("data-i"));
+        acceptMention("main", idx);
+      });
+
+      el.input.addEventListener("paste", async (ev) => {
+        await handlePasteImages("main", ev);
+      });
+
+      el.pendingMain?.addEventListener("click", (ev) => {
+        const b = ev.target.closest(".ts-prm");
+        if (!b) return;
+        const idx = Number(b.getAttribute("data-i"));
+        if (Number.isNaN(idx)) return;
+        state.pendingMain = state.pendingMain.filter((_, i) => i !== idx);
+        renderPending("main");
+      });
+
+      // Emoji picker (composer)
+      el.emojiBtn.addEventListener("click", () => {
+        openEmojiPicker(el.emojiBtn, (emoji) => {
+          el.input.value = `${el.input.value}${emoji}`;
+          el.input.focus();
+        });
+      });
+
+      el.emojiSearch.addEventListener("input", () => renderEmojiGrid(el.emojiSearch.value));
+      el.emojiGrid.addEventListener("click", (ev) => {
+        const b = ev.target.closest(".ts-emoji");
+        if (!b) return;
+        const e = b.getAttribute("data-e");
+        if (typeof el.emojiPicker._onPick === "function") el.emojiPicker._onPick(e);
+        closeEmojiPicker();
+      });
+
+      document.addEventListener("click", (ev) => {
+        const within = ev.target.closest("#tsEmojiPicker");
+        const trigger = ev.target.closest("#tsEmoji, #tsThreadEmoji") || ev.target.closest("[data-action=react]");
+        if (!within && !trigger) closeEmojiPicker();
+      });
+
+      // Attachments
+      el.attachBtn?.addEventListener?.("click", () => el.attachInput.click());
+      el.attachInput.addEventListener("change", async () => {
+        const files = Array.from(el.attachInput.files || []).filter(Boolean);
+        if (files.length === 0) return;
+        el.attachInput.value = "";
+        await addFilesToPending("main", files);
+      });
+
+      // Drag & drop
+      ["dragenter","dragover"].forEach(evt => {
+        document.addEventListener(evt, (e) => {
+          e.preventDefault();
+          el.dropHint.classList.add("show");
+        });
+      });
+      ["dragleave","drop"].forEach(evt => {
+        document.addEventListener(evt, (e) => {
+          e.preventDefault();
+          if (evt === "dragleave") {
+            // If leaving document, hide.
+            if (e.relatedTarget == null) el.dropHint.classList.remove("show");
+          } else {
+            el.dropHint.classList.remove("show");
+          }
+        });
+      });
+      document.addEventListener("drop", async (e) => {
+        const dt = e.dataTransfer;
+        if (!dt?.files || dt.files.length === 0) return;
+        await addFilesToPending("main", dt.files);
+      });
+
+      // Thread panel controls
+      el.threadClose.addEventListener("click", closeThread);
+
+      // Thread edit/delete interactions
+      el.threadList.addEventListener("click", async (ev) => {
+        const row = ev.target.closest(".ts-tmsg");
+        if (!row) return;
+        const rid = row?.getAttribute?.("data-rid");
+        if (!rid || !state.activeThread) return;
+
+        const delBtn = ev.target.closest("[data-action=tdelete]");
+        const edit = ev.target.closest("[data-action=tedit]");
+        const editSave = ev.target.closest("[data-action=teditSave]");
+        const editCancel = ev.target.closest("[data-action=teditCancel]");
+        const views = ev.target.closest("[data-action=tviews]");
+        const quick = ev.target.closest("[data-q]");
+        const pill = ev.target.closest(".ts-react-pill");
+        const reactBtn = ev.target.closest("[data-action=react]");
+
+        if (views) {
+          openViewsModalForReply(state.activeThread, rid);
+          return;
+        }
+
+        if (quick) {
+          const emoji = quick.getAttribute("data-q");
+          await toggleReplyReaction(state.activeThread, rid, emoji);
+          row.classList.add("ts-react-pop");
+          setTimeout(() => row.classList.remove("ts-react-pop"), 220);
+          return;
+        }
+
+        if (pill) {
+          const emoji = pill.getAttribute("data-react");
+          await toggleReplyReaction(state.activeThread, rid, emoji);
+          row.classList.add("ts-react-pop");
+          setTimeout(() => row.classList.remove("ts-react-pop"), 220);
+          return;
+        }
+
+        if (reactBtn) {
+          openEmojiPicker(reactBtn, async (emoji) => {
+            await toggleReplyReaction(state.activeThread, rid, emoji);
+            row.classList.add("ts-react-pop");
+            setTimeout(() => row.classList.remove("ts-react-pop"), 220);
+          });
+          return;
+        }
+
+        if (delBtn) {
+          const data = state.threadMessageById?.get?.(rid);
+          if (!data || !canDeleteMessage(data)) return;
+          await deleteReplyDoc(state.activeThread, rid);
+          return;
+        }
+
+        if (editCancel) {
+          state.editing.threadReplyId = null;
+          state.editing.threadDraft = "";
+          return;
+        }
+
+        if (editSave) {
+          const ta = row.querySelector("[data-tedit-ta]");
+          const next = ta ? ta.value : state.editing.threadDraft;
+          await editReplyDoc(state.activeThread, rid, next);
+          state.editing.threadReplyId = null;
+          state.editing.threadDraft = "";
+          return;
+        }
+
+        if (edit) {
+          const cur = state.threadMessageById?.get?.(rid) || {};
+          state.editing.threadReplyId = rid;
+          state.editing.threadDraft = String(cur.text || "");
+          renderThread(state._threadLastList || []);
+          setTimeout(() => {
+            const ta = el.threadList.querySelector(`[data-rid="${CSS.escape(rid)}"] [data-tedit-ta]`);
+            ta?.focus?.();
+            try { ta?.setSelectionRange?.(ta.value.length, ta.value.length); } catch (_) {}
+          }, 0);
+          return;
+        }
+      });
+
+      el.threadSend.addEventListener("click", async () => {
+        if (!state.activeThread) return;
+        if (hasPendingUploads("thread")) {
+          showToast("Please wait for attachments to finish uploading.", "warn");
+          return;
+        }
+        const text = el.threadInput.value;
+        const attachments = takePending("thread");
+        el.threadInput.value = "";
+        closeEmojiPicker();
+        await sendThreadReply(state.activeThread, { text, attachments });
+      });
+      el.threadInput.addEventListener("keydown", (ev) => {
+        if (state.mention.open && state.mention.anchor === "thread") {
+          if (ev.key === "ArrowDown") { ev.preventDefault(); setMentionActive("thread", state.mention.index + 1); return; }
+          if (ev.key === "ArrowUp") { ev.preventDefault(); setMentionActive("thread", state.mention.index - 1); return; }
+          if (ev.key === "Enter" && !ev.shiftKey) { ev.preventDefault(); acceptMention("thread"); return; }
+          if (ev.key === "Escape") { el.threadMentionBox?.classList?.remove?.("open"); state.mention.open = false; return; }
+        }
+        if (ev.key === "Enter" && !ev.shiftKey) {
+          ev.preventDefault();
+          el.threadSend.click();
+        }
+      });
+
+      el.threadInput.addEventListener("input", () => updateMention("thread"));
+      el.threadInput.addEventListener("click", () => updateMention("thread"));
+      el.threadMentionBox?.addEventListener?.("click", (ev) => {
+        const b = ev.target.closest(".ts-ment");
+        if (!b) return;
+        const idx = Number(b.getAttribute("data-i"));
+        acceptMention("thread", idx);
+      });
+
+      el.threadInput.addEventListener("paste", async (ev) => {
+        await handlePasteImages("thread", ev);
+      });
+
+      el.pendingThread?.addEventListener("click", (ev) => {
+        const b = ev.target.closest(".ts-prm");
+        if (!b) return;
+        const idx = Number(b.getAttribute("data-i"));
+        if (Number.isNaN(idx)) return;
+        state.pendingThread = state.pendingThread.filter((_, i) => i !== idx);
+        renderPending("thread");
+      });
+
+      el.threadEmoji.addEventListener("click", () => {
+        openEmojiPicker(el.threadEmoji, (emoji) => {
+          el.threadInput.value = `${el.threadInput.value}${emoji}`;
+          el.threadInput.focus();
+        });
+      });
+
+      el.threadAttach?.addEventListener?.("click", () => el.threadAttachInput.click());
+      el.threadAttachInput.addEventListener("change", async () => {
+        if (!state.activeThread) return;
+        const files = Array.from(el.threadAttachInput.files || []).filter(Boolean);
+        if (files.length === 0) return;
+        el.threadAttachInput.value = "";
+        await addFilesToPending("thread", files);
+      });
+
+      // View receipts modal events
+      el.viewsClose?.addEventListener?.("click", closeViewsModal);
+      el.viewsModal?.addEventListener?.("click", (ev) => {
+        if (ev.target === el.viewsModal) closeViewsModal();
+      });
+
+      // Back to dashboard
+      document.getElementById("tsBackBtn").addEventListener("click", () => {
+        location.href = "dashboard.html";
+      });
+
+      // Improve search behavior: re-render last feed list for highlighting
+      el.searchInput.addEventListener("input", () => {
+        renderFeed(state.lastFeedList || []);
+      });
+
+      // ESC closes thread
+      document.addEventListener("keydown", (ev) => {
+        if (ev.key === "Escape") {
+          if (el.memberModal?.classList?.contains("open")) {
+            closeMemberModal();
+            return;
+          }
+          if (state.mention?.open) {
+            state.mention.open = false;
+            renderMentionSuggestions("main");
+            renderMentionSuggestions("thread");
+            return;
+          }
+          closeEmojiPicker();
+          closeViewsModal();
+          if (el.searchWrap.classList.contains("open")) {
+            el.searchWrap.classList.remove("open");
+            el.searchInput.value = "";
+            el.searchInput.dispatchEvent(new Event("input"));
+          } else if (state.activeThread) {
+            closeThread();
+          }
+        }
+      });
+
+      // Global paste fallback (Windows Snipping Tool reliability)
+      document.addEventListener("paste", async (ev) => {
+        try {
+          const ae = document.activeElement;
+          if (ae === el.threadInput) return; // textarea handler will run
+          if (ae === el.input) return; // textarea handler will run
+          if (state.activeThread && el.threadPanel?.classList?.contains?.("open")) {
+            await handlePasteImages("thread", ev);
+          } else {
+            await handlePasteImages("main", ev);
+          }
+        } catch (_) {}
+      }, true);
+    }
+
+    // ====== Auth + init ======
+    onAuthStateChanged(auth, async (user) => {
+      state.user = user;
+      state.displayName = deriveDisplayName();
+      await loadMyRole();
+
+      // If not authenticated, still allow local-only use.
+      await ensureSpaceDoc().catch(() => {
+        el.headerName.textContent = "TalkSpace";
+      });
+      startSpaceListener();
+      await loadMembers().catch(() => {
+        el.memberCount.textContent = "1 member";
+      });
+
+      startMessagesListener();
+      wireEvents();
+      renderPending("main");
+      renderPending("thread");
+    });
+  </script>
+
+  <style>
+    :root{
+      --ts-canvas:#0B1017;
+      --ts-elev:#101826;
+      --ts-stroke:rgba(255,255,255,0.10);
+      --ts-text:#EAF2FF;
+      --ts-muted:rgba(234,242,255,0.64);
+      --ts-blue:#4CC9FF;
+      --ts-blue2:#2A7DFF;
+      --ts-hover:rgba(255,255,255,0.08);
+      --ts-reaction:rgba(255,255,255,0.08);
+      --ts-react-active:rgba(42,125,255,0.28);
+      --ts-glass: rgba(16,24,38,0.55);
+      --ts-glass-2: rgba(16,24,38,0.38);
+      --ts-shadow: 0 22px 60px rgba(0,0,0,0.55);
+      --ts-glow: 0 0 0 1px rgba(76,201,255,0.18), 0 0 42px rgba(76,201,255,0.18);
+      --ts-radius: 14px;
+      --ts-font: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    }
+
+    *{ box-sizing:border-box; }
+    html, body{ height:auto; }
+    body{
+      margin:0;
+      background:
+        radial-gradient(1000px 600px at 12% -10%, rgba(76,201,255,0.18), rgba(76,201,255,0) 55%),
+        radial-gradient(900px 520px at 95% 0%, rgba(42,125,255,0.12), rgba(42,125,255,0) 60%),
+        radial-gradient(900px 600px at 50% 110%, rgba(76,201,255,0.10), rgba(76,201,255,0) 55%),
+        var(--ts-canvas);
+      color: var(--ts-text);
+      font-family: var(--ts-font);
+      overflow:auto;
+    }
+
+    .ts-root{
+      min-height:100vh;
+      display:flex;
+      flex-direction:column;
+    }
+
+    /* Header */
+    .ts-header{
+      height:64px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding: 0 18px;
+      border-bottom: 1px solid var(--ts-stroke);
+      background: rgba(31,31,31,0.92);
+      backdrop-filter: blur(10px);
+      position: relative;
+      z-index: 20;
+    }
+
+    .ts-hleft{ display:flex; align-items:center; gap:12px; }
+    .ts-back{
+      width:36px; height:36px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.10);
+      background: rgba(255,255,255,0.06);
+      color: var(--ts-text);
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      cursor:pointer;
+      transition: background 120ms ease, transform 120ms ease;
+    }
+    .ts-back:hover{ background: rgba(255,255,255,0.10); transform: translateY(-1px); }
+    .ts-back svg{ width:20px; height:20px; fill: currentColor; }
+
+    .ts-title{
+      display:flex; flex-direction:column;
+      line-height:1.05;
+    }
+    .ts-title .name{
+      font-weight:700;
+      letter-spacing: 0.2px;
+      font-size: 16px;
+    }
+    .ts-title .meta{
+      font-size: 12px;
+      color: var(--ts-muted);
+      display:flex;
+      gap:10px;
+      align-items:center;
+      margin-top: 4px;
+    }
+
+    .ts-dot{ opacity: 0.8; }
+    .ts-private{ color: var(--ts-muted); }
+
+    #tsMemberCount{
+      cursor:pointer;
+      padding: 4px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.10);
+      background: rgba(255,255,255,0.04);
+      transition: background 120ms ease, border-color 120ms ease;
+      user-select:none;
+    }
+    #tsMemberCount:hover{ background: rgba(255,255,255,0.08); border-color: rgba(168,199,250,0.35); }
+
+    .ts-avatars{ display:flex; align-items:center; }
+    .ts-astack{
+      width:26px; height:26px;
+      border-radius: 10px;
+      margin-left: -6px;
+      border: 1px solid rgba(0,0,0,0.45);
+      background: radial-gradient(120% 120% at 25% 20%, rgba(255,255,255,0.35), rgba(255,255,255,0.10) 40%, rgba(0,0,0,0.35) 100%), var(--av, #4CAF50);
+      color: rgba(255,255,255,0.92);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size: 11px;
+      font-weight: 800;
+      box-shadow: 0 8px 16px rgba(0,0,0,0.40);
+    }
+
+    .ts-hright{ display:flex; align-items:center; gap:10px; }
+    .ts-iconbtn{
+      width:38px; height:38px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.10);
+      background: rgba(255,255,255,0.06);
+      color: var(--ts-text);
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      cursor:pointer;
+      transition: background 120ms ease;
+      position: relative;
+    }
+    .ts-iconbtn:hover{ background: rgba(255,255,255,0.10); }
+    .ts-iconbtn svg{ width:18px; height:18px; fill: currentColor; }
+
+    .ts-clear{
+      display:none;
+      height: 38px;
+      padding: 0 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.10);
+      background: rgba(255,95,95,0.10);
+      color: rgba(255,220,220,0.92);
+      font-weight: 900;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background 120ms ease, border-color 120ms ease;
+    }
+    .ts-clear:hover{ background: rgba(255,95,95,0.16); border-color: rgba(255,95,95,0.28); }
+    .ts-clear:active{ transform: translateY(1px); }
+
+    .ts-search{
+      position:absolute;
+      right: 14px;
+      top: 64px;
+      width: 420px;
+      max-width: calc(100vw - 28px);
+      display:none;
+      padding: 12px;
+      border: 1px solid var(--ts-stroke);
+      border-radius: 14px;
+      background: var(--ts-elev);
+      box-shadow: var(--ts-shadow);
+      z-index: 30;
+    }
+    .ts-search.open{ display:block; animation: tsFadeIn 120ms ease-out; }
+    .ts-search input{
+      width:100%;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.12);
+      padding: 10px 12px;
+      background: rgba(0,0,0,0.25);
+      color: var(--ts-text);
+      outline:none;
+    }
+
+    .ts-msg.ts-search-hit .ts-msg-bubble{
+      border-color: rgba(76,201,255,0.52);
+      box-shadow: 0 18px 38px rgba(0,0,0,0.45), 0 0 0 1px rgba(76,201,255,0.22), 0 0 28px rgba(76,201,255,0.10);
+    }
+    .ts-msg.ts-search-hit .ts-msg-top{ opacity: 1; }
+
+    @keyframes tsPulse{
+      0%{ transform: translateY(0); }
+      40%{ transform: translateY(-1px); }
+      100%{ transform: translateY(0); }
+    }
+    .ts-msg.ts-search-pulse .ts-msg-bubble{ animation: tsPulse 620ms ease-out; }
+
+    /* Main layout: single stream + thread panel */
+    .ts-main{
+      display:flex;
+      position:relative;
+      padding: 18px 14px 28px;
+    }
+
+    .ts-stream{
+      flex: 1;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      min-width: 0;
+    }
+
+    .ts-shell{
+      width: min(1120px, 100%);
+      height: auto;
+      display:flex;
+      flex-direction:column;
+      border-radius: 18px;
+      border: 1px solid rgba(76,201,255,0.18);
+      background: linear-gradient(180deg, rgba(16,24,38,0.62) 0%, rgba(16,24,38,0.35) 100%);
+      box-shadow: 0 26px 70px rgba(0,0,0,0.60), var(--ts-glow);
+      backdrop-filter: blur(18px) saturate(1.2);
+      overflow: visible;
+      margin: 0 auto;
+    }
+
+    .ts-feed{
+      width: 100%;
+      padding: 18px 18px 10px;
+      overflow: visible;
+      scroll-behavior: smooth;
+      display:flex;
+      flex-direction:column;
+      gap: 6px;
+      padding-bottom: 170px;
+    }
+
+    .ts-empty{
+      margin: 40px auto;
+      text-align:center;
+      color: var(--ts-muted);
+      font-size: 14px;
+    }
+
+    /* Message rows */
+    .ts-msg{
+      display:grid;
+      grid-template-columns: 38px 1fr;
+      gap: 8px;
+      padding: 4px 6px;
+      border-radius: 12px;
+      position: relative;
+      animation: tsFadeIn 140ms ease-out;
+      max-width: 980px;
+      width: 100%;
+      margin: 0 auto;
+      align-items: start;
+      --ts-meta-offset: 16px;
+    }
+    .ts-msg:hover{ background: transparent; }
+
+    .ts-msg.is-grouped{ grid-template-columns: 38px 1fr; --ts-meta-offset: 0px; }
+    .ts-msg.is-grouped .ts-msg-left{ opacity: 0; }
+    .ts-msg.is-grouped .ts-msg-top{ opacity: 0.92; }
+
+    .ts-msg-left{ display:flex; justify-content:flex-start; align-items:flex-start; padding-top: var(--ts-meta-offset); }
+    .ts-avatar{
+      width: 34px; height: 34px;
+      border-radius: 999px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-weight: 900;
+      font-size: 12px;
+      color: rgba(255,255,255,0.98);
+      background:
+        radial-gradient(110% 110% at 30% 20%, rgba(255,255,255,0.18), rgba(255,255,255,0.06) 35%, rgba(0,0,0,0.45) 100%),
+        linear-gradient(180deg, rgba(76,201,255,0.10), rgba(42,125,255,0.06)),
+        #0F1A2B;
+      border: 1px solid rgba(255,255,255,0.14);
+      box-shadow: 0 14px 26px rgba(0,0,0,0.55), 0 0 0 1px rgba(76,201,255,0.10);
+      user-select:none;
+    }
+    .ts-avatar.sm{ width: 30px; height: 30px; border-radius: 999px; }
+
+    .ts-msg-main{ min-width:0; position:relative; display:flex; flex-direction:column; align-items:flex-start; }
+
+    .ts-msg-top{
+      display:flex;
+      align-items:baseline;
+      justify-content:flex-start;
+      gap: 6px;
+      margin-bottom: 2px;
+      min-height: 14px;
+      max-width: 640px;
+      width: fit-content;
+    }
+
+    .ts-msg-name{ font-weight: 800; font-size: 10px; color: rgba(255,255,255,0.92); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; background: transparent; }
+
+    .ts-msg-time{
+      font-size: 9px;
+      color: rgba(255,255,255,0.62);
+      opacity: 1;
+      user-select:none;
+    }
+
+    .ts-views-btn{
+      border: 0;
+      background: transparent;
+      padding: 0;
+      margin-left: 6px;
+      font-size: 9px;
+      color: rgba(168,199,250,0.92);
+      font-weight: 900;
+      cursor: pointer;
+    }
+    .ts-views-btn:hover{ text-decoration: underline; }
+
+    .ts-edited{
+      font-size: 9px;
+      color: rgba(255,255,255,0.55);
+      font-weight: 900;
+      letter-spacing: 0.2px;
+      user-select:none;
+    }
+
+    .ts-edit{
+      display:flex;
+      flex-direction:column;
+      gap: 8px;
+      min-width: 220px;
+    }
+    .ts-edit-ta{
+      width: 100%;
+      min-height: 56px;
+      resize: vertical;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.12);
+      padding: 10px 10px;
+      background: rgba(0,0,0,0.18);
+      color: var(--ts-text);
+      outline: none;
+      font-size: 13px;
+      line-height: 1.35;
+      font-family: var(--ts-font);
+    }
+    .ts-edit-ta:focus{ border-color: rgba(76,201,255,0.38); box-shadow: 0 0 0 1px rgba(76,201,255,0.12); }
+    .ts-edit-actions{ display:flex; justify-content:flex-end; gap: 8px; }
+    .ts-ebtn{
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.06);
+      color: var(--ts-text);
+      padding: 8px 10px;
+      font-size: 12px;
+      font-weight: 900;
+      cursor: pointer;
+    }
+    .ts-ebtn:hover{ background: rgba(255,255,255,0.10); }
+    .ts-ebtn.primary{
+      background: rgba(76,201,255,0.14);
+      border-color: rgba(76,201,255,0.28);
+    }
+    .ts-ebtn.primary:hover{ background: rgba(76,201,255,0.18); }
+
+    .ts-msg-bubble{
+      padding-right: 0;
+      display:inline-block;
+      background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.05));
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 14px;
+      padding: 8px 10px;
+      max-width: 620px;
+      box-shadow: 0 12px 26px rgba(0,0,0,0.30);
+      backdrop-filter: blur(14px) saturate(1.1);
+    }
+
+    .ts-stack{ display:inline-flex; flex-direction:column; align-items:flex-start; max-width: 640px; }
+    .ts-tstack{ max-width: 520px; }
+
+    /* (name/time rendered above bubbles) */
+
+    .ts-msg.is-mine .ts-msg-top{ margin-left: 0; }
+    .ts-msg.is-mine .ts-msg-bubble{
+      background: linear-gradient(180deg, rgba(18,74,140,0.60), rgba(10,18,32,0.62));
+      border-color: rgba(76,201,255,0.22);
+      box-shadow: 0 16px 36px rgba(0,0,0,0.42), 0 0 28px rgba(76,201,255,0.12);
+    }
+
+    .ts-msg.is-other .ts-msg-bubble{
+      background: linear-gradient(180deg, rgba(10,18,32,0.66), rgba(10,18,32,0.52));
+      border-color: rgba(255,255,255,0.14);
+    }
+
+    .ts-replies{
+      width: fit-content;
+      margin-top: 2px;
+    }
+    .ts-msg.is-mine .ts-replies{ margin-left: 0; text-align:left; }
+    .ts-replies-btn{
+      border: 0;
+      background: transparent;
+      padding: 0;
+      color: rgba(76,201,255,0.92);
+      font-weight: 900;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .ts-replies-btn:hover{ text-decoration: underline; }
+
+    .ts-msg-text{
+      font-size: 13px;
+      line-height: 1.35;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .ts-mention{ color: var(--ts-blue); font-weight: 800; }
+    .ts-deleted{ color: rgba(142,145,143,0.95); font-style: italic; }
+
+    /* Hover toolbar */
+    .ts-hoverbar{
+      position:absolute;
+      top: -8px;
+      right: 8px;
+      opacity: 0;
+      transform: translateY(-4px);
+      transition: opacity 80ms ease, transform 80ms ease;
+      pointer-events:none;
+    }
+
+    .ts-msg:hover .ts-hoverbar{
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events:auto;
+    }
+
+    .ts-hover-actions{
+      display:flex;
+      align-items:center;
+      gap: 6px;
+      background: rgba(0,0,0,0.35);
+      border: 1px solid rgba(255,255,255,0.10);
+      border-radius: 999px;
+      padding: 6px 8px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 14px 30px rgba(0,0,0,0.55);
+    }
+
+    .ts-hbtn{
+      width: 30px; height: 30px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.10);
+      background: rgba(255,255,255,0.06);
+      color: var(--ts-text);
+      cursor:pointer;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      transition: background 120ms ease;
+      font-size: 14px;
+      font-family: "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",system-ui,sans-serif;
+    }
+    .ts-hbtn:hover{ background: rgba(255,255,255,0.10); }
+    .ts-hbtn svg{ width: 16px; height: 16px; fill: currentColor; }
+
+    .ts-quick{ display:flex; gap: 4px; padding-left: 4px; border-left: 1px solid rgba(255,255,255,0.10); margin-left: 2px; }
+    .ts-q{
+      width: 28px; height: 28px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.10);
+      background: rgba(255,255,255,0.04);
+      cursor:pointer;
+      color: var(--ts-text);
+      transition: background 120ms ease;
+      font-size: 14px;
+      font-family: "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",system-ui,sans-serif;
+    }
+    .ts-q:hover{ background: rgba(255,255,255,0.10); }
+
+    /* Reactions */
+    .ts-react-row{
+      display:flex;
+      flex-wrap:wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .ts-react-pill{
+      display:inline-flex;
+      align-items:center;
+      gap: 5px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: var(--ts-reaction);
+      border: 1px solid rgba(255,255,255,0.10);
+      color: var(--ts-text);
+      cursor:pointer;
+      transition: background 120ms ease, border-color 120ms ease;
+      position: relative;
+    }
+    .ts-react-pill:hover{ border-color: rgba(168,199,250,0.45); }
+    .ts-react-pill.is-active{
+      background: var(--ts-react-active);
+      border-color: rgba(168,199,250,0.55);
+    }
+    .ts-react-e{ font-size: 12px; line-height: 1; font-family: "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",system-ui,sans-serif; }
+    .ts-react-c{ font-size: 11px; color: rgba(227,227,227,0.90); font-weight: 900; }
+
+    .ts-react-tip{
+      position:absolute;
+      left:50%;
+      bottom: calc(100% + 8px);
+      transform: translate(-50%, 6px);
+      opacity: 0;
+      pointer-events:none;
+      transition: opacity 120ms ease, transform 120ms ease;
+      background: rgba(10,14,20,0.92);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 12px;
+      padding: 10px 10px;
+      min-width: 200px;
+      max-width: min(320px, 70vw);
+      box-shadow: 0 18px 50px rgba(0,0,0,0.58);
+      backdrop-filter: blur(10px);
+      z-index: 30;
+    }
+    .ts-react-pill:hover .ts-react-tip{
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
+    .ts-react-tip-head{
+      font-size: 11px;
+      font-weight: 900;
+      color: rgba(234,242,255,0.88);
+      margin-bottom: 6px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap: 8px;
+    }
+    .ts-react-tip-emoji{ font-family: "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",system-ui,sans-serif; font-size: 13px; }
+    .ts-react-tip-list{ display:flex; flex-direction:column; gap: 6px; max-height: 220px; overflow:auto; padding-right: 2px; }
+    .ts-react-tip-item{ display:flex; flex-direction:column; gap: 1px; }
+    .ts-react-tip-name{ font-size: 12px; font-weight: 900; color: rgba(234,242,255,0.95); }
+    .ts-react-tip-email{ font-size: 11px; color: rgba(234,242,255,0.65); }
+    .ts-react-tip-more{ font-size: 11px; color: rgba(234,242,255,0.70); margin-top: 4px; }
+
+    @keyframes tsPop{
+      0%{ transform: scale(1); }
+      55%{ transform: scale(1.03); }
+      100%{ transform: scale(1); }
+    }
+    .ts-msg.ts-react-pop .ts-react-row,
+    .ts-tmsg.ts-react-pop .ts-react-row{ animation: tsPop 220ms ease-out; }
+
+    /* Attachments */
+    .ts-att-wrap{ display:flex; flex-direction:column; gap: 10px; margin-top: 10px; }
+    .ts-att-card{
+      display:flex;
+      align-items:stretch;
+      gap: 12px;
+      background: rgba(45,46,48,0.65);
+      border: 1px solid rgba(255,255,255,0.10);
+      border-radius: 14px;
+      overflow:hidden;
+      box-shadow: 0 12px 24px rgba(0,0,0,0.35);
+    }
+    .ts-att-thumb{
+      width: 140px;
+      background: rgba(0,0,0,0.25);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+    .ts-att-thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
+
+    .ts-att-ico{
+      width: 48px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background: rgba(0,0,0,0.18);
+      border-right: 1px solid rgba(255,255,255,0.10);
+    }
+    .ts-att-ico svg{ width: 22px; height: 22px; fill: rgba(227,227,227,0.92); }
+
+    .ts-att-meta{ padding: 10px 12px; min-width: 0; flex: 1; }
+    .ts-att-name{ font-weight: 900; font-size: 13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .ts-att-sub{ margin-top: 4px; color: var(--ts-muted); font-size: 12px; }
+    .ts-att-actions{ margin-top: 10px; display:flex; gap: 8px; }
+    .ts-att-btn{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      padding: 7px 10px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.10);
+      background: rgba(255,255,255,0.06);
+      color: var(--ts-text);
+      text-decoration:none;
+      font-size: 12px;
+      font-weight: 800;
+    }
+    .ts-att-btn:hover{ border-color: rgba(168,199,250,0.45); }
+
+    /* Composer */
+    .ts-composer{
+      width: 100%;
+      padding: 12px 18px 18px;
+      border-top: 1px solid rgba(255,255,255,0.10);
+      background: rgba(11,16,23,0.55);
+      backdrop-filter: blur(16px) saturate(1.2);
+      position: sticky;
+      bottom: 0;
+      z-index: 12;
+      border-bottom-left-radius: 18px;
+      border-bottom-right-radius: 18px;
+    }
+
+    .ts-ibtn-txt{ font-weight: 900; font-size: 12px; letter-spacing: 0.6px; }
+
+    .ts-pending{
+      display:none;
+      gap: 10px;
+      flex-wrap:wrap;
+      padding: 0 4px 10px;
+    }
+    .ts-pending.open{ display:flex; }
+    .ts-pitem{
+      width: 64px; height: 64px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(0,0,0,0.18);
+      overflow:hidden;
+      position:relative;
+      box-shadow: 0 10px 18px rgba(0,0,0,0.35);
+    }
+    .ts-pitem.is-uploading{
+      opacity: 0.92;
+      border-color: rgba(76,201,255,0.28);
+    }
+    .ts-pitem.is-uploading::after{
+      content: attr(data-upl);
+      position:absolute;
+      left: 6px;
+      right: 6px;
+      bottom: 6px;
+      padding: 4px 6px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 900;
+      color: rgba(234,242,255,0.92);
+      background: rgba(0,0,0,0.55);
+      border: 1px solid rgba(255,255,255,0.12);
+      text-align:center;
+      backdrop-filter: blur(10px);
+    }
+    .ts-pitem img{ width:100%; height:100%; object-fit:cover; display:block; }
+    .ts-pfile{ width:100%; height:100%; display:flex; align-items:center; justify-content:center; }
+    .ts-pfile svg{ width: 22px; height: 22px; fill: rgba(227,227,227,0.92); }
+    .ts-prm{
+      position:absolute;
+      top: 6px;
+      right: 6px;
+      width: 22px;
+      height: 22px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(0,0,0,0.45);
+      color: rgba(255,255,255,0.92);
+      cursor:pointer;
+      line-height: 1;
+      font-size: 14px;
+    }
+    .ts-prm:hover{ background: rgba(0,0,0,0.62); }
+
+    /* Toast */
+    .ts-toast{
+      position: fixed;
+      left: 50%;
+      bottom: 18px;
+      transform: translateX(-50%) translateY(8px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 140ms ease, transform 140ms ease;
+      max-width: min(720px, calc(100vw - 24px));
+      padding: 12px 14px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,0.14);
+      background: rgba(10,14,20,0.92);
+      color: rgba(234,242,255,0.95);
+      font-size: 12px;
+      font-weight: 800;
+      box-shadow: 0 18px 60px rgba(0,0,0,0.62);
+      backdrop-filter: blur(12px);
+      z-index: 80;
+    }
+    .ts-toast.show{ opacity: 1; transform: translateX(-50%) translateY(0); }
+    .ts-toast.ok{ border-color: rgba(76,201,255,0.30); }
+    .ts-toast.warn{ border-color: rgba(255,200,90,0.34); }
+    .ts-toast.error{ border-color: rgba(255,95,95,0.35); }
+
+    /* Mention suggestion popup */
+    .ts-mentionbox{
+      position:absolute;
+      left: 14px;
+      bottom: 78px;
+      width: min(520px, calc(100% - 28px));
+      background: rgba(45,46,48,0.96);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 16px;
+      box-shadow: var(--ts-shadow);
+      padding: 8px;
+      display:none;
+      z-index: 40;
+      backdrop-filter: blur(10px);
+    }
+    .ts-mentionbox.open{ display:block; animation: tsFadeIn 120ms ease-out; }
+    .ts-mlist{ display:flex; flex-direction:column; gap: 6px; max-height: 220px; overflow:auto; padding-right: 4px; }
+    .ts-ment{
+      display:flex;
+      align-items:center;
+      gap: 10px;
+      width:100%;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.05);
+      padding: 8px 10px;
+      cursor:pointer;
+      color: var(--ts-text);
+      text-align:left;
+    }
+    .ts-ment:hover{ background: rgba(255,255,255,0.08); }
+    .ts-ment.is-active{ border-color: rgba(168,199,250,0.40); background: rgba(168,199,250,0.10); }
+    .ts-ment-t{ display:flex; flex-direction:column; gap: 2px; min-width:0; }
+    .ts-ment-n{ font-weight: 900; font-size: 13px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+    .ts-ment-e{ font-size: 12px; color: var(--ts-muted); overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+
+    /* Modal */
+    .ts-modal{
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.50);
+      display:none;
+      align-items:center;
+      justify-content:center;
+      z-index: 70;
+    }
+    .ts-modal.open{ display:flex; }
+    .ts-modal-card{
+      width: min(640px, 94vw);
+      max-height: min(78vh, 680px);
+      overflow:hidden;
+      border-radius: 18px;
+      background: rgba(45,46,48,0.96);
+      border: 1px solid rgba(255,255,255,0.12);
+      box-shadow: var(--ts-shadow);
+      display:flex;
+      flex-direction:column;
+      backdrop-filter: blur(10px);
+    }
+    .ts-modal-head{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding: 12px 14px;
+      border-bottom: 1px solid rgba(255,255,255,0.10);
+    }
+    .ts-modal-head .ttl{ font-weight: 900; }
+    .ts-modal-close{
+      width: 36px; height: 36px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.10);
+      background: rgba(255,255,255,0.06);
+      color: var(--ts-text);
+      cursor:pointer;
+      font-size: 18px;
+      line-height: 1;
+    }
+    .ts-modal-body{ padding: 12px 14px 14px; overflow:auto; }
+    .ts-modal-search{
+      width:100%;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.12);
+      padding: 10px 12px;
+      background: rgba(0,0,0,0.22);
+      color: var(--ts-text);
+      outline:none;
+      margin-bottom: 12px;
+    }
+    .ts-mrow{ display:flex; align-items:center; gap: 10px; padding: 10px 8px; border-radius: 14px; }
+    .ts-mrow:hover{ background: rgba(255,255,255,0.06); }
+    .ts-mmeta{ min-width:0; flex:1; }
+    .ts-mname{ font-weight: 900; font-size: 13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .ts-msub{ margin-top: 2px; color: var(--ts-muted); font-size: 12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .ts-mrole{ font-size: 12px; font-weight: 900; color: rgba(227,227,227,0.92); padding: 6px 10px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.10); background: rgba(0,0,0,0.18); }
+
+    .ts-confirm-actions{ display:flex; gap: 10px; justify-content:flex-end; margin-top: 12px; }
+    .ts-cbtn{ padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.10); background: rgba(255,255,255,0.06); color: var(--ts-text); cursor:pointer; font-weight: 900; }
+    .ts-cbtn:hover{ background: rgba(255,255,255,0.10); }
+    .ts-cbtn.danger{ border-color: rgba(255,80,80,0.35); background: rgba(255,80,80,0.12); }
+    .ts-cbtn.danger:hover{ background: rgba(255,80,80,0.18); }
+
+    .ts-inputbar{
+      display:flex;
+      gap: 10px;
+      align-items:center;
+      border-radius: 999px;
+      background: linear-gradient(180deg, rgba(16,24,38,0.62), rgba(16,24,38,0.44));
+      border: 1px solid rgba(255,255,255,0.10);
+      padding: 8px 10px;
+      box-shadow: 0 18px 38px rgba(0,0,0,0.45);
+      backdrop-filter: blur(18px) saturate(1.2);
+    }
+
+    .ts-pill{ position: relative; }
+    .ts-pill:focus-within{
+      border-color: rgba(76,201,255,0.30);
+      box-shadow: 0 18px 38px rgba(0,0,0,0.45), 0 0 0 1px rgba(76,201,255,0.22), 0 0 26px rgba(76,201,255,0.16);
+    }
+
+    .ts-compose-row{
+      max-width: 980px;
+      width: 100%;
+      margin: 0 auto;
+      display:flex;
+      align-items:flex-end;
+      gap: 10px;
+      position: relative;
+    }
+
+    .ts-composer .ts-compose-row{ justify-content:center; }
+    .ts-composer .ts-inputbar{ width: 75%; }
+    .ts-thread-compose .ts-inputbar{ width: 100%; }
+    @media (max-width: 760px){
+      .ts-composer .ts-inputbar{ width: 100%; }
+    }
+
+    .ts-plus, .ts-voice{
+      width: 44px;
+      height: 44px;
+      border-radius: 14px;
+      border: 1px solid rgba(76,201,255,0.28);
+      background: linear-gradient(180deg, rgba(16,24,38,0.64), rgba(16,24,38,0.40));
+      color: rgba(234,242,255,0.92);
+      cursor:pointer;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      line-height: 1;
+      box-shadow: 0 16px 36px rgba(0,0,0,0.48), 0 0 28px rgba(76,201,255,0.12);
+      user-select:none;
+      backdrop-filter: blur(16px) saturate(1.2);
+      transition: transform 140ms ease, background 140ms ease, border-color 140ms ease;
+    }
+    .ts-plus:hover, .ts-voice:hover{
+      transform: translateY(-1px);
+      border-color: rgba(76,201,255,0.40);
+      background: linear-gradient(180deg, rgba(16,24,38,0.72), rgba(16,24,38,0.46));
+    }
+    .ts-voice svg{ width: 20px; height: 20px; fill: currentColor; opacity: 0.92; }
+
+    /* Floating dock (triggered by dots) */
+    .ts-dock{
+      position: absolute;
+      right: 60px;
+      bottom: 56px;
+      display:flex;
+      gap: 8px;
+      padding: 10px;
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: linear-gradient(180deg, rgba(16,24,38,0.72), rgba(16,24,38,0.50));
+      box-shadow: 0 22px 60px rgba(0,0,0,0.60), 0 0 0 1px rgba(76,201,255,0.14);
+      backdrop-filter: blur(18px) saturate(1.25);
+      opacity: 0;
+      transform: translateY(8px) scale(0.98);
+      pointer-events: none;
+      z-index: 60;
+    }
+    .ts-dock.open{
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      pointer-events: auto;
+      animation: tsFadeIn 120ms ease-out;
+    }
+    .ts-dockbtn{
+      width: 42px;
+      height: 42px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.06);
+      color: rgba(234,242,255,0.92);
+      cursor:pointer;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      transition: transform 120ms ease, background 120ms ease, border-color 120ms ease;
+    }
+    .ts-dockbtn:hover{
+      transform: translateY(-1px);
+      background: rgba(255,255,255,0.10);
+      border-color: rgba(76,201,255,0.26);
+    }
+    .ts-dockbtn svg{ width: 18px; height: 18px; fill: currentColor; }
+
+    .ts-input-actions{
+      display:flex;
+      align-items:center;
+      gap: 6px;
+      padding-right: 4px;
+    }
+
+    .ts-ibtn{
+      width: 36px; height: 36px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.10);
+      background: rgba(255,255,255,0.06);
+      color: var(--ts-text);
+      cursor:pointer;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      transition: background 120ms ease;
+    }
+    .ts-ibtn:hover{ background: rgba(255,255,255,0.10); }
+    .ts-ibtn svg{ width: 18px; height: 18px; fill: currentColor; }
+
+    .ts-textarea{
+      flex: 1;
+      min-height: 36px;
+      max-height: 140px;
+      resize:none;
+      border: 0;
+      outline:none;
+      background: transparent;
+      color: var(--ts-text);
+      padding: 8px 10px;
+      font-size: 14px;
+      line-height: 1.35;
+    }
+    .ts-textarea::placeholder{ color: rgba(142,145,143,0.85); }
+
+    .ts-send{
+      width: 40px; height: 40px;
+      border-radius: 999px;
+      border: 1px solid rgba(168,199,250,0.45);
+      background: rgba(168,199,250,0.16);
+      color: var(--ts-blue);
+      cursor:pointer;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      transition: transform 120ms ease, background 120ms ease;
+    }
+    .ts-send:hover{ transform: translateY(-1px); background: rgba(168,199,250,0.22); }
+    .ts-send svg{ width: 18px; height: 18px; fill: currentColor; }
+
+    /* Thread panel */
+    .ts-thread{
+      width: min(40vw, 520px);
+      max-width: 520px;
+      min-width: 360px;
+      border-left: 1px solid var(--ts-stroke);
+      background: var(--ts-elev);
+      display:flex;
+      flex-direction:column;
+      transform: translateX(100%);
+      opacity: 0;
+      transition: transform 180ms ease, opacity 180ms ease;
+      position: fixed;
+      top: 78px;
+      right: 14px;
+      bottom: 14px;
+      box-shadow: -18px 0 40px rgba(0,0,0,0.50);
+      z-index: 15;
+      border-radius: 18px;
+    }
+    .ts-thread.open{ transform: translateX(0); opacity: 1; }
+
+    .ts-thread-head{
+      height: 56px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding: 0 14px;
+      border-bottom: 1px solid var(--ts-stroke);
+    }
+    .ts-thread-head .ttl{ font-weight: 900; }
+
+    .ts-thread-close{
+      width: 36px; height: 36px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.10);
+      background: rgba(255,255,255,0.06);
+      color: var(--ts-text);
+      cursor:pointer;
+      font-size: 18px;
+      line-height: 1;
+    }
+
+    .ts-thread-body{
+      flex: 1;
+      min-height:0;
+      overflow:auto;
+      padding: 12px;
+    }
+
+    .ts-thread-root{
+      border: 1px solid rgba(255,255,255,0.10);
+      border-radius: 14px;
+      overflow:hidden;
+      margin-bottom: 12px;
+      background: rgba(0,0,0,0.18);
+    }
+
+    .ts-thread-list{ display:flex; flex-direction:column; gap: 8px; }
+
+    .ts-tmsg{ display:flex; gap: 8px; padding: 6px 8px; border-radius: 12px; align-items:flex-start; --ts-meta-offset: 16px; }
+    .ts-tmsg:hover{ background: rgba(0,0,0,0.10); }
+    .ts-tmsg.is-grouped .ts-avatar{ opacity:0; }
+
+    .ts-tmsg > .ts-avatar{ margin-top: var(--ts-meta-offset); }
+
+    .ts-tmsg{ position: relative; }
+    .ts-tmsg:hover .ts-hoverbar{
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+
+    .ts-tmain{ flex: 1; min-width:0; display:flex; flex-direction:column; align-items:flex-start; }
+    .ts-ttop{
+      display:flex;
+      align-items:baseline;
+      justify-content:flex-start;
+      gap: 6px;
+      margin-bottom: 2px;
+      width: fit-content;
+    }
+    .ts-tbubble{ padding-right: 8px; }
+    .ts-tbubble{
+      display:inline-block;
+      background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.05));
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 14px;
+      padding: 8px 10px;
+      max-width: 500px;
+      box-shadow: 0 12px 26px rgba(0,0,0,0.30);
+      backdrop-filter: blur(14px) saturate(1.1);
+      position: relative;
+    }
+    .ts-tmsg.is-mine .ts-ttop{ margin-left: 0; }
+    .ts-tmsg.is-mine .ts-tbubble{
+      background: linear-gradient(180deg, rgba(18,74,140,0.58), rgba(10,18,32,0.62));
+      border-color: rgba(76,201,255,0.22);
+      box-shadow: 0 14px 32px rgba(0,0,0,0.42), 0 0 24px rgba(76,201,255,0.10);
+    }
+
+    .ts-thread-compose{ padding: 12px; border-top: 1px solid var(--ts-stroke); }
+
+    /* Emoji picker */
+    .ts-ep{
+      position: fixed;
+      width: 300px;
+      border-radius: 16px;
+      border: 1px solid var(--ts-stroke);
+      background: var(--ts-elev);
+      box-shadow: var(--ts-shadow);
+      padding: 10px;
+      display:none;
+      z-index: 50;
+    }
+    .ts-ep.open{ display:block; animation: tsFadeIn 120ms ease-out; }
+    .ts-ep .search{
+      width:100%;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.12);
+      padding: 8px 10px;
+      background: rgba(0,0,0,0.22);
+      color: var(--ts-text);
+      outline:none;
+      margin-bottom: 10px;
+    }
+    .ts-eg{
+      display:grid;
+      grid-template-columns: repeat(8, 1fr);
+      gap: 6px;
+      max-height: 240px;
+      overflow:auto;
+      padding-right: 4px;
+    }
+    .ts-emoji{
+      width: 32px; height: 32px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.05);
+      cursor:pointer;
+      font-size: 16px;
+      transition: background 120ms ease;
+      color: var(--ts-text);
+      font-family: "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",system-ui,sans-serif;
+    }
+    .ts-emoji:hover{ background: rgba(255,255,255,0.10); }
+
+    /* Drag overlay */
+    .ts-drop{
+      position: fixed;
+      inset: 0;
+      display:none;
+      align-items:center;
+      justify-content:center;
+      background: rgba(0,0,0,0.45);
+      z-index: 60;
+    }
+    .ts-drop.show{ display:flex; }
+    .ts-drop .card{
+      width: min(520px, 92vw);
+      border-radius: 18px;
+      background: rgba(45,46,48,0.92);
+      border: 1px dashed rgba(168,199,250,0.55);
+      padding: 20px;
+      text-align:center;
+      box-shadow: var(--ts-shadow);
+    }
+    .ts-drop .big{ font-weight: 900; font-size: 16px; }
+    .ts-drop .sub{ margin-top: 8px; color: var(--ts-muted); font-size: 13px; }
+
+    @keyframes tsFadeIn{
+      from{ opacity:0; transform: translateY(2px); }
+      to{ opacity:1; transform: translateY(0); }
+    }
+
+    /* Responsive */
+    @media (max-width: 980px){
+      .ts-thread{ width: 44vw; min-width: 320px; }
+    }
+    @media (max-width: 760px){
+      .ts-thread{ width: 100vw; min-width: 0; }
+      .ts-thread{ right: 0; top: 64px; bottom: 0; border-radius: 0; }
+      .ts-hoverbar{ display:none; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="ts-root">
+    <header class="ts-header">
+      <div class="ts-hleft">
+        <button class="ts-back" id="tsBackBtn" type="button" title="Back to Dashboard" aria-label="Back">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 5 8.5 12l7 7-1.5 1.5L5.5 12 14 3.5 15.5 5z"/></svg>
+        </button>
+        <div class="ts-title">
+          <div class="name" id="tsSpaceName">TalkSpace</div>
+          <div class="meta">
+            <span id="tsMemberCount">1 member</span>
+            <span class="ts-dot" aria-hidden="true">•</span>
+            <span class="ts-private">Private</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="ts-hright">
+        <button class="ts-iconbtn" id="tsSearchBtn" type="button" title="Search" aria-label="Search">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 2a8 8 0 1 1 5 14.2L20.7 22 19.3 23.4l-5.7-5.7A8 8 0 0 1 10 2zm0 2a6 6 0 1 0 0 12 6 6 0 0 0 0-12z"/></svg>
+        </button>
+
+        <button class="ts-clear" id="tsClearChatBtn" type="button" title="Clear Chat" aria-label="Clear Chat">
+          Clear Chat
+        </button>
+      </div>
+
+      <div class="ts-search" id="tsSearchWrap">
+        <input id="tsSearchInput" type="text" placeholder="Search in this space" />
+      </div>
+    </header>
+
+    <main class="ts-main">
+      <section class="ts-stream">
+        <div class="ts-shell">
+          <div class="ts-feed" id="tsFeed" aria-label="Conversation feed"></div>
+
+          <div class="ts-composer" id="tsComposer">
+            <div class="ts-pending" id="tsPendingMain" aria-label="Pending attachments"></div>
+
+            <div class="ts-mentionbox" id="tsMentionBox" aria-hidden="true">
+              <div class="ts-mlist" id="tsMentionList"></div>
+            </div>
+
+            <div class="ts-compose-row">
+              <div class="ts-inputbar ts-pill">
+                <textarea class="ts-textarea" id="tsInput" placeholder="Message this space"></textarea>
+
+                <div class="ts-input-actions" aria-label="Message actions">
+                  <button class="ts-ibtn" id="tsEmoji" type="button" title="Emoji" aria-label="Emoji">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zm-4 9a1.2 1.2 0 1 0 0-2.4A1.2 1.2 0 0 0 8 11zm8 0a1.2 1.2 0 1 0 0-2.4A1.2 1.2 0 0 0 16 11zm-8.2 2.6a1 1 0 0 1 1.4.2 4 4 0 0 0 6.6 0 1 1 0 0 1 1.6 1.2 6 6 0 0 1-9.8 0 1 1 0 0 1 .2-1.6z"/></svg>
+                  </button>
+                  <button class="ts-ibtn" id="tsAttach" type="button" title="Attach" aria-label="Attach">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.5 6.5 9 14a3 3 0 0 0 4.2 4.2l7.1-7.1a5 5 0 0 0-7.1-7.1L5.8 11.3a7 7 0 0 0 9.9 9.9l7-7 1.4 1.4-7 7A9 9 0 0 1 4.4 10L11.8 2.6A7 7 0 0 1 21.7 12l-7.1 7.1a5 5 0 0 1-7.1-7.1l7.5-7.5 1.5 1.5z"/></svg>
+                  </button>
+                  <button class="ts-send" id="tsSend" type="button" title="Send" aria-label="Send">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 21 23 12 2 3v7l15 2-15 2v7z"/></svg>
+                  </button>
+                </div>
+
+                <input id="tsAttachInput" type="file" multiple style="display:none" />
+              </div>
+            </div>
+        </div>
+        </div>
+      </section>
+
+      <aside class="ts-thread" id="tsThread" aria-hidden="true">
+        <div class="ts-thread-head">
+          <div class="ttl" id="tsThreadTitle">Thread</div>
+          <button class="ts-thread-close" id="tsThreadClose" type="button" aria-label="Close thread" title="Close">×</button>
+        </div>
+
+        <div class="ts-thread-body">
+          <div class="ts-thread-root" id="tsThreadRoot"></div>
+          <div class="ts-thread-list" id="tsThreadList"></div>
+        </div>
+
+        <div class="ts-thread-compose">
+          <div class="ts-pending" id="tsPendingThread" aria-label="Pending attachments"></div>
+
+          <div class="ts-mentionbox" id="tsThreadMentionBox" aria-hidden="true" style="left:12px; bottom: 88px; width: calc(100% - 24px);">
+            <div class="ts-mlist" id="tsThreadMentionList"></div>
+          </div>
+
+          <div class="ts-compose-row">
+            <div class="ts-inputbar ts-pill">
+              <textarea class="ts-textarea" id="tsThreadInput" placeholder="Reply in thread"></textarea>
+
+              <div class="ts-input-actions" aria-label="Reply actions">
+                <button class="ts-ibtn" id="tsThreadEmoji" type="button" title="Emoji" aria-label="Emoji">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zm-4 9a1.2 1.2 0 1 0 0-2.4A1.2 1.2 0 0 0 8 11zm8 0a1.2 1.2 0 1 0 0-2.4A1.2 1.2 0 0 0 16 11zm-8.2 2.6a1 1 0 0 1 1.4.2 4 4 0 0 0 6.6 0 1 1 0 0 1 1.6 1.2 6 6 0 0 1-9.8 0 1 1 0 0 1 .2-1.6z"/></svg>
+                </button>
+                <button class="ts-ibtn" id="tsThreadAttach" type="button" title="Attach" aria-label="Attach">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.5 6.5 9 14a3 3 0 0 0 4.2 4.2l7.1-7.1a5 5 0 0 0-7.1-7.1L5.8 11.3a7 7 0 0 0 9.9 9.9l7-7 1.4 1.4-7 7A9 9 0 0 1 4.4 10L11.8 2.6A7 7 0 0 1 21.7 12l-7.1 7.1a5 5 0 0 1-7.1-7.1l7.5-7.5 1.5 1.5z"/></svg>
+                </button>
+                <button class="ts-send" id="tsThreadSend" type="button" title="Send" aria-label="Send">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 21 23 12 2 3v7l15 2-15 2v7z"/></svg>
+                </button>
+              </div>
+
+              <input id="tsThreadAttachInput" type="file" multiple style="display:none" />
+            </div>
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <div class="ts-ep" id="tsEmojiPicker" aria-hidden="true">
+      <input class="search" id="tsEmojiSearch" type="text" placeholder="Search emoji" />
+      <div class="ts-eg" id="tsEmojiGrid"></div>
+    </div>
+
+    <div class="ts-drop" id="tsDropHint" aria-hidden="true">
+      <div class="card">
+        <div class="big">Drop files to share</div>
+        <div class="sub">Uploads and posts an attachment card in the space</div>
+      </div>
+    </div>
+
+    <!-- Members modal (opened by clicking member count) -->
+    <div class="ts-modal" id="tsMemberModal" aria-hidden="true">
+      <div class="ts-modal-card" role="dialog" aria-modal="true" aria-label="Members">
+        <div class="ts-modal-head">
+          <div class="ttl">Members</div>
+          <button class="ts-modal-close" id="tsMemberModalClose" type="button" aria-label="Close">×</button>
+        </div>
+        <div class="ts-modal-body">
+          <input class="ts-modal-search" id="tsMemberSearch" type="text" placeholder="Search members" />
+          <div id="tsMemberList"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Confirm dialog (delete) -->
+    <div class="ts-modal" id="tsConfirmModal" aria-hidden="true">
+      <div class="ts-modal-card" role="dialog" aria-modal="true" aria-label="Confirm">
+        <div class="ts-modal-head">
+          <div class="ttl" id="tsConfirmTitle">Confirm</div>
+          <button class="ts-modal-close" id="tsConfirmX" type="button" aria-label="Close">×</button>
+        </div>
+        <div class="ts-modal-body">
+          <div id="tsConfirmMsg" style="color:rgba(227,227,227,0.92); font-size:14px; line-height:1.4;"></div>
+          <div class="ts-confirm-actions">
+            <button class="ts-cbtn" id="tsConfirmCancel" type="button">Cancel</button>
+            <button class="ts-cbtn danger" id="tsConfirmOk" type="button">Delete</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- View receipts modal -->
+    <div class="ts-modal" id="tsViewsModal" aria-hidden="true">
+      <div class="ts-modal-card" role="dialog" aria-modal="true" aria-label="Viewed by">
+        <div class="ts-modal-head">
+          <div class="ttl" id="tsViewsTitle">Viewed by</div>
+          <button class="ts-modal-close" id="tsViewsClose" type="button" aria-label="Close">×</button>
+        </div>
+        <div class="ts-modal-body">
+          <div id="tsViewsList"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="tsToast" class="ts-toast" role="status" aria-live="polite"></div>
+  </div>
+</body>
+</html>

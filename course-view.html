@@ -4,6 +4,26 @@
     <meta charset="UTF-8">
     <title>Watch Lesson | OneOrigin Hub</title>
     <style>
+        .ico {
+            width: 1em;
+            height: 1em;
+            fill: currentColor;
+            vertical-align: -0.125em;
+            padding: 0.22em;
+            border-radius: 999px;
+            background:
+                radial-gradient(120% 120% at 28% 22%, rgba(255,255,255,0.60) 0%, rgba(255,255,255,0.18) 26%, rgba(0,0,0,0.10) 62%, rgba(0,0,0,0.22) 100%),
+                linear-gradient(145deg, rgba(255,255,255,0.22), rgba(0,0,0,0.22)),
+                rgba(66,133,244,0.16);
+            border: 1px solid rgba(66,133,244,0.26);
+            box-sizing: content-box;
+            box-shadow:
+                0 14px 26px rgba(0,0,0,0.42),
+                0 2px 0 rgba(255,255,255,0.06),
+                inset 0 1px 0 rgba(255,255,255,0.55),
+                inset 0 -6px 12px rgba(0,0,0,0.34);
+        }
+        .ico.success { background: rgba(76,175,80,0.16); border-color: rgba(76,175,80,0.30); color: #4CAF50; }
         body { background-color: #0d1117; color: #c9d1d9; font-family: 'Segoe UI', sans-serif; text-align: center; padding: 20px; }
         .container { max-width: 900px; margin: auto; }
         
@@ -56,7 +76,7 @@
             <div id="player"></div>
             
             <div id="completionOverlay">
-                <h2 style="color: #58a6ff; font-size: 2rem;">✅ Watching Completed</h2>
+                <h2 style="color: #58a6ff; font-size: 2rem; display:flex; align-items:center; justify-content:center; gap:10px;"><svg class="ico success" aria-hidden="true" viewBox="0 0 24 24"><path d="M9 16.2 4.8 12 3.4 13.4 9 19l12-12-1.4-1.4z"/></svg>Watching Completed</h2>
                 <p style="font-size: 1.2rem;">You have finished the lesson content.</p>
             </div>
         </div>
@@ -67,7 +87,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
         import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
         const firebaseConfig = {
@@ -84,18 +104,127 @@
         const auth = getAuth(app);
 
         let videoId = "";
+        let courseId = "";
         let alreadyPassed = false;
+        let currentUserEmail = "";
+
+        const COURSE_PROGRESS_LOCAL_KEY = 'catalogCourseProgress';
+        const WATCH_SAVE_INTERVAL_MS = 5000;
+        const RESUME_MIN_SECONDS = 3;
+        const RESUME_END_BUFFER_SECONDS = 6;
+
+        let player = null;
+        let resumeSeconds = 0;
+        let watchTick = null;
+        let lastPersistedAt = 0;
+        let watchMaxSeconds = 0;
+
+        function clampNumber(n, min, max) {
+            const x = Number(n);
+            if (!Number.isFinite(x)) return min;
+            return Math.min(max, Math.max(min, x));
+        }
+
+        function loadCatalogProgressLocal() {
+            try {
+                const raw = localStorage.getItem(COURSE_PROGRESS_LOCAL_KEY);
+                const parsed = raw ? JSON.parse(raw) : {};
+                return parsed && typeof parsed === 'object' ? parsed : {};
+            } catch (_) {
+                return {};
+            }
+        }
+
+        function saveCatalogProgressLocal(map) {
+            try {
+                localStorage.setItem(COURSE_PROGRESS_LOCAL_KEY, JSON.stringify(map || {}));
+            } catch (_) {}
+        }
+
+        async function readRemoteUserCourse(email, videoId) {
+            const safeEmail = String(email || '').trim();
+            const vid = String(videoId || '').trim();
+            if (!safeEmail || !vid) return null;
+            try {
+                const ref = doc(db, 'userCourses', `${safeEmail}_${vid}`);
+                const snap = await getDoc(ref);
+                if (!snap.exists()) return null;
+                return snap.data() || null;
+            } catch (_) {
+                return null;
+            }
+        }
+
+        async function upsertCourseProgress(email, videoId, patch) {
+            const safeEmail = String(email || '').trim();
+            const vid = String(videoId || '').trim();
+            if (!vid) return;
+
+            // Local fallback (shared with dashboard)
+            const map = loadCatalogProgressLocal();
+            const existing = map[vid] && typeof map[vid] === 'object' ? map[vid] : {};
+            const next = { ...existing, ...patch, videoId: vid };
+            map[vid] = next;
+            saveCatalogProgressLocal(map);
+
+            // Firestore best-effort (use same collection as dashboard)
+            if (!safeEmail) return;
+            try {
+                const ref = doc(db, 'userCourses', `${safeEmail}_${vid}`);
+                await setDoc(ref, {
+                    email: safeEmail,
+                    ...patch,
+                    videoId: vid,
+                    updatedAt: new Date().toISOString()
+                }, { merge: true });
+            } catch (_) {}
+        }
+
+        async function getMergedProgress(email, videoId) {
+            const vid = String(videoId || '').trim();
+            if (!vid) return {};
+            const local = loadCatalogProgressLocal();
+            const localRow = local[vid] && typeof local[vid] === 'object' ? local[vid] : {};
+            const remoteRow = await readRemoteUserCourse(email, vid);
+            return { ...localRow, ...(remoteRow || {}) };
+        }
+
+        async function getSavedResumeSeconds(email, videoId) {
+            const p = await getMergedProgress(email, videoId);
+            const watch = (p && typeof p === 'object') ? (p.watch || {}) : {};
+            const fromLast = Number(watch.lastSeconds);
+            const fromMax = Number(watch.maxSeconds);
+            const dur = Number(watch.durationSeconds);
+            const base = Number.isFinite(fromLast) ? fromLast : (Number.isFinite(fromMax) ? fromMax : 0);
+            const upper = Number.isFinite(dur) && dur > 0 ? Math.max(0, dur - RESUME_END_BUFFER_SECONDS) : 1e12;
+            return clampNumber(base, 0, upper);
+        }
+
+        async function persistWatchPosition({ videoId, lastSeconds, maxSeconds, durationSeconds, completed }) {
+            const vid = String(videoId || '').trim();
+            if (!vid) return;
+            const patch = {
+                watch: {
+                    lastSeconds: Math.max(0, Number(lastSeconds) || 0),
+                    maxSeconds: Math.max(0, Number(maxSeconds) || 0),
+                    durationSeconds: Math.max(0, Number(durationSeconds) || 0),
+                    completed: completed === true
+                }
+            };
+            await upsertCourseProgress(currentUserEmail, vid, patch);
+        }
 
         onAuthStateChanged(auth, async user => {
             if(!user) return;
-            const courseId = localStorage.getItem("selectedCourseId");
+            currentUserEmail = user.email || '';
+            courseId = localStorage.getItem("selectedCourseId") || '';
             
             // 1. Check if user already passed
             const progRef = doc(db, "userProgress", user.email, "completedCourses", courseId);
             const progSnap = await getDoc(progRef);
             if(progSnap.exists() && progSnap.data().status === "Passed") {
                 alreadyPassed = true;
-                document.getElementById('statusHint').innerText = "✅ Assessment Locked: Course already completed.";
+                document.getElementById('statusHint').innerText = "Assessment Locked: Course already completed.";
             }
 
             // 2. Fetch Course Video Data
@@ -103,6 +232,11 @@
             if(courseSnap.exists()){
                 videoId = courseSnap.data().videoId;
                 document.getElementById('lessonTitle').innerText = courseSnap.data().title;
+
+                // Resume (do not resume when already passed)
+                resumeSeconds = alreadyPassed ? 0 : await getSavedResumeSeconds(currentUserEmail, videoId);
+
+                // Ensure we only load the API once we have state ready
                 loadYoutubeAPI();
             }
         });
@@ -114,7 +248,7 @@
         }
 
         window.onYouTubeIframeAPIReady = () => {
-            new YT.Player('player', {
+            player = new YT.Player('player', {
                 videoId: videoId,
                 playerVars: { 
                     'rel': 0,               // Minimize related videos
@@ -122,11 +256,73 @@
                     'iv_load_policy': 3     // Hide annotations
                 },
                 events: {
+                    'onReady': async () => {
+                        try {
+                            const dur = Number(player?.getDuration?.() || 0);
+                            if (Number.isFinite(dur) && dur > 0 && resumeSeconds > 0) {
+                                const clamped = clampNumber(resumeSeconds, 0, Math.max(0, dur - RESUME_END_BUFFER_SECONDS));
+                                if (clamped >= RESUME_MIN_SECONDS) {
+                                    player.seekTo(clamped, true);
+                                }
+                            }
+                        } catch (_) {}
+
+                        // Start persistence tick loop
+                        if (watchTick) clearInterval(watchTick);
+                        watchTick = setInterval(async () => {
+                            try {
+                                if (!player || typeof player.getPlayerState !== 'function') return;
+                                const state = player.getPlayerState();
+                                if (state !== YT.PlayerState.PLAYING) return;
+
+                                const now = Date.now();
+                                if (now - lastPersistedAt < WATCH_SAVE_INTERVAL_MS - 250) return;
+                                lastPersistedAt = now;
+
+                                const cur = Number(player.getCurrentTime?.() || 0);
+                                const dur = Number(player.getDuration?.() || 0);
+                                if (!Number.isFinite(cur) || cur < 0) return;
+                                if (Number.isFinite(dur) && dur > 0) {
+                                    watchMaxSeconds = Math.max(watchMaxSeconds, Math.min(cur, dur));
+                                } else {
+                                    watchMaxSeconds = Math.max(watchMaxSeconds, cur);
+                                }
+
+                                const completed = Number.isFinite(dur) && dur > 0
+                                    ? (cur >= Math.max(0, dur - 2))
+                                    : false;
+
+                                await persistWatchPosition({
+                                    videoId,
+                                    lastSeconds: cur,
+                                    maxSeconds: watchMaxSeconds,
+                                    durationSeconds: dur,
+                                    completed
+                                });
+                            } catch (_) {}
+                        }, 1000);
+                    },
                     'onStateChange': (event) => {
                         // event.data == 0 means the video has "Ended"
                         if(event.data === 0) {
                             // 1. Show the "Watching Completed" message overlay
                             document.getElementById('completionOverlay').style.display = "flex";
+
+                            // Persist completion + final timestamp
+                            (async () => {
+                                try {
+                                    const cur = Number(player?.getCurrentTime?.() || 0);
+                                    const dur = Number(player?.getDuration?.() || 0);
+                                    watchMaxSeconds = Math.max(watchMaxSeconds, Number.isFinite(dur) && dur > 0 ? Math.min(cur, dur) : cur);
+                                    await persistWatchPosition({
+                                        videoId,
+                                        lastSeconds: cur,
+                                        maxSeconds: watchMaxSeconds,
+                                        durationSeconds: dur,
+                                        completed: true
+                                    });
+                                } catch (_) {}
+                            })();
                             
                             // 2. Unlock assessment if they haven't passed yet
                             if(!alreadyPassed) {
@@ -134,10 +330,44 @@
                                 document.getElementById('statusHint').innerText = "Video complete! You can now proceed.";
                             }
                         }
+
+                        // Persist on pause/buffer for best-effort resume
+                        if (event.data === 2 || event.data === 3) {
+                            (async () => {
+                                try {
+                                    const cur = Number(player?.getCurrentTime?.() || 0);
+                                    const dur = Number(player?.getDuration?.() || 0);
+                                    watchMaxSeconds = Math.max(watchMaxSeconds, Number.isFinite(dur) && dur > 0 ? Math.min(cur, dur) : cur);
+                                    await persistWatchPosition({
+                                        videoId,
+                                        lastSeconds: cur,
+                                        maxSeconds: watchMaxSeconds,
+                                        durationSeconds: dur,
+                                        completed: false
+                                    });
+                                } catch (_) {}
+                            })();
+                        }
                     }
                 }
             });
         };
+
+        window.addEventListener('beforeunload', () => {
+            try {
+                if (!player || !videoId) return;
+                const cur = Number(player.getCurrentTime?.() || 0);
+                const dur = Number(player.getDuration?.() || 0);
+                watchMaxSeconds = Math.max(watchMaxSeconds, Number.isFinite(dur) && dur > 0 ? Math.min(cur, dur) : cur);
+                persistWatchPosition({
+                    videoId,
+                    lastSeconds: cur,
+                    maxSeconds: watchMaxSeconds,
+                    durationSeconds: dur,
+                    completed: false
+                });
+            } catch (_) {}
+        });
     </script>
 </body>
 </html>

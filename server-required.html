@@ -74,18 +74,33 @@
             color: #f85149;
             margin-top: 10px;
         }
+        .ico {
+            width: 1em;
+            height: 1em;
+            display: inline-block;
+            vertical-align: -0.125em;
+            fill: currentColor;
+            filter: drop-shadow(0 10px 18px rgba(0,0,0,0.55));
+        }
+        .warning-icon {
+            color: #f85149;
+        }
+        .warning-icon .ico {
+            width: 80px;
+            height: 80px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="warning-icon">⚠️</div>
+        <div class="warning-icon" aria-hidden="true"><svg class="ico" viewBox="0 0 24 24"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-5h2v5z"/></svg></div>
         <h1>Server Not Running</h1>
         <div class="message">
             This application requires a backend server to be running for API key security and functionality.
         </div>
 
         <div class="instructions">
-            <h3>📋 How to Start the Server:</h3>
+            <h3 style="display:flex; align-items:center; gap:10px; justify-content:center;"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h14v16H4zM2 6h2v14a2 2 0 0 0 2 2h14v-2H6V6H2zm4 2h10v2H6V8zm0 4h10v2H6v-2zm0 4h7v2H6v-2z"/></svg>How to Start the Server:</h3>
             <p><strong>Step 1:</strong> Open PowerShell/Terminal in the project folder</p>
             <p><strong>Step 2:</strong> Run this command:</p>
             <div class="code">npm start</div>
@@ -94,7 +109,7 @@
         </div>
 
         <div class="instructions">
-            <h3>🔍 Why This Happens:</h3>
+            <h3 style="display:flex; align-items:center; gap:10px; justify-content:center;"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 2a8 8 0 1 1 5 14.2L20.7 22 19.3 23.4l-5.7-5.7A8 8 0 0 1 10 2zm0 2a6 6 0 1 0 0 12 6 6 0 0 0 0-12z"/></svg>Why This Happens:</h3>
             <p>You're currently viewing this page from a local file (file:// protocol). The app needs to run through a server (http://) to:</p>
             <ul style="text-align: left; margin-left: 20px;">
                 <li>Securely use API keys</li>
@@ -114,7 +129,7 @@
         // Detect if running from file:// protocol
         if (window.location.protocol === 'file:') {
             // Already showing warning
-            console.error('❌ App opened from file system. Server required!');
+            console.error('App opened from file system. Server required!');
         } else if (window.location.protocol === 'http:' || window.location.protocol === 'https:') {
             // Running through server - redirect to index.html
             window.location.href = '/index.html';
