@@ -62,12 +62,16 @@
 
     // ====== Space / identity ======
     const DEFAULT_SPACE_ID = "main";
-    const spaceId = new URLSearchParams(location.search).get("space") || DEFAULT_SPACE_ID;
+    const qs = new URLSearchParams(location.search);
+    const spaceId = qs.get("space") || DEFAULT_SPACE_ID;
+    const EMBED = String(qs.get("embed") || "").trim() === "1";
+    try { if (EMBED) document.documentElement.classList.add("ts-embed"); } catch (_) {}
 
     const state = {
       user: null,
       displayName: "User",
       role: "user", // 'user' | 'admin'
+      unreadCount: 0,
       spaceName: "TalkSpace",
       spaceClearedAt: 0,
       lastFeedList: [],
@@ -98,6 +102,41 @@
         atPos: -1
       }
     };
+
+    function postToParent(payload) {
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage(payload, "*");
+        }
+      } catch (_) {}
+    }
+
+    function setUnreadCount(count) {
+      const n = Math.max(0, Number(count || 0));
+      if (Number(state.unreadCount || 0) === n) return;
+      state.unreadCount = n;
+      postToParent({ type: "talkspace_unread", spaceId, count: n });
+    }
+
+    function computeUnreadCount(list) {
+      const me = String(safeEmail() || "").trim().toLowerCase();
+      if (!me) return 0;
+      const meKey = encodeFieldKey(me);
+      const cleared = Number(state.spaceClearedAt || 0);
+      let unread = 0;
+      for (const m of (Array.isArray(list) ? list : [])) {
+        const data = m?.data || m || {};
+        if (data.deleted === true) continue;
+        const owner = String(data.userEmail || "").trim().toLowerCase();
+        if (owner && owner === me) continue;
+        const ms = toMillis(data.createdAt);
+        if (cleared && ms && ms < cleared) continue;
+        const viewed = (data.viewedBy && typeof data.viewedBy === "object") ? data.viewedBy : {};
+        if (viewed && viewed[meKey]) continue;
+        unread++;
+      }
+      return unread;
+    }
 
     // ====== DOM refs ======
     const el = {
@@ -1255,12 +1294,14 @@
           list.push({ id: d.id, data });
         });
         state.lastFeedList = list;
+        try { setUnreadCount(computeUnreadCount(list)); } catch (_) {}
         renderFeed(list);
       }, () => {
         // Fallback: render local messages if Firestore fails
         const raw = localStorage.getItem(state.localKey);
         const local = raw ? JSON.parse(raw) : [];
         state.lastFeedList = local;
+        try { setUnreadCount(computeUnreadCount(local)); } catch (_) {}
         renderFeed(local);
       });
     }
@@ -2432,7 +2473,7 @@
     }
 
     *{ box-sizing:border-box; }
-    html, body{ height:auto; }
+    html, body{ height:100%; }
     body{
       margin:0;
       background:
@@ -2442,11 +2483,11 @@
         var(--ts-canvas);
       color: var(--ts-text);
       font-family: var(--ts-font);
-      overflow:auto;
+      overflow:hidden;
     }
 
     .ts-root{
-      min-height:100vh;
+      height:100%;
       display:flex;
       flex-direction:column;
     }
@@ -2480,6 +2521,8 @@
     }
     .ts-back:hover{ background: rgba(255,255,255,0.10); transform: translateY(-1px); }
     .ts-back svg{ width:20px; height:20px; fill: currentColor; }
+
+    .ts-embed .ts-back{ display:none; }
 
     .ts-title{
       display:flex; flex-direction:column;
@@ -2602,9 +2645,11 @@
 
     /* Main layout: single stream + thread panel */
     .ts-main{
+      flex: 1;
       display:flex;
+      min-height:0;
       position:relative;
-      padding: 18px 14px 28px;
+      padding: 14px;
     }
 
     .ts-stream{
@@ -2617,7 +2662,7 @@
 
     .ts-shell{
       width: min(1120px, 100%);
-      height: auto;
+      height: 100%;
       display:flex;
       flex-direction:column;
       border-radius: 18px;
@@ -2625,19 +2670,20 @@
       background: linear-gradient(180deg, rgba(16,24,38,0.62) 0%, rgba(16,24,38,0.35) 100%);
       box-shadow: 0 26px 70px rgba(0,0,0,0.60), var(--ts-glow);
       backdrop-filter: blur(18px) saturate(1.2);
-      overflow: visible;
+      overflow: hidden;
       margin: 0 auto;
     }
 
     .ts-feed{
       width: 100%;
       padding: 18px 18px 10px;
-      overflow: visible;
+      overflow:auto;
+      flex: 1;
+      min-height:0;
       scroll-behavior: smooth;
       display:flex;
       flex-direction:column;
       gap: 6px;
-      padding-bottom: 170px;
     }
 
     .ts-empty{
@@ -3016,11 +3062,6 @@
       border-top: 1px solid rgba(255,255,255,0.10);
       background: rgba(11,16,23,0.55);
       backdrop-filter: blur(16px) saturate(1.2);
-      position: sticky;
-      bottom: 0;
-      z-index: 12;
-      border-bottom-left-radius: 18px;
-      border-bottom-right-radius: 18px;
     }
 
     .ts-ibtn-txt{ font-weight: 900; font-size: 12px; letter-spacing: 0.6px; }
@@ -3235,12 +3276,9 @@
       position: relative;
     }
 
-    .ts-composer .ts-compose-row{ justify-content:center; }
-    .ts-composer .ts-inputbar{ width: 75%; }
+    .ts-composer .ts-compose-row{ justify-content:flex-start; }
+    .ts-composer .ts-inputbar{ width: 100%; }
     .ts-thread-compose .ts-inputbar{ width: 100%; }
-    @media (max-width: 760px){
-      .ts-composer .ts-inputbar{ width: 100%; }
-    }
 
     .ts-plus, .ts-voice{
       width: 44px;
@@ -3374,13 +3412,12 @@
       transform: translateX(100%);
       opacity: 0;
       transition: transform 180ms ease, opacity 180ms ease;
-      position: fixed;
-      top: 78px;
-      right: 14px;
-      bottom: 14px;
+      position: absolute;
+      top: 0;
+      right: 0;
+      bottom: 0;
       box-shadow: -18px 0 40px rgba(0,0,0,0.50);
       z-index: 15;
-      border-radius: 18px;
     }
     .ts-thread.open{ transform: translateX(0); opacity: 1; }
 
@@ -3543,7 +3580,6 @@
     }
     @media (max-width: 760px){
       .ts-thread{ width: 100vw; min-width: 0; }
-      .ts-thread{ right: 0; top: 64px; bottom: 0; border-radius: 0; }
       .ts-hoverbar{ display:none; }
     }
   </style>

@@ -623,12 +623,46 @@ body.light-theme .user-badge {
         .sidebar.expanded .toggle-btn { transform: rotate(180deg); }
         .sidebar-nav { flex: 1; display: flex; flex-direction: column; padding: 10px; gap: 8px; }
         .sidebar-footer { border-top: 1px solid var(--border-color); padding: 15px 10px; display: flex; flex-direction: column; gap: 8px; }
-        .sidebar-item { display: flex; align-items: center; padding: 12px 15px; color: var(--text-secondary); text-decoration: none; cursor: pointer; border-radius: 8px; transition: all 0.3s ease; white-space: nowrap; border: 1px solid transparent; box-shadow: none !important; }
+        .sidebar-item { display: flex; align-items: center; padding: 12px 15px; color: var(--text-secondary); text-decoration: none; cursor: pointer; border-radius: 8px; transition: all 0.3s ease; white-space: nowrap; border: 1px solid transparent; box-shadow: none !important; position: relative; }
         .sidebar-item:hover { background: rgba(255, 255, 255, 0.04) !important; color: #4285F4 !important; transform: translateX(5px); box-shadow: none !important; }
 	.sidebar-item.active { background: #1e1f20 !important; color: #4285F4 !important; border: 1px solid #4285F4 !important; box-shadow: none !important; border-radius: 8px; }
 	body.light-theme .sidebar-item.active { background: #f1f3f4 !important; color: #0b57d0 !important; border: 1px solid #0b57d0 !important; }
         .sidebar-text { margin-left: 15px; opacity: 0; transition: opacity 0.3s ease-in-out; }
         .sidebar.expanded .sidebar-text { opacity: 1; }
+
+        .sidebar-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            height: 18px;
+            min-width: 18px;
+            padding: 0 6px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 900 !important;
+            line-height: 18px;
+            color: #fff;
+            background: #f85149;
+            border: 1px solid rgba(0,0,0,0.25);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.25);
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            pointer-events: none;
+        }
+        body.light-theme .sidebar-badge { border-color: rgba(0,0,0,0.15); }
+
+        #talkspace-view { padding: 0; }
+        .talkspace-embed {
+            width: 100%;
+            height: calc(100vh - var(--header-height) - 80px);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            overflow: hidden;
+            background: var(--bg-dark);
+        }
+        .talkspace-embed iframe { width: 100%; height: 100%; border: 0; background: transparent; }
         .main-content { flex: 1; padding: 40px; overflow-y: auto; }
         .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 25px; width: 100%; }
         .course-card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; margin-bottom: 15px; padding-bottom: 15px; height: 100%; }
@@ -1087,7 +1121,7 @@ body.light-theme .user-badge {
             <div class="sidebar-item" onclick="switchTab('leaderboard-view', this)"><span class="ui-ico-wrap"><svg class="ui-ico"><use href="#ico-trophy"></use></svg></span> <span class="sidebar-text">Leaderboard</span></div>
             <div class="sidebar-item" onclick="switchTab('hub-bot-view', this)"><span class="ui-ico-wrap"><svg class="ui-ico"><use href="#ico-bot"></use></svg></span> <span class="sidebar-text">Hub Bot</span></div>
             <div class="sidebar-item" onclick="switchTab('showcase-view', this)"><span class="ui-ico-wrap"><svg class="ui-ico"><use href="#ico-puzzle"></use></svg></span> <span class="sidebar-text">Showcase Forum</span></div>
-            <div class="sidebar-item" onclick="window.location.href='talkspace.html'"><span class="ui-ico-wrap"><svg class="ui-ico"><use href="#ico-comment"></use></svg></span> <span class="sidebar-text">TalkSpace</span></div>
+            <div class="sidebar-item" id="talkspaceSidebarItem" onclick="switchTab('talkspace-view', this)"><span class="ui-ico-wrap"><svg class="ui-ico"><use href="#ico-comment"></use></svg></span> <span class="sidebar-text">TalkSpace</span><span class="sidebar-badge" id="talkspaceUnreadBadge" style="display:none"></span></div>
         </div>
         <div class="sidebar-footer">
             <div class="sidebar-item" id="courseMgmtSidebarItem" onclick="switchTab('course-mgmt-view', this)"><span class="ui-ico-wrap"><svg class="ui-ico"><use href="#ico-book"></use></svg></span> <span class="sidebar-text">Course Mgmt</span></div>
@@ -1192,6 +1226,12 @@ body.light-theme .user-badge {
                         <!-- Announcements will be populated dynamically -->
                     </div>
                 </div>
+            </div>
+        </section>
+
+        <section id="talkspace-view" style="display: none;">
+            <div class="talkspace-embed">
+                <iframe id="talkspaceFrame" src="talkspace.html?embed=1" title="TalkSpace"></iframe>
             </div>
         </section>
 
@@ -2165,6 +2205,40 @@ function switchTab(viewId, element) {
         }
     }
 }
+
+// Allow deep-linking to a view via URL hash (e.g., dashboard.html#courses-view)
+window.addEventListener('load', () => {
+    try {
+        const hash = (window.location.hash || '').replace(/^#/, '').trim();
+        if (hash) switchTab(hash, null);
+    } catch (_) {}
+});
+
+// Listen for unread count updates from embedded TalkSpace
+(function initTalkspaceUnreadBadge() {
+    const badge = document.getElementById('talkspaceUnreadBadge');
+    const frame = document.getElementById('talkspaceFrame');
+    if (!badge) return;
+
+    function setBadge(count) {
+        const n = Math.max(0, Number(count) || 0);
+        if (n > 0) {
+            badge.textContent = n > 99 ? '99+' : String(n);
+            badge.style.display = 'inline-flex';
+        } else {
+            badge.textContent = '';
+            badge.style.display = 'none';
+        }
+    }
+
+    window.addEventListener('message', (event) => {
+        const data = event && event.data;
+        if (!data || typeof data !== 'object') return;
+        if (data.type !== 'talkspace_unread') return;
+        if (frame && event.source && frame.contentWindow && event.source !== frame.contentWindow) return;
+        setBadge(data.count);
+    });
+})();
 
 function toggleSidebar() {
     const sidebar = document.getElementById('sidebar');
