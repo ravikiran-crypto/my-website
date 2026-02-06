@@ -7,7 +7,6 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <script src="api-config.js"></script>
-    <script src="runtime-config.js"></script>
     <script type="module" src="shared-storage.js"></script>
     <script type="module" src="firestore-db.js"></script>
     <style>
@@ -1249,7 +1248,6 @@ body.light-theme .user-badge {
                     </div>
                     <div class="showcase-actions">
                         <button class="ghost" id="scBrowseBtn" type="button">Browse</button>
-                        <button class="ghost" id="scDeleteProjectBtn" type="button" style="border-color: rgba(248,81,73,0.55); color: #ff8a85;">Delete Project</button>
                         <button class="ghost" id="scSubmitBtn" type="button">Submit</button>
                         <button class="ghost" id="scRefreshBtn" type="button">Refresh</button>
                     </div>
@@ -1782,22 +1780,6 @@ import {
     upsertLeaderboardEntry, getLeaderboardEntries
 } from './firestore-db.js';
 
-// Ensure Firebase Auth session is ready (prevents empty data when request.auth is missing)
-import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-auth.js";
-try {
-    const auth = getAuth();
-    window.__FIREBASE_AUTH_READY__ = new Promise((resolve) => {
-        onAuthStateChanged(
-            auth,
-            (user) => resolve(user || null),
-            () => resolve(null),
-        );
-    });
-} catch (e) {
-    console.warn('Firebase Auth readiness hook failed', e);
-    window.__FIREBASE_AUTH_READY__ = Promise.resolve(null);
-}
-
 // Make functions globally available
 window.firestoreDB = {
     saveUser, getAllUsers, getUserByEmail, updateUserRole, deleteUser,
@@ -2316,33 +2298,6 @@ window.onload = async () => {
     if (!userEmail) {
         window.location.href = 'index.html';
         return;
-    }
-
-    // IMPORTANT: Verify Firebase Auth session exists.
-    // On Vercel (especially Preview URLs) localStorage may persist while Auth cookies do not.
-    // Without request.auth, Firestore reads will fail and the UI can look like "everything was deleted".
-    try {
-        const authUser = await (window.__FIREBASE_AUTH_READY__ || Promise.resolve(null));
-        const authEmail = (authUser && authUser.email) ? String(authUser.email) : '';
-        if (!authEmail) {
-            // Clear only session identifiers and force re-login.
-            localStorage.removeItem('userEmail');
-            localStorage.removeItem('userName');
-            localStorage.removeItem('userRole');
-            alert('Your login session expired. Please sign in again.');
-            window.location.href = 'index.html';
-            return;
-        }
-
-        // Keep localStorage in sync with the authenticated identity.
-        if (authEmail && String(userEmail).toLowerCase() !== authEmail.toLowerCase()) {
-            localStorage.setItem('userEmail', authEmail);
-            if (authUser && authUser.displayName) {
-                localStorage.setItem('userName', String(authUser.displayName));
-            }
-        }
-    } catch (e) {
-        console.warn('Auth check failed; continuing with localStorage session', e);
     }
     
     // Cloud-backed auto-registration + role sync + reset flag (fallback to local only if cloud not available)

@@ -111,11 +111,10 @@
 
 <div class="login-portal">
     <img src="oo new semi arch white blue (4).png" alt="OneOrigin Logo" class="logo">
-    <button class="btn-google" id="loginBtn">
+    <button class="btn-google" id="googleLoginBtn">
         <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/action/google.svg" alt="" style="height:20px;">
         Sign in with Google
     </button>
-    <div id="loginStatus" style="margin-top:14px;width:100%;font-size:12px;line-height:1.35;color:rgba(255,255,255,0.75);text-align:left;word-break:break-word;"></div>
 </div>
 
 <script>
@@ -198,37 +197,91 @@
     draw();
 </script>
 
-<script src="runtime-config.js"></script>
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getAuth, signInWithPopup, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-<script type="module" src="auth.js"></script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyDnfIJQxO6mi2_NEGqXRGH5EAxeaNcb7qc",
+        authDomain: "oneorigin-learning-hub.firebaseapp.com",
+        projectId: "oneorigin-learning-hub",
+        storageBucket: "oneorigin-learning-hub.firebasestorage.app",
+        messagingSenderId: "4168147692",
+        appId: "1:4168147692:web:43a1205a0af9770f633bc9"
+    };
 
-<script>
-    (function () {
-        const el = document.getElementById('loginStatus');
-        if (!el) return;
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const provider = new GoogleAuthProvider();
 
-        const host = location.host;
-        el.textContent = `Checking backend config… (host: ${host})`;
-
-        fetch('/api/runtime-config', { cache: 'no-store' })
-            .then(async (res) => {
-                const text = await res.text();
-                if (!res.ok) {
-                    el.textContent = `runtime-config ERROR (${res.status}): ${text}`;
+    document.getElementById('googleLoginBtn').onclick = () => {
+        signInWithPopup(auth, provider)
+            .then((result) => {
+                const user = result.user;
+                
+                // Check if email is from @oneorigin.us domain
+                if (!user.email || !user.email.endsWith('@oneorigin.us')) {
+                    if (window.appUI && typeof window.appUI.alert === 'function') {
+                        window.appUI.alert({
+                            title: 'Access denied',
+                            message: 'Please sign in using your @oneorigin.us email.',
+                            type: 'error'
+                        });
+                    }
+                    auth.signOut();
                     return;
                 }
-                try {
-                    const json = JSON.parse(text);
-                    const pid = json?.firebase?.projectId || '(missing projectId)';
-                    el.textContent = `runtime-config OK (projectId: ${pid}). If login still fails, check Firebase Authorized Domains for: ${host}`;
-                } catch (_) {
-                    el.textContent = `runtime-config OK but returned non-JSON: ${text}`;
+                
+                // Store user info in localStorage
+                localStorage.setItem('userEmail', user.email);
+                localStorage.setItem('userName', user.displayName || '');
+                
+                // Auto-register user in Role Management (one-time)
+                const SUPERADMIN_EMAIL = 'ravikiran@oneorigin.us';
+                const users = JSON.parse(localStorage.getItem('users') || '[]');
+                
+                // Check if user already exists
+                const existingUserIndex = users.findIndex(u => u.email && u.email.toLowerCase() === user.email.toLowerCase());
+                
+                if (existingUserIndex === -1) {
+                    // New user - add to users list (except superadmin)
+                    if (user.email.toLowerCase() !== SUPERADMIN_EMAIL.toLowerCase()) {
+                        const newUser = {
+                            employeeId: 'EMP-' + Date.now(),
+                            name: user.displayName || user.email.split('@')[0],
+                            email: user.email,
+                            role: 'User',
+                            lastActive: new Date().toLocaleString()
+                        };
+                        users.push(newUser);
+                        localStorage.setItem('users', JSON.stringify(users));
+                        localStorage.setItem('userRole', 'User');
+                        console.log('New user registered:', user.email, 'with ID:', newUser.employeeId);
+                    } else {
+                        localStorage.setItem('userRole', 'Admin');
+                        console.log('Superadmin login - not added to user list');
+                    }
+                } else {
+                    // Existing user - update last active time and sync role
+                    users[existingUserIndex].lastActive = new Date().toLocaleString();
+                    localStorage.setItem('users', JSON.stringify(users));
+                    localStorage.setItem('userRole', users[existingUserIndex].role || 'User');
+                    console.log('User login - last active updated:', user.email);
                 }
+                
+                window.location.href = "dashboard.html";
             })
-            .catch((err) => {
-                el.textContent = `runtime-config fetch failed: ${String(err && err.message ? err.message : err)}`;
+            .catch((error) => { 
+                console.error("Login failed:", error);
+                if (window.appUI && typeof window.appUI.alert === 'function') {
+                    window.appUI.alert({
+                        title: 'Login failed',
+                        message: String(error && error.message ? error.message : 'Unknown error'),
+                        type: 'error'
+                    });
+                }
             });
-    })();
+    };
 </script>
 </body>
 </html>

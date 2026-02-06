@@ -62,14 +62,18 @@ firebase deploy --only functions
 
 ## 🔴 Critical Notes
 
-### Firebase Client Config (now loaded at runtime)
-This project no longer hard-codes Firebase client configuration (including API key) in tracked files.
-Instead it is loaded at runtime from `GET /api/runtime-config`, backed by environment variables.
+### Firebase API Key (Already in your code)
+The Firebase key `AIzaSyDnfIJQxO6mi2_NEGqXRGH5EAxeaNcb7qc` in [auth.js](auth.js), [login.html](login.html), and [course-view.html](course-view.html) is **OKAY to be public** because:
+- Firebase uses authentication + security rules
+- It's designed for client-side use
+- Protected by domain restrictions
 
-Important: a Firebase **API key is not a secret** in the same way as a server key, and it will still be visible to end users in the browser at runtime. The correct protection is:
-- Restrict the API key (HTTP referrers + allowed APIs) in Google Cloud Console
-- Enforce Firestore/Storage Security Rules
-- Consider Firebase App Check
+**BUT you should:**
+1. Enable Firebase Security Rules
+2. Set up Firebase App Check  
+3. Add domain restrictions in Google Cloud Console
+
+See [SETUP_INSTRUCTIONS.md](SETUP_INSTRUCTIONS.md#important-notes-about-firebase-api-key) for details.
 
 ---
 

@@ -2,7 +2,6 @@ import {
   getShowcaseProjects,
   addShowcaseProject,
   updateShowcaseProject,
-  deleteShowcaseProject,
   getShowcaseCommentsByProject,
   addShowcaseComment,
   listenToShowcaseProjects,
@@ -116,27 +115,6 @@ function getCurrentUser() {
   };
 }
 
-function isAdminUser() {
-  // Matches auth.js / dashboard role sync (stores 'admin' or 'user')
-  const role = String(localStorage.getItem("userRole") || "").trim().toLowerCase();
-  return role === "admin";
-}
-
-function canDeleteProject(project) {
-  if (isAdminUser()) return true;
-
-  const p = project && typeof project === "object" ? project : {};
-  const makerId = String(p.makerId || "").trim();
-  const makerEmail = String(p.makerEmail || "").trim().toLowerCase();
-
-  const myId = String(state.user?.id || "").trim();
-  const myEmail = String(state.user?.email || "").trim().toLowerCase();
-
-  if (makerId && myId && makerId === myId) return true;
-  if (makerEmail && myEmail && makerEmail === myEmail) return true;
-  return false;
-}
-
 function computeTrendingScore(p) {
   const up = Number(p.upvotes) || 0;
   const cc = Number(p.commentsCount) || 0;
@@ -169,7 +147,6 @@ const els = {
   rootSection: document.getElementById("showcase-view"),
 
   browseBtn: document.getElementById("scBrowseBtn"),
-  deleteBtn: document.getElementById("scDeleteProjectBtn"),
   submitBtn: document.getElementById("scSubmitBtn"),
   refreshBtn: document.getElementById("scRefreshBtn"),
 
@@ -776,103 +753,10 @@ async function launchProject() {
 }
 
 function wireEvents() {
-  // Resilience: if the dashboard HTML is stale, inject the Delete button next to Browse.
-  if (!els.deleteBtn && els.browseBtn && els.browseBtn.parentElement) {
-    try {
-      const btn = document.createElement("button");
-      btn.className = "ghost";
-      btn.type = "button";
-      btn.id = "scDeleteProjectBtn";
-      btn.textContent = "Delete Project";
-      btn.style.borderColor = "rgba(248,81,73,0.55)";
-      btn.style.color = "#ff8a85";
-
-      els.browseBtn.insertAdjacentElement("afterend", btn);
-      els.deleteBtn = btn;
-    } catch (e) {
-      console.warn("Failed to inject scDeleteProjectBtn", e);
-    }
-  }
-
   els.browseBtn.addEventListener("click", () => {
     showMode("home");
     renderHome();
   });
-
-  if (els.deleteBtn) {
-    els.deleteBtn.addEventListener("click", async () => {
-      if (!window.appUI || typeof window.appUI.select !== "function" || typeof window.appUI.confirm !== "function") {
-        toast("error", "Unavailable", "The in-app dialog system is not loaded. Please refresh the page.");
-        return;
-      }
-
-      const projects = Array.isArray(state.projects) ? [...state.projects] : [];
-      if (!projects.length) {
-        toast("info", "Nothing to delete", "No projects found.");
-        return;
-      }
-
-      const admin = isAdminUser();
-      const deletable = admin ? projects : projects.filter((p) => canDeleteProject(p));
-      if (!deletable.length) {
-        toast("info", "No permission", "You can only delete projects you uploaded.");
-        return;
-      }
-
-      deletable.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-
-      const selectedId = await window.appUI.select({
-        title: "Delete Project",
-        message: admin
-          ? "Select a project to permanently delete (admin can delete any project). This also deletes comments and suggestions."
-          : "Select one of your uploaded projects to permanently delete (this also deletes its comments and suggestions).",
-        placeholder: "Select a project",
-        okText: "Continue",
-        cancelText: "Cancel",
-        type: "warning",
-        options: deletable.map((p) => ({
-          value: p.id,
-          label: `${String(p.name || "Untitled").trim() || "Untitled"} — ${String(p.makerName || "").trim() || "Anonymous"} (${formatDateOnly(p.createdAt)})`,
-        })),
-      });
-
-      if (!selectedId) return;
-      const project = state.projects.find((p) => p.id === selectedId);
-      const projectName = String(project?.name || "this project").trim() || "this project";
-
-      if (!project || !canDeleteProject(project)) {
-        toast("error", "Not allowed", "You can only delete projects you uploaded.");
-        return;
-      }
-
-      const ok = await window.appUI.confirm({
-        title: "Confirm delete",
-        message: `Delete "${projectName}"? This cannot be undone.`,
-        okText: "Delete",
-        cancelText: "Cancel",
-        type: "error",
-      });
-
-      if (!ok) return;
-
-      try {
-        await deleteShowcaseProject(selectedId);
-        state.projects = state.projects.filter((p) => p.id !== selectedId);
-
-        if (state.activeProjectId === selectedId) {
-          state.activeProjectId = null;
-          showMode("home");
-        }
-
-        renderHome();
-        toast("success", "Deleted", `Deleted "${projectName}".`);
-      } catch (e) {
-        console.error(e);
-        toast("error", "Delete failed", "Could not delete the project right now.");
-      }
-    });
-  }
-
   els.submitBtn.addEventListener("click", () => {
     showMode("submit");
     renderWizard();

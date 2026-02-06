@@ -3,15 +3,14 @@ import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebase
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-auth.js";
 import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-firestore.js";
 
-const firebaseConfig = await (typeof globalThis.__getFirebaseConfig === 'function'
-        ? globalThis.__getFirebaseConfig()
-        : (globalThis.__FIREBASE_CONFIG_READY__
-                        ? globalThis.__FIREBASE_CONFIG_READY__.then(() => globalThis.__FIREBASE_CONFIG__)
-                        : globalThis.__FIREBASE_CONFIG__));
-
-if (!firebaseConfig || typeof firebaseConfig !== 'object') {
-        throw new Error('Firebase config not loaded. Ensure runtime-config.js is included before shared-storage.js and FIREBASE_* env vars are set on the backend.');
-}
+const firebaseConfig = {
+  apiKey: "AIzaSyDnfIJQxO6mi2_NEGqXRGH5EAxeaNcb7qc",
+  authDomain: "oneorigin-learning-hub.firebaseapp.com",
+  projectId: "oneorigin-learning-hub",
+  storageBucket: "oneorigin-learning-hub.firebasestorage.app",
+  messagingSenderId: "4168147692",
+  appId: "1:4168147692:web:43a1205a0af9770f633bc9"
+};
 
 // Use the default app so we share Firebase Auth state from auth.js
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);

@@ -45,59 +45,6 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Server is running' });
 });
 
-// Runtime config endpoint (Firebase client config from env vars)
-app.get('/api/runtime-config', (req, res) => {
-  try {
-    function readFirstEnv(names) {
-      for (const n of names) {
-        const v = process.env[n];
-        if (String(v || '').trim()) return String(v).trim();
-      }
-      return '';
-    }
-
-    function readJsonEnv(names) {
-      const raw = readFirstEnv(names);
-      if (!raw) return null;
-      try {
-        const parsed = JSON.parse(raw);
-        return parsed && typeof parsed === 'object' ? parsed : null;
-      } catch (_) {
-        return null;
-      }
-    }
-
-    const jsonCfg = readJsonEnv(['FIREBASE_CONFIG_JSON', 'FIREBASE_WEB_CONFIG', 'FIREBASE_CONFIG']);
-
-    const firebase = {
-      apiKey: jsonCfg?.apiKey || readFirstEnv(['FIREBASE_API_KEY', 'FIREBASE_APIKEY', 'VITE_FIREBASE_API_KEY', 'NEXT_PUBLIC_FIREBASE_API_KEY']),
-      authDomain: jsonCfg?.authDomain || readFirstEnv(['FIREBASE_AUTH_DOMAIN', 'FIREBASE_AUTHDOMAIN', 'VITE_FIREBASE_AUTH_DOMAIN', 'NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN']),
-      projectId: jsonCfg?.projectId || readFirstEnv(['FIREBASE_PROJECT_ID', 'FIREBASE_PROJECTID', 'VITE_FIREBASE_PROJECT_ID', 'NEXT_PUBLIC_FIREBASE_PROJECT_ID']),
-      storageBucket: jsonCfg?.storageBucket || readFirstEnv(['FIREBASE_STORAGE_BUCKET', 'FIREBASE_STORAGEBUCKET', 'VITE_FIREBASE_STORAGE_BUCKET', 'NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET']),
-      messagingSenderId: jsonCfg?.messagingSenderId || readFirstEnv(['FIREBASE_MESSAGING_SENDER_ID', 'FIREBASE_MESSAGING_SENDERID', 'VITE_FIREBASE_MESSAGING_SENDER_ID', 'NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID']),
-      appId: jsonCfg?.appId || readFirstEnv(['FIREBASE_APP_ID', 'FIREBASE_APPID', 'VITE_FIREBASE_APP_ID', 'NEXT_PUBLIC_FIREBASE_APP_ID']),
-    };
-
-    const missing = Object.entries(firebase)
-      .filter(([_, v]) => !String(v || '').trim())
-      .map(([k]) => k);
-
-    if (missing.length) {
-      res.status(500).json({
-        error: `Firebase runtime config not configured (missing: ${missing.join(', ')})`,
-        hint: 'If running locally: ensure a .env file exists in the same folder as server.js and restart `npm start`. If on Vercel: set env vars in Project Settings (Production/Preview/Development).',
-      });
-      return;
-    }
-
-    res.setHeader('Cache-Control', 'no-store');
-    res.json({ firebase });
-  } catch (error) {
-    console.error('Runtime config error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
 // Gemini API proxy endpoint
 app.post('/api/gemini', async (req, res) => {
   try {

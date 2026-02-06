@@ -21,7 +21,7 @@ You should see:
 🚀 Server running on http://192.168.0.200:3000
 📡 API endpoints available at http://192.168.0.200:3000/api/
 🌐 Network access enabled - users can connect from other computers
-✅ GEMINI_API_KEY loaded
+✅ GEMINI_API_KEY loaded: AIzaSyCls...kfZg
 ```
 
 ### **Step 2: Open in Browser**

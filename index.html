@@ -114,7 +114,6 @@
         <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/action/google.svg" alt="" style="height:20px;">
         Sign in with Google
     </button>
-    <div id="loginStatus" style="margin-top:14px;width:100%;font-size:12px;line-height:1.35;color:rgba(255,255,255,0.75);text-align:left;word-break:break-word;"></div>
 </div>
 
 <script>
@@ -197,37 +196,6 @@
     draw();
 </script>
 
-<script src="ui-popups.js"></script>
-<script src="runtime-config.js"></script>
 <script type="module" src="auth.js"></script>
-
-<script>
-    (function () {
-        const el = document.getElementById('loginStatus');
-        if (!el) return;
-
-        const host = location.host;
-        el.textContent = `Checking backend config… (host: ${host})`;
-
-        fetch('/api/runtime-config', { cache: 'no-store' })
-            .then(async (res) => {
-                const text = await res.text();
-                if (!res.ok) {
-                    el.textContent = `runtime-config ERROR (${res.status}): ${text}`;
-                    return;
-                }
-                try {
-                    const json = JSON.parse(text);
-                    const pid = json?.firebase?.projectId || '(missing projectId)';
-                    el.textContent = `runtime-config OK (projectId: ${pid}). If login still fails, check Firebase Authorized Domains for: ${host}`;
-                } catch (_) {
-                    el.textContent = `runtime-config OK but returned non-JSON: ${text}`;
-                }
-            })
-            .catch((err) => {
-                el.textContent = `runtime-config fetch failed: ${String(err && err.message ? err.message : err)}`;
-            });
-    })();
-</script>
 </body>
 </html>
