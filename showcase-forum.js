@@ -776,6 +776,24 @@ async function launchProject() {
 }
 
 function wireEvents() {
+  // Resilience: if the dashboard HTML is stale, inject the Delete button next to Browse.
+  if (!els.deleteBtn && els.browseBtn && els.browseBtn.parentElement) {
+    try {
+      const btn = document.createElement("button");
+      btn.className = "ghost";
+      btn.type = "button";
+      btn.id = "scDeleteProjectBtn";
+      btn.textContent = "Delete Project";
+      btn.style.borderColor = "rgba(248,81,73,0.55)";
+      btn.style.color = "#ff8a85";
+
+      els.browseBtn.insertAdjacentElement("afterend", btn);
+      els.deleteBtn = btn;
+    } catch (e) {
+      console.warn("Failed to inject scDeleteProjectBtn", e);
+    }
+  }
+
   els.browseBtn.addEventListener("click", () => {
     showMode("home");
     renderHome();

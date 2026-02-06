@@ -134,6 +134,18 @@ function getLocalProjects() {
   return Array.isArray(arr) ? arr.map(normalizeProject) : [];
 }
 
+function mergeProjects(remoteProjects, localProjects) {
+  const remote = Array.isArray(remoteProjects) ? remoteProjects.map(normalizeProject) : [];
+  const local = Array.isArray(localProjects) ? localProjects.map(normalizeProject) : [];
+
+  // Remote wins on conflicts
+  const byId = new Map();
+  for (const p of local) byId.set(p.id, p);
+  for (const p of remote) byId.set(p.id, p);
+
+  return Array.from(byId.values());
+}
+
 function setLocalProjects(projects) {
   try {
     localStorage.setItem(PROJECTS_LS_KEY, JSON.stringify(projects.map(normalizeProject)));
@@ -160,11 +172,12 @@ export async function getShowcaseProjects() {
   try {
     const col = collection(db, "showcaseProjects");
     const snap = await getDocs(col);
-    const projects = snap.docs.map((d) => normalizeProject({ id: d.id, ...(d.data() || {}) }));
+    const remote = snap.docs.map((d) => normalizeProject({ id: d.id, ...(d.data() || {}) }));
 
-    // Keep local in sync (and normalize legacy)
-    setLocalProjects(projects);
-    return projects;
+    // Merge with local cache so locally-created/offline projects don't vanish
+    const merged = mergeProjects(remote, getLocalProjects());
+    setLocalProjects(merged);
+    return merged;
   } catch (error) {
     console.error("getShowcaseProjects failed; using localStorage", error);
     return getLocalProjects();
@@ -325,9 +338,10 @@ export function listenToShowcaseProjects(callback) {
     const unsub = onSnapshot(
       col,
       (snap) => {
-        const projects = snap.docs.map((d) => normalizeProject({ id: d.id, ...(d.data() || {}) }));
-        setLocalProjects(projects);
-        if (typeof callback === "function") callback(projects);
+        const remote = snap.docs.map((d) => normalizeProject({ id: d.id, ...(d.data() || {}) }));
+        const merged = mergeProjects(remote, getLocalProjects());
+        setLocalProjects(merged);
+        if (typeof callback === "function") callback(merged);
       },
       (error) => {
         console.warn("listenToShowcaseProjects snapshot error", error);
