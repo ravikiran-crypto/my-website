@@ -111,7 +111,7 @@
 
 <div class="login-portal">
     <img src="oo new semi arch white blue (4).png" alt="OneOrigin Logo" class="logo">
-    <button class="btn-google" id="googleLoginBtn">
+    <button class="btn-google" id="loginBtn">
         <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/action/google.svg" alt="" style="height:20px;">
         Sign in with Google
     </button>
@@ -199,92 +199,6 @@
 
 <script src="runtime-config.js"></script>
 
-<script type="module">
-    import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getAuth, signInWithPopup, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-
-    const firebaseConfig = await (typeof globalThis.__getFirebaseConfig === 'function'
-        ? globalThis.__getFirebaseConfig()
-        : (globalThis.__FIREBASE_CONFIG_READY__
-            ? globalThis.__FIREBASE_CONFIG_READY__.then(() => globalThis.__FIREBASE_CONFIG__)
-            : globalThis.__FIREBASE_CONFIG__));
-
-    if (!firebaseConfig || typeof firebaseConfig !== 'object') {
-        throw new Error('Firebase config not loaded. Ensure runtime-config.js is available and FIREBASE_* env vars are set on the backend.');
-    }
-
-    const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const provider = new GoogleAuthProvider();
-
-    document.getElementById('googleLoginBtn').onclick = () => {
-        signInWithPopup(auth, provider)
-            .then((result) => {
-                const user = result.user;
-                
-                // Check if email is from @oneorigin.us domain
-                if (!user.email || !user.email.endsWith('@oneorigin.us')) {
-                    if (window.appUI && typeof window.appUI.alert === 'function') {
-                        window.appUI.alert({
-                            title: 'Access denied',
-                            message: 'Please sign in using your @oneorigin.us email.',
-                            type: 'error'
-                        });
-                    }
-                    auth.signOut();
-                    return;
-                }
-                
-                // Store user info in localStorage
-                localStorage.setItem('userEmail', user.email);
-                localStorage.setItem('userName', user.displayName || '');
-                
-                // Auto-register user in Role Management (one-time)
-                const SUPERADMIN_EMAIL = 'ravikiran@oneorigin.us';
-                const users = JSON.parse(localStorage.getItem('users') || '[]');
-                
-                // Check if user already exists
-                const existingUserIndex = users.findIndex(u => u.email && u.email.toLowerCase() === user.email.toLowerCase());
-                
-                if (existingUserIndex === -1) {
-                    // New user - add to users list (except superadmin)
-                    if (user.email.toLowerCase() !== SUPERADMIN_EMAIL.toLowerCase()) {
-                        const newUser = {
-                            employeeId: 'EMP-' + Date.now(),
-                            name: user.displayName || user.email.split('@')[0],
-                            email: user.email,
-                            role: 'User',
-                            lastActive: new Date().toLocaleString()
-                        };
-                        users.push(newUser);
-                        localStorage.setItem('users', JSON.stringify(users));
-                        localStorage.setItem('userRole', 'User');
-                        console.log('New user registered:', user.email, 'with ID:', newUser.employeeId);
-                    } else {
-                        localStorage.setItem('userRole', 'Admin');
-                        console.log('Superadmin login - not added to user list');
-                    }
-                } else {
-                    // Existing user - update last active time and sync role
-                    users[existingUserIndex].lastActive = new Date().toLocaleString();
-                    localStorage.setItem('users', JSON.stringify(users));
-                    localStorage.setItem('userRole', users[existingUserIndex].role || 'User');
-                    console.log('User login - last active updated:', user.email);
-                }
-                
-                window.location.href = "dashboard.html";
-            })
-            .catch((error) => { 
-                console.error("Login failed:", error);
-                if (window.appUI && typeof window.appUI.alert === 'function') {
-                    window.appUI.alert({
-                        title: 'Login failed',
-                        message: String(error && error.message ? error.message : 'Unknown error'),
-                        type: 'error'
-                    });
-                }
-            });
-    };
-</script>
+<script type="module" src="auth.js"></script>
 </body>
 </html>
