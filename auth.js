@@ -10,6 +10,16 @@ import {
 import { getFirestore, doc, getDoc, setDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-firestore.js";
 
 function showMessage({ title, message, type = 'error' }) {
+    try {
+        const inline = globalThis.document?.getElementById?.('loginStatus');
+        if (inline) {
+            const prefix = type ? String(type).toUpperCase() : 'INFO';
+            inline.textContent = `${prefix}: ${title} — ${message}`;
+        }
+    } catch (_) {
+        // ignore
+    }
+
     if (globalThis.window?.appUI && typeof globalThis.window.appUI.alert === 'function') {
         globalThis.window.appUI.alert({ title, message, type });
         return;
