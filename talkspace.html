@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>TalkSpace | OneOrigin Hub</title>
 
+  <!-- Runtime config loader (loads Firebase config from /api/runtime-config) -->
+  <script src="runtime-config.js"></script>
+
   <!-- Firebase (modular) -->
   <script type="module">
     import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
@@ -33,14 +36,15 @@
       getDownloadURL
     } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyDnfIJQxO6mi2_NEGqXRGH5EAxeaNcb7qc",
-      authDomain: "oneorigin-learning-hub.firebaseapp.com",
-      projectId: "oneorigin-learning-hub",
-      storageBucket: "oneorigin-learning-hub.firebasestorage.app",
-      messagingSenderId: "4168147692",
-      appId: "1:4168147692:web:43a1205a0af9770f633bc9"
-    };
+    const firebaseConfig = await (typeof globalThis.__getFirebaseConfig === 'function'
+      ? globalThis.__getFirebaseConfig()
+      : (globalThis.__FIREBASE_CONFIG_READY__
+          ? globalThis.__FIREBASE_CONFIG_READY__.then(() => globalThis.__FIREBASE_CONFIG__)
+          : globalThis.__FIREBASE_CONFIG__));
+
+    if (!firebaseConfig || typeof firebaseConfig !== 'object') {
+      throw new Error('Firebase config not loaded. Ensure runtime-config.js is available and FIREBASE_* env vars are set on the backend.');
+    }
 
     const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
     const db = getFirestore(app);

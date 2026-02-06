@@ -18,9 +18,17 @@ Go to your Vercel project: https://vercel.com/dashboard
 2. Go to **Settings** → **Environment Variables**
 3. Add new variable:
    - **Name:** `GEMINI_API_KEY`
-   - **Value:** `AIzaSyClsTLBK_RUeozfWtrAGgkOBObO4bYkfZg`
+   - **Value:** `your_gemini_api_key_here`
    - **Environment:** Check all (Production, Preview, Development)
 4. Click **Save**
+
+Add these Firebase variables too (used by `/api/runtime-config`):
+- `FIREBASE_API_KEY`
+- `FIREBASE_AUTH_DOMAIN`
+- `FIREBASE_PROJECT_ID`
+- `FIREBASE_STORAGE_BUCKET`
+- `FIREBASE_MESSAGING_SENDER_ID`
+- `FIREBASE_APP_ID`
 
 ### **2. Redeploy Your Project**
 

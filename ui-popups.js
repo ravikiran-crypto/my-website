@@ -260,6 +260,116 @@
     return String(result.value || '');
   }
 
+  async function uiSelect(opts) {
+    ensureStyle();
+    const overlay = ensureDialogOverlay();
+    const dialog = overlay.querySelector('.app-ui-dialog');
+    const titleEl = overlay.querySelector('#app-ui-dialog-title');
+    const bodyEl = overlay.querySelector('#app-ui-dialog-body');
+    const footerEl = overlay.querySelector('#app-ui-dialog-footer');
+
+    const title = opts?.title || 'Select';
+    const message = opts?.message || '';
+    const okText = opts?.okText || 'OK';
+    const cancelText = opts?.cancelText || 'Cancel';
+    const type = opts?.type || 'info';
+    const options = Array.isArray(opts?.options) ? opts.options : [];
+    const initialValue = opts?.value ?? '';
+
+    if (dialog) {
+      dialog.style.borderLeft = `5px solid ${typeBorder(type)}`;
+    }
+
+    titleEl.textContent = String(title);
+    bodyEl.textContent = String(message);
+    footerEl.innerHTML = '';
+
+    const selectEl = document.createElement('select');
+    selectEl.className = 'app-ui-dialog-input';
+
+    // Placeholder option
+    const placeholderText = String(opts?.placeholder || 'Choose an option');
+    const ph = document.createElement('option');
+    ph.value = '';
+    ph.textContent = placeholderText;
+    selectEl.appendChild(ph);
+
+    for (const opt of options) {
+      const value = typeof opt === 'string' ? opt : String(opt?.value ?? '');
+      const label = typeof opt === 'string' ? opt : String(opt?.label ?? opt?.value ?? '');
+      if (!value) continue;
+      const o = document.createElement('option');
+      o.value = value;
+      o.textContent = label;
+      selectEl.appendChild(o);
+    }
+
+    if (initialValue) selectEl.value = String(initialValue);
+    bodyEl.appendChild(selectEl);
+
+    overlay.style.display = 'flex';
+
+    return await new Promise((resolve) => {
+      let cleanup = () => {
+        overlay.style.display = 'none';
+        footerEl.innerHTML = '';
+        bodyEl.textContent = '';
+      };
+
+      const cancelBtn = cancelText
+        ? (() => {
+            const b = document.createElement('button');
+            b.className = 'app-ui-btn';
+            b.textContent = String(cancelText);
+            b.addEventListener('click', () => {
+              cleanup();
+              resolve(null);
+            });
+            return b;
+          })()
+        : null;
+
+      const okBtn = (() => {
+        const b = document.createElement('button');
+        const isDanger = String(type || '').toLowerCase() === 'error';
+        b.className = `app-ui-btn ${isDanger ? 'app-ui-btn-danger' : 'app-ui-btn-primary'}`;
+        b.textContent = String(okText);
+        b.addEventListener('click', () => {
+          const val = String(selectEl.value || '').trim();
+          cleanup();
+          resolve(val || null);
+        });
+        return b;
+      })();
+
+      if (cancelBtn) footerEl.appendChild(cancelBtn);
+      footerEl.appendChild(okBtn);
+
+      setTimeout(() => {
+        selectEl.focus();
+      }, 0);
+
+      const onKeyDown = (e) => {
+        if (overlay.style.display !== 'flex') return;
+        if (e.key === 'Escape' && cancelBtn) {
+          e.preventDefault();
+          cancelBtn.click();
+        }
+        if (e.key === 'Enter' && document.activeElement === selectEl) {
+          e.preventDefault();
+          okBtn.click();
+        }
+      };
+
+      document.addEventListener('keydown', onKeyDown);
+      const originalCleanup = cleanup;
+      cleanup = () => {
+        document.removeEventListener('keydown', onKeyDown);
+        originalCleanup();
+      };
+    });
+  }
+
   function ensureReady(fn) {
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', fn, { once: true });
@@ -280,6 +390,7 @@
   window.appUI.alert = uiAlert;
   window.appUI.confirm = uiConfirm;
   window.appUI.prompt = uiPrompt;
+  window.appUI.select = uiSelect;
 
   // Prevent native browser alert popups (e.g., "<domain> says").
   // Keep confirm/prompt native because they are synchronous and used for control flow.

@@ -1,5 +1,19 @@
 # URGENT: Fix Firestore Security Rules
 
+## Update (Showcase Forum Delete Permissions)
+
+If you want **Admins to delete any project** and **Users to delete only their own projects**, do **NOT** use the open "allow read, write: if true" rules below.
+
+This repo now includes a proper rules file: `firestore.rules`.
+
+Deploy it with:
+
+```powershell
+firebase deploy --only firestore:rules
+```
+
+---
+
 ## The Problem
 Users cannot see courses because Firestore is blocking unauthenticated read/write requests.
 

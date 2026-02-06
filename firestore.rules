@@ -1,0 +1,114 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null && request.auth.token.email != null;
+    }
+
+    function emailLower() {
+      return request.auth.token.email.lower();
+    }
+
+    function userDocRawExists() {
+      return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.token.email));
+    }
+
+    function userDocLowerExists() {
+      return signedIn() && exists(/databases/$(database)/documents/users/$(emailLower()));
+    }
+
+    function isAdmin() {
+      return signedIn() && (
+        (userDocRawExists() && get(/databases/$(database)/documents/users/$(request.auth.token.email)).data.role == 'Admin') ||
+        (userDocLowerExists() && get(/databases/$(database)/documents/users/$(emailLower())).data.role == 'Admin')
+      );
+    }
+
+    function isProjectOwnerByData(project) {
+      return signedIn()
+        && (project.makerEmail is string)
+        && project.makerEmail.lower() == emailLower();
+    }
+
+    function isProjectOwnerById(projectId) {
+      return signedIn()
+        && (projectId is string)
+        && exists(/databases/$(database)/documents/showcaseProjects/$(projectId))
+        && get(/databases/$(database)/documents/showcaseProjects/$(projectId)).data.makerEmail.lower() == emailLower();
+    }
+
+    // Keep the rest of the app working (signed-in users only).
+    match /users/{docId} {
+      allow read, write: if signedIn();
+    }
+
+    match /courses/{docId} {
+      allow read, write: if signedIn();
+    }
+
+    match /userCourses/{docId} {
+      allow read, write: if signedIn();
+    }
+
+    match /announcements/{docId} {
+      allow read, write: if signedIn();
+    }
+
+    match /leaderboard/{docId} {
+      allow read, write: if signedIn();
+    }
+
+    // ===== Showcase Forum =====
+    match /showcaseProjects/{projectId} {
+      allow read: if signedIn();
+
+      // Users can only create projects for themselves.
+      allow create: if signedIn()
+        && (request.resource.data.makerEmail is string)
+        && request.resource.data.makerEmail.lower() == emailLower();
+
+      // Owner/admin can edit; anyone signed-in can update counters.
+      allow update: if signedIn() && (
+        isAdmin() ||
+        isProjectOwnerByData(resource.data) ||
+        request.resource.data.diff(resource.data).changedKeys().hasOnly(['upvotes', 'commentsCount', 'suggestionsCount'])
+      );
+
+      // Owner/admin can delete.
+      allow delete: if signedIn() && (isAdmin() || isProjectOwnerByData(resource.data));
+    }
+
+    match /showcaseComments/{commentId} {
+      allow read: if signedIn();
+
+      // Comment author must match signed-in email.
+      allow create: if signedIn()
+        && (request.resource.data.authorEmail is string)
+        && request.resource.data.authorEmail.lower() == emailLower();
+
+      allow update: if false;
+
+      // Allow project owner/admin to delete comments (needed for cascade delete).
+      allow delete: if signedIn() && (
+        isAdmin() ||
+        (resource.data.projectId is string && isProjectOwnerById(resource.data.projectId))
+      );
+    }
+
+    match /showcaseSuggestions/{suggestionId} {
+      allow read: if signedIn();
+
+      allow create: if signedIn()
+        && (request.resource.data.fromEmail is string)
+        && request.resource.data.fromEmail.lower() == emailLower();
+
+      allow update: if false;
+
+      // Allow project owner/admin to delete suggestions (needed for cascade delete).
+      allow delete: if signedIn() && (
+        isAdmin() ||
+        (resource.data.projectId is string && isProjectOwnerById(resource.data.projectId))
+      );
+    }
+  }
+}

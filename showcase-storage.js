@@ -7,6 +7,8 @@ import {
   setDoc,
   getDocs,
   updateDoc,
+  deleteDoc,
+  writeBatch,
   query,
   where,
   onSnapshot,
@@ -17,16 +19,18 @@ import {
   ref as storageRef,
   uploadBytesResumable,
   getDownloadURL,
+  deleteObject,
 } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-storage.js";
 
-const firebaseConfig = {
-  apiKey: "AIzaSyDnfIJQxO6mi2_NEGqXRGH5EAxeaNcb7qc",
-  authDomain: "oneorigin-learning-hub.firebaseapp.com",
-  projectId: "oneorigin-learning-hub",
-  storageBucket: "oneorigin-learning-hub.firebasestorage.app",
-  messagingSenderId: "4168147692",
-  appId: "1:4168147692:web:43a1205a0af9770f633bc9",
-};
+const firebaseConfig = await (typeof globalThis.__getFirebaseConfig === 'function'
+  ? globalThis.__getFirebaseConfig()
+  : (globalThis.__FIREBASE_CONFIG_READY__
+      ? globalThis.__FIREBASE_CONFIG_READY__.then(() => globalThis.__FIREBASE_CONFIG__)
+      : globalThis.__FIREBASE_CONFIG__));
+
+if (!firebaseConfig || typeof firebaseConfig !== 'object') {
+  throw new Error('Firebase config not loaded. Ensure runtime-config.js is included before showcase-storage.js and FIREBASE_* env vars are set on the backend.');
+}
 
 const PROJECTS_LS_KEY = "showcaseProjects";
 const COMMENTS_LS_KEY = "showcaseComments";
@@ -209,6 +213,74 @@ export async function updateShowcaseProject(projectId, patch) {
   return updated;
 }
 
+async function deleteAllByProjectId(collectionName, projectId) {
+  const pid = String(projectId || "").trim();
+  if (!pid) return 0;
+
+  const q = query(collection(db, collectionName), where("projectId", "==", pid));
+  const snap = await getDocs(q);
+  if (snap.empty) return 0;
+
+  let deleted = 0;
+  let batch = writeBatch(db);
+  let ops = 0;
+
+  for (const d of snap.docs) {
+    batch.delete(d.ref);
+    deleted += 1;
+    ops += 1;
+    // Firestore batch hard limit is 500 ops; keep a buffer
+    if (ops >= 450) {
+      await batch.commit();
+      batch = writeBatch(db);
+      ops = 0;
+    }
+  }
+
+  if (ops > 0) await batch.commit();
+  return deleted;
+}
+
+export async function deleteShowcaseProject(projectId) {
+  const pid = String(projectId || "").trim();
+  if (!pid) throw new Error("Missing projectId");
+
+  // Local-first (instant UI)
+  const localProjects = getLocalProjects();
+  const existing = localProjects.find((p) => p.id === pid) || null;
+  setLocalProjects(localProjects.filter((p) => p.id !== pid));
+  setLocalComments(getLocalComments().filter((c) => c.projectId !== pid));
+
+  // Firestore (best-effort; keep local changes even if remote fails)
+  try {
+    await deleteAllByProjectId("showcaseComments", pid);
+  } catch (e) {
+    console.warn("deleteShowcaseProject: failed deleting comments", e);
+  }
+
+  try {
+    await deleteAllByProjectId("showcaseSuggestions", pid);
+  } catch (e) {
+    console.warn("deleteShowcaseProject: failed deleting suggestions", e);
+  }
+
+  try {
+    await deleteDoc(doc(db, "showcaseProjects", pid));
+  } catch (e) {
+    console.warn("deleteShowcaseProject: failed deleting project doc", e);
+  }
+
+  // Storage (optional)
+  const storagePath = String(existing?.demoVideoStoragePath || "").trim();
+  if (storagePath) {
+    try {
+      await deleteObject(storageRef(storage, storagePath));
+    } catch (e) {
+      console.warn("deleteShowcaseProject: failed deleting demo video object", e);
+    }
+  }
+}
+
 export async function getShowcaseCommentsByProject(projectId) {
   const pid = String(projectId || "").trim();
   if (!pid) return [];
@@ -378,3 +450,4 @@ window.listenToShowcaseComments = listenToShowcaseComments;
 window.uploadShowcaseDemoVideo = uploadShowcaseDemoVideo;
 window.addShowcaseSuggestion = addShowcaseSuggestion;
 window.listenToShowcaseSuggestionsForUser = listenToShowcaseSuggestionsForUser;
+window.deleteShowcaseProject = deleteShowcaseProject;

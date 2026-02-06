@@ -1,17 +1,18 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js";
+import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js";
 import { getAuth, signInWithPopup, GoogleAuthProvider, signOut } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-firestore.js";
 
-const firebaseConfig = {
-  apiKey: "AIzaSyDnfIJQxO6mi2_NEGqXRGH5EAxeaNcb7qc",
-  authDomain: "oneorigin-learning-hub.firebaseapp.com",
-  projectId: "oneorigin-learning-hub",
-  storageBucket: "oneorigin-learning-hub.firebasestorage.app",
-  messagingSenderId: "4168147692",
-  appId: "1:4168147692:web:43a1205a0af9770f633bc9"
-};
+const firebaseConfig = await (typeof globalThis.__getFirebaseConfig === 'function'
+    ? globalThis.__getFirebaseConfig()
+    : (globalThis.__FIREBASE_CONFIG_READY__
+            ? globalThis.__FIREBASE_CONFIG_READY__.then(() => globalThis.__FIREBASE_CONFIG__)
+            : globalThis.__FIREBASE_CONFIG__));
 
-const app = initializeApp(firebaseConfig);
+if (!firebaseConfig || typeof firebaseConfig !== 'object') {
+    throw new Error('Firebase config not loaded. Ensure runtime-config.js is included before auth.js and FIREBASE_* env vars are set on the backend.');
+}
+
+const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const provider = new GoogleAuthProvider();
 const db = getFirestore(app);
