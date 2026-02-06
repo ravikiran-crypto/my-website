@@ -1782,6 +1782,22 @@ import {
     upsertLeaderboardEntry, getLeaderboardEntries
 } from './firestore-db.js';
 
+// Ensure Firebase Auth session is ready (prevents empty data when request.auth is missing)
+import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-auth.js";
+try {
+    const auth = getAuth();
+    window.__FIREBASE_AUTH_READY__ = new Promise((resolve) => {
+        onAuthStateChanged(
+            auth,
+            (user) => resolve(user || null),
+            () => resolve(null),
+        );
+    });
+} catch (e) {
+    console.warn('Firebase Auth readiness hook failed', e);
+    window.__FIREBASE_AUTH_READY__ = Promise.resolve(null);
+}
+
 // Make functions globally available
 window.firestoreDB = {
     saveUser, getAllUsers, getUserByEmail, updateUserRole, deleteUser,
@@ -2300,6 +2316,33 @@ window.onload = async () => {
     if (!userEmail) {
         window.location.href = 'index.html';
         return;
+    }
+
+    // IMPORTANT: Verify Firebase Auth session exists.
+    // On Vercel (especially Preview URLs) localStorage may persist while Auth cookies do not.
+    // Without request.auth, Firestore reads will fail and the UI can look like "everything was deleted".
+    try {
+        const authUser = await (window.__FIREBASE_AUTH_READY__ || Promise.resolve(null));
+        const authEmail = (authUser && authUser.email) ? String(authUser.email) : '';
+        if (!authEmail) {
+            // Clear only session identifiers and force re-login.
+            localStorage.removeItem('userEmail');
+            localStorage.removeItem('userName');
+            localStorage.removeItem('userRole');
+            alert('Your login session expired. Please sign in again.');
+            window.location.href = 'index.html';
+            return;
+        }
+
+        // Keep localStorage in sync with the authenticated identity.
+        if (authEmail && String(userEmail).toLowerCase() !== authEmail.toLowerCase()) {
+            localStorage.setItem('userEmail', authEmail);
+            if (authUser && authUser.displayName) {
+                localStorage.setItem('userName', String(authUser.displayName));
+            }
+        }
+    } catch (e) {
+        console.warn('Auth check failed; continuing with localStorage session', e);
     }
     
     // Cloud-backed auto-registration + role sync + reset flag (fallback to local only if cloud not available)
