@@ -631,6 +631,45 @@ body.light-theme .user-badge {
         .sidebar-text { margin-left: 15px; opacity: 0; transition: opacity 0.3s ease-in-out; }
         .sidebar.expanded .sidebar-text { opacity: 1; }
 
+        /* Sidebar tooltip when collapsed */
+        .sidebar:not(.expanded) .sidebar-item[data-tooltip]::after,
+        .sidebar:not(.expanded) .sidebar-item[data-tooltip]::before {
+            opacity: 0;
+            transform: translateY(-50%) translateX(-4px);
+            transition: opacity 0.12s ease, transform 0.12s ease;
+            pointer-events: none;
+        }
+        .sidebar:not(.expanded) .sidebar-item[data-tooltip]:hover::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            left: calc(100% + 10px);
+            top: 50%;
+            transform: translateY(-50%) translateX(0);
+            opacity: 1;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 8px 10px;
+            border-radius: 10px;
+            white-space: nowrap;
+            z-index: 3000;
+            box-shadow: 0 14px 30px rgba(0,0,0,0.35);
+        }
+        .sidebar:not(.expanded) .sidebar-item[data-tooltip]:hover::before {
+            content: '';
+            position: absolute;
+            left: calc(100% + 4px);
+            top: 50%;
+            transform: translateY(-50%);
+            opacity: 1;
+            width: 0;
+            height: 0;
+            border-top: 7px solid transparent;
+            border-bottom: 7px solid transparent;
+            border-right: 7px solid var(--border-color);
+            z-index: 2999;
+        }
+
         .sidebar-badge {
             display: inline-flex;
             align-items: center;
@@ -2182,6 +2221,19 @@ function switchTab(viewId, element) {
     });
     // Show the selected section
     document.getElementById(viewId).style.display = 'block';
+
+    // Persist current view so refresh stays on the same page.
+    try {
+        localStorage.setItem('oo_active_view', viewId);
+    } catch (_) {}
+    try {
+        if (history && typeof history.replaceState === 'function') {
+            history.replaceState(null, '', `#${viewId}`);
+        } else {
+            window.location.hash = viewId;
+        }
+    } catch (_) {}
+
     // Update active sidebar item
     document.querySelectorAll('.sidebar-item').forEach(item => {
         item.classList.remove('active');
@@ -2211,9 +2263,28 @@ function switchTab(viewId, element) {
 window.addEventListener('load', () => {
     try {
         const hash = (window.location.hash || '').replace(/^#/, '').trim();
-        if (hash) switchTab(hash, null);
+        const saved = (() => {
+            try { return (localStorage.getItem('oo_active_view') || '').trim(); } catch (_) { return ''; }
+        })();
+        const target = hash || saved;
+        if (target && document.getElementById(target)) {
+            switchTab(target, null);
+        }
     } catch (_) {}
 });
+
+// Populate sidebar tooltips automatically from the visible label
+(function initSidebarTooltips() {
+    try {
+        document.querySelectorAll('.sidebar-item').forEach((item) => {
+            const label = item.querySelector('.sidebar-text');
+            const text = (label && label.textContent ? label.textContent : '').trim();
+            if (text) {
+                item.setAttribute('data-tooltip', text);
+            }
+        });
+    } catch (_) {}
+})();
 
 // Listen for unread count updates from embedded TalkSpace
 (function initTalkspaceUnreadBadge() {
@@ -4631,17 +4702,20 @@ async function syncCurrentUserRole() {
 }
 
 function forceRefreshNews() {
-    if (confirm('This will refresh the AI news for all users. Continue?')) {
-        // Best-effort cleanup of old cached keys (news is now always fetched fresh)
-        localStorage.removeItem('aiNews');
-        localStorage.removeItem('aiNewsTimestamp');
-        localStorage.removeItem('aiUpdates');
-        localStorage.removeItem('aiUpdatesTimestamp');
-        // Fetch fresh news (no cache)
-        fetchAINews();
-        fetchAIUpdates();
-        alert('News refreshed successfully! All users will see the updated news.');
-    }
+    // No blocking popups on refresh; just refresh immediately.
+    // Best-effort cleanup of old cached keys (news is now always fetched fresh)
+    localStorage.removeItem('aiNews');
+    localStorage.removeItem('aiNewsTimestamp');
+    localStorage.removeItem('aiUpdates');
+    localStorage.removeItem('aiUpdatesTimestamp');
+    // Fetch fresh news (no cache)
+    fetchAINews();
+    fetchAIUpdates();
+    try {
+        if (window.appUI && typeof window.appUI.toast === 'function') {
+            window.appUI.toast({ title: 'Refreshing', message: 'AI news is refreshing…', type: 'info' });
+        }
+    } catch (_) {}
 }
 
 function logout() {
