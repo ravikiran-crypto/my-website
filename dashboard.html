@@ -2259,32 +2259,49 @@ function switchTab(viewId, element) {
     }
 }
 
-// Allow deep-linking to a view via URL hash (e.g., dashboard.html#courses-view)
-window.addEventListener('load', () => {
-    try {
-        const hash = (window.location.hash || '').replace(/^#/, '').trim();
-        const saved = (() => {
-            try { return (localStorage.getItem('oo_active_view') || '').trim(); } catch (_) { return ''; }
-        })();
-        const target = hash || saved;
-        if (target && document.getElementById(target)) {
-            switchTab(target, null);
-        }
-    } catch (_) {}
-});
-
-// Populate sidebar tooltips automatically from the visible label
-(function initSidebarTooltips() {
+function initSidebarTooltips() {
     try {
         document.querySelectorAll('.sidebar-item').forEach((item) => {
             const label = item.querySelector('.sidebar-text');
             const text = (label && label.textContent ? label.textContent : '').trim();
-            if (text) {
-                item.setAttribute('data-tooltip', text);
-            }
+            if (!text) return;
+            item.setAttribute('data-tooltip', text);
+            // Fallback: native tooltip if CSS pseudo-tooltip is blocked by layout.
+            if (!item.getAttribute('title')) item.setAttribute('title', text);
         });
     } catch (_) {}
-})();
+}
+
+function getPreferredInitialViewId() {
+    try {
+        const hash = (window.location.hash || '').replace(/^#/, '').trim();
+        if (hash) return hash;
+    } catch (_) {}
+
+    try {
+        return (localStorage.getItem('oo_active_view') || '').trim();
+    } catch (_) {
+        return '';
+    }
+}
+
+function isAdminOnlyView(viewId) {
+    return viewId === 'course-mgmt-view' || viewId === 'role-mgmt-view';
+}
+
+function restorePreferredInitialView() {
+    const target = getPreferredInitialViewId();
+    if (!target) return false;
+    if (!document.getElementById(target)) return false;
+
+    try {
+        const role = (localStorage.getItem('userRole') || '').toLowerCase();
+        if (isAdminOnlyView(target) && role !== 'admin') return false;
+    } catch (_) {}
+
+    switchTab(target, null);
+    return true;
+}
 
 // Listen for unread count updates from embedded TalkSpace
 (function initTalkspaceUnreadBadge() {
@@ -2501,9 +2518,11 @@ window.onload = async () => {
     Promise.resolve(loadUsers()).catch(() => {});
     Promise.resolve(loadRoles()).catch(() => {});
 
-    // Show Home view
-    const homeView = document.getElementById('home-view');
-    if (homeView) homeView.style.display = 'block';
+    // Initialize collapsed-sidebar hover labels and restore the last active view.
+    initSidebarTooltips();
+    if (!restorePreferredInitialView()) {
+        switchTab('home-view', null);
+    }
 };
 
 // Backup data to sessionStorage and restore if localStorage is cleared
