@@ -2227,8 +2227,9 @@ function switchTab(viewId, element) {
         localStorage.setItem('oo_active_view', viewId);
     } catch (_) {}
     try {
+        const base = `${window.location.pathname || ''}${window.location.search || ''}`;
         if (history && typeof history.replaceState === 'function') {
-            history.replaceState(null, '', `#${viewId}`);
+            history.replaceState(null, '', `${base}#${viewId}`);
         } else {
             window.location.hash = viewId;
         }
@@ -2272,6 +2273,81 @@ function initSidebarTooltips() {
     } catch (_) {}
 }
 
+function enableSidebarHoverOverlayTooltips() {
+    try {
+        const sidebar = document.getElementById('sidebar');
+        if (!sidebar) return;
+
+        let tip = document.getElementById('ooSidebarTooltip');
+        if (!tip) {
+            tip = document.createElement('div');
+            tip.id = 'ooSidebarTooltip';
+            tip.style.cssText = [
+                'position:fixed',
+                'left:-9999px',
+                'top:-9999px',
+                'opacity:0',
+                'pointer-events:none',
+                'z-index:999999',
+                'background:var(--card-bg)',
+                'border:1px solid var(--border-color)',
+                'color:var(--text-main)',
+                'padding:8px 10px',
+                'border-radius:10px',
+                'white-space:nowrap',
+                'box-shadow:0 14px 30px rgba(0,0,0,0.35)',
+                'transition:opacity 0.12s ease'
+            ].join(';');
+            document.body.appendChild(tip);
+        }
+
+        const hide = () => {
+            tip.style.opacity = '0';
+            tip.style.left = '-9999px';
+            tip.style.top = '-9999px';
+        };
+
+        const showFor = (item) => {
+            if (!item) return;
+            if (sidebar.classList.contains('expanded')) return hide();
+
+            const text = String(item.getAttribute('data-tooltip') || item.getAttribute('title') || '').trim();
+            if (!text) return hide();
+
+            tip.textContent = text;
+
+            const rect = item.getBoundingClientRect();
+            const x = rect.right + 10;
+            let y = rect.top + rect.height / 2;
+
+            // Keep on-screen vertically.
+            const margin = 10;
+            const tipRect = tip.getBoundingClientRect();
+            const halfH = (tipRect.height || 36) / 2;
+            y = Math.max(margin + halfH, Math.min(window.innerHeight - margin - halfH, y));
+
+            tip.style.left = `${Math.round(x)}px`;
+            tip.style.top = `${Math.round(y)}px`;
+            tip.style.transform = 'translateY(-50%)';
+            tip.style.opacity = '1';
+        };
+
+        sidebar.addEventListener('mouseenter', (e) => {
+            const item = e.target && e.target.closest ? e.target.closest('.sidebar-item') : null;
+            if (item) showFor(item);
+        }, true);
+
+        sidebar.addEventListener('mousemove', (e) => {
+            const item = e.target && e.target.closest ? e.target.closest('.sidebar-item') : null;
+            if (item) showFor(item);
+        }, true);
+
+        sidebar.addEventListener('mouseleave', () => hide(), true);
+        window.addEventListener('scroll', () => hide(), true);
+        window.addEventListener('resize', () => hide(), true);
+    } catch (_) {}
+}
+
 function getPreferredInitialViewId() {
     try {
         const hash = (window.location.hash || '').replace(/^#/, '').trim();
@@ -2302,6 +2378,13 @@ function restorePreferredInitialView() {
     switchTab(target, null);
     return true;
 }
+
+// Restore view as early as possible so a refresh doesn't flash/reset to Home.
+document.addEventListener('DOMContentLoaded', () => {
+    initSidebarTooltips();
+    enableSidebarHoverOverlayTooltips();
+    try { restorePreferredInitialView(); } catch (_) {}
+});
 
 // Listen for unread count updates from embedded TalkSpace
 (function initTalkspaceUnreadBadge() {
@@ -2382,6 +2465,7 @@ function hubBotInsert(text) {
 }
 
 window.onload = async () => {
+    try { console.log('[OneOrigin] dashboard build: 2026-02-07.2'); } catch (_) {}
     // Check if user is logged in - redirect to login if not
     const userEmail = localStorage.getItem('userEmail');
     if (!userEmail) {
@@ -2520,6 +2604,7 @@ window.onload = async () => {
 
     // Initialize collapsed-sidebar hover labels and restore the last active view.
     initSidebarTooltips();
+    enableSidebarHoverOverlayTooltips();
     if (!restorePreferredInitialView()) {
         switchTab('home-view', null);
     }
