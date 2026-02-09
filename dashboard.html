@@ -948,6 +948,20 @@ body.light-theme .user-badge {
             height: 100%;
             border: 0;
         }
+        .quick-learning-embed-notice {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            text-align: center;
+            color: var(--text-main);
+            background: rgba(0,0,0,0.78);
+            border-top: 1px solid rgba(255,255,255,0.06);
+            font-size: 13px;
+            line-height: 1.5;
+        }
         .quick-learning-modal-actions {
             display:flex;
             gap: 10px;
@@ -1991,15 +2005,18 @@ body.light-theme .user-badge {
             <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom: 12px;">
                 <div>
                     <h2 style="color: var(--primary-blue); margin: 0;">Quick learning</h2>
-                    <div style="color:var(--text-secondary); font-size:12px; margin-top:4px;">Tech-related Shorts-style videos from YouTube search. Browse like Courses (5 per row), then open a vertical viewer to swipe through.</div>
+                    <div style="color:var(--text-secondary); font-size:12px; margin-top:4px;">SimplilearnOfficial Shorts feed (cached locally). Browse like Courses (5 per row), then open a vertical viewer to swipe through.</div>
                 </div>
-                <button class="btn-secondary" onclick="loadQuickLearning()">Refresh</button>
+                <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                    <button class="btn-secondary" onclick="loadQuickLearning(true)">Refresh feed</button>
+                    <button class="btn-secondary" onclick="clearQuickLearningCache()">Clear cache</button>
+                </div>
             </div>
 
-            <div style="display:flex; gap:10px; flex-wrap:wrap; margin: 10px 0 14px;">
-                <input id="quickLearningSearch" type="search" placeholder="Search a topic (e.g., Transformer, SQL, Python)…"
-                    style="flex:1; min-width: 240px; padding: 12px 14px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--card-bg); color: var(--text-main);">
-                <button class="btn-secondary" onclick="loadQuickLearning(document.getElementById('quickLearningSearch')?.value || '')">Search</button>
+            <div style="color:var(--text-secondary); font-size:12px; margin: 8px 0 14px; line-height:1.5;">
+                Source: <b style="color:var(--text-main);">https://www.youtube.com/@SimplilearnOfficial/shorts</b>
+                <span style="opacity:0.9;">•</span>
+                Tip: use <b style="color:var(--text-main);">Refresh feed</b> to update, or <b style="color:var(--text-main);">Clear cache</b> if you want a fresh reload.
             </div>
 
             <div id="quickLearningStatus" style="color:var(--text-secondary); font-size:12px; margin-bottom:10px;"></div>
@@ -2637,7 +2654,7 @@ function switchTab(viewId, element) {
     } else if (viewId === 'leaderboard-view') {
         loadLeaderboard();
     } else if (viewId === 'quick-learning-view') {
-        loadQuickLearning(document.getElementById('quickLearningSearch')?.value || '');
+        loadQuickLearning(false);
     } else if (viewId === 'activity-logs-view') {
         loadActivityLogs();
     } else if (viewId === 'showcase-view') {
@@ -2982,19 +2999,7 @@ window.onload = async () => {
         searchInput.addEventListener('input', (e) => loadCoursesView(e.target.value));
     }
 
-    // Quick learning: Enter-to-search
-    try {
-        const ql = document.getElementById('quickLearningSearch');
-        if (ql && !ql.__enterHooked) {
-            ql.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    loadQuickLearning(ql.value || '');
-                }
-            });
-            ql.__enterHooked = true;
-        }
-    } catch (_) {}
+    // Quick learning no longer uses topic search; it loads the SimplilearnOfficial Shorts feed.
 
     // Activity logs: live filter
     try {
@@ -3050,16 +3055,46 @@ function setQuickLearningOverlayIndex(idx) {
     const titleEl = document.getElementById('quickLearningOverlayTitle');
     const subEl = document.getElementById('quickLearningOverlaySub');
     const frame = document.getElementById('quickLearningOverlayFrame');
+    const notice = document.getElementById('quickLearningOverlayNotice');
     if (titleEl) titleEl.textContent = String(item.title || 'Quick learning');
     if (subEl) subEl.textContent = String(item.authorName || item.authorUrl || '');
 
-    // Autoplay is best-effort; browsers may require user gesture.
-    if (frame) {
-        const vid = String(item.videoId || '').trim();
-        frame.src = vid
-            ? `https://www.youtube.com/embed/${encodeURIComponent(vid)}?playsinline=1&rel=0&autoplay=1&mute=1`
-            : 'about:blank';
+    const token = (window.__quickLearningOverlayToken = Number(window.__quickLearningOverlayToken || 0) + 1);
+    const vid = String(item.videoId || '').trim();
+    if (notice) {
+        notice.style.display = 'none';
+        notice.textContent = '';
     }
+
+    if (!frame) return;
+    if (!vid) {
+        frame.src = 'about:blank';
+        return;
+    }
+
+    // Set a placeholder immediately, then validate embeddability best-effort.
+    frame.src = `https://www.youtube.com/embed/${encodeURIComponent(vid)}?playsinline=1&rel=0&autoplay=1&mute=1`;
+
+    (async () => {
+        try {
+            const resp = await fetch(`/api/youtube/check?videoId=${encodeURIComponent(vid)}`);
+            if (Number(window.__quickLearningOverlayToken || 0) !== token) return;
+            if (resp.status === 404) return;
+            const info = resp.ok ? await resp.json() : null;
+            if (!info || info.ok !== true) {
+                if (notice) {
+                    notice.textContent = 'This Short cannot be embedded here. Use “Watch on YouTube”.';
+                    notice.style.display = 'flex';
+                }
+                // Keep the frame as-is; YouTube will show its own message, but we provide a clear fallback.
+            } else {
+                if (titleEl && info.title) titleEl.textContent = String(info.title);
+                if (subEl) subEl.textContent = String(info.authorName || info.authorUrl || item.authorName || item.authorUrl || '');
+            }
+        } catch (_) {
+            // Ignore validation failures; embed may still work.
+        }
+    })();
 }
 
 function openQuickLearningOverlay(index) {
@@ -3088,7 +3123,7 @@ function openQuickLearningOnYouTube() {
     const i = Number(window.__quickLearningIndex || 0);
     const vid = String(items[i]?.videoId || '').trim();
     if (!vid) return;
-    window.open(`https://www.youtube.com/watch?v=${encodeURIComponent(vid)}`, '_blank', 'noopener');
+    window.open(`https://www.youtube.com/shorts/${encodeURIComponent(vid)}`, '_blank', 'noopener');
 }
 
 // Keyboard + swipe navigation for the overlay
@@ -3178,100 +3213,47 @@ function ooPickQuickLearningTopics() {
     return picked.slice(0, 6);
 }
 
-async function loadQuickLearning(query) {
+function clearQuickLearningCache() {
+    try { localStorage.removeItem('oo_quick_learning_simplilearn_shorts_v1'); } catch (_) {}
+    try { localStorage.removeItem('oo_quick_learning_simplilearn_shorts_v1_meta'); } catch (_) {}
+    window.__quickLearningItems = [];
+    const statusEl = document.getElementById('quickLearningStatus');
+    const grid = document.getElementById('quickLearningGrid');
+    if (statusEl) statusEl.textContent = 'Cache cleared. Click “Refresh feed” to reload.';
+    if (grid) grid.innerHTML = '<div style="color:var(--text-secondary);">Cache cleared.</div>';
+}
+
+async function loadQuickLearning(forceRefresh) {
     const grid = document.getElementById('quickLearningGrid');
     const statusEl = document.getElementById('quickLearningStatus');
     if (!grid || !statusEl) return;
 
-    const q = String(query || '').trim();
-    const queries = q ? [q] : ooPickQuickLearningTopics();
-    statusEl.textContent = q
-        ? `Searching Shorts for: ${q}`
-        : `For you: ${queries.slice(0, 6).join(', ')}`;
-    grid.innerHTML = '<div style="color:var(--text-secondary);">Loading…</div>';
+    const CACHE_KEY = 'oo_quick_learning_simplilearn_shorts_v1';
+    const now = Date.now();
+    const ttlMs = 1000 * 60 * 60 * 12; // 12 hours
+    const force = !!forceRefresh;
 
-    async function check(videoId) {
-        try {
-            const resp = await fetch(`/api/youtube/check?videoId=${encodeURIComponent(videoId)}`);
-            if (!resp.ok) return { ok: false, reason: `HTTP ${resp.status}` };
-            return await resp.json();
-        } catch (e) {
-            return { ok: false, reason: e?.message || 'Network error' };
-        }
-    }
-
-    try {
-        const allIds = [];
-        const seen = new Set();
-        let apiMissing = false;
-        for (const topic of queries.slice(0, 6)) {
-            const search = `${String(topic).trim()} tech shorts`;
-            const resp = await fetch(`/api/youtube/search?q=${encodeURIComponent(search)}&max=20&onlyShorts=1`);
-            if (resp.status === 404) {
-                apiMissing = true;
-                break;
-            }
-            const data = resp.ok ? await resp.json() : { ok: false, videoIds: [] };
-            const ids = Array.isArray(data?.videoIds) ? data.videoIds : [];
-            for (const id of ids) {
-                if (!seen.has(id)) {
-                    seen.add(id);
-                    allIds.push(id);
-                }
-                if (allIds.length >= 60) break;
-            }
-            if (allIds.length >= 60) break;
-        }
-
-        if (apiMissing) {
-            statusEl.textContent = 'Quick learning API not found (404).';
-            grid.innerHTML = `
-                <div style="color:var(--text-secondary); line-height:1.6;">
-                    <div style="color:var(--text-main); font-weight:800; margin-bottom:6px;">Looks like the app is running without the backend.</div>
-                    <div>Quick learning needs the local server to provide <b>/api/youtube/search</b> and <b>/api/youtube/check</b>.</div>
-                    <div style="margin-top:10px;">Start it with: <b>npm start</b> (or <b>npm run dev</b>)</div>
-                    <div>Then open: <b>http://localhost:3000/dashboard.html</b> (avoid Live Server for this page).</div>
-                </div>
-            `;
+    const render = (items, meta) => {
+        const list = Array.isArray(items) ? items : [];
+        if (!list.length) {
+            statusEl.textContent = 'No Shorts found.';
+            grid.innerHTML = '<div style="color:var(--text-secondary);">No videos found.</div>';
             return;
         }
 
-        if (!allIds.length) {
-            statusEl.textContent = 'No results found.';
-            grid.innerHTML = '<div style="color:var(--text-secondary);">No videos found. Try a different search.</div>';
-            return;
-        }
-
-        const items = [];
-        for (const id of allIds) {
-            if (items.length >= 25) break;
-            const info = await check(id);
-            if (info && info.ok) {
-                items.push({
-                    videoId: id,
-                    title: String(info.title || '').trim(),
-                    authorName: String(info.authorName || '').trim(),
-                    authorUrl: String(info.authorUrl || '').trim(),
-                });
-            }
-        }
-
-        if (!items.length) {
-            statusEl.textContent = 'Results found, but none were embeddable.';
-            grid.innerHTML = '<div style="color:var(--text-secondary);">No embeddable videos found for this search.</div>';
-            return;
-        }
-
-        window.__quickLearningItems = items;
-        statusEl.textContent = `Showing ${items.length} videos`;
+        const total = list.length;
+        const showCount = Math.min(60, total);
+        const shown = list.slice(0, showCount);
+        const updated = meta && meta.tsMs ? new Date(meta.tsMs).toLocaleString() : '';
+        statusEl.textContent = `Showing ${showCount} of ${total} Shorts${updated ? ` • Cached: ${updated}` : ''}`;
         grid.innerHTML = '';
 
-        items.forEach((v, index) => {
+        window.__quickLearningItems = list;
+        shown.forEach((v, index) => {
             const card = document.createElement('div');
             card.className = 'course-card';
-            const title = String(v.title || '').trim() || 'Tech Short';
-            const author = String(v.authorName || '').trim() || 'YouTube';
-
+            const title = String(v.title || '').trim() || `Simplilearn Short #${index + 1}`;
+            const author = String(v.authorName || '').trim() || 'SimplilearnOfficial';
             card.innerHTML = `
                 <div onclick="openQuickLearningOverlay(${index})">
                     <img src="https://img.youtube.com/vi/${encodeURIComponent(v.videoId)}/hqdefault.jpg" alt="${escapeHtml(title)}" style="width: 100%; height: auto; border-radius:8px; margin-bottom: 10px; display: block;">
@@ -3280,11 +3262,81 @@ async function loadQuickLearning(query) {
                 <small style="color:var(--text-secondary); text-align:center; display:block;">${escapeHtml(author)}</small>
                 <div style="display:flex; justify-content:center; gap:10px; margin-top:12px; flex-wrap:wrap;">
                     <button class="btn-secondary" onclick="event.stopPropagation(); openQuickLearningOverlay(${index})">Open</button>
-                    <button class="btn-secondary" onclick="event.stopPropagation(); window.open('https://www.youtube.com/watch?v=${encodeURIComponent(v.videoId)}','_blank','noopener')">YouTube</button>
+                    <button class="btn-secondary" onclick="event.stopPropagation(); window.open('https://www.youtube.com/shorts/${encodeURIComponent(v.videoId)}','_blank','noopener')">YouTube</button>
                 </div>
             `;
             grid.appendChild(card);
         });
+    };
+
+    if (!force && Array.isArray(window.__quickLearningItems) && window.__quickLearningItems.length) {
+        // Already loaded in this session.
+        render(window.__quickLearningItems, null);
+        return;
+    }
+
+    // Try local cache first.
+    if (!force) {
+        try {
+            const cachedRaw = localStorage.getItem(CACHE_KEY);
+            const cached = cachedRaw ? JSON.parse(cachedRaw) : null;
+            const tsMs = Number(cached?.tsMs || 0);
+            const ids = Array.isArray(cached?.videoIds) ? cached.videoIds : [];
+            if (tsMs && (now - tsMs) < ttlMs && ids.length) {
+                const items = ids.map((id, idx) => ({
+                    videoId: String(id),
+                    title: `Simplilearn Short #${idx + 1}`,
+                    authorName: 'SimplilearnOfficial',
+                    authorUrl: 'https://www.youtube.com/@SimplilearnOfficial'
+                }));
+                render(items, { tsMs });
+                return;
+            }
+        } catch (_) {}
+    }
+
+    statusEl.textContent = 'Loading SimplilearnOfficial Shorts…';
+    grid.innerHTML = '<div style="color:var(--text-secondary);">Loading…</div>';
+
+    try {
+        let apiMissing = false;
+        const resp = await fetch(`/api/youtube/channel-shorts?handle=SimplilearnOfficial&max=1000`);
+        if (resp.status === 404) apiMissing = true;
+        const data = (!apiMissing && resp.ok) ? await resp.json() : { ok: false, videoIds: [] };
+        const ids = Array.isArray(data?.videoIds) ? data.videoIds : [];
+
+        if (apiMissing) {
+            statusEl.textContent = 'Quick learning API not found (404).';
+            grid.innerHTML = `
+                <div style="color:var(--text-secondary); line-height:1.6;">
+                    <div style="color:var(--text-main); font-weight:800; margin-bottom:6px;">Looks like the app is running without the backend.</div>
+                    <div>Quick learning needs the local server to provide <b>/api/youtube/channel-shorts</b> and <b>/api/youtube/check</b>.</div>
+                    <div style="margin-top:10px;">Start it with: <b>npm start</b> (or <b>npm run dev</b>)</div>
+                    <div>Then open: <b>http://localhost:3000/dashboard.html</b> (avoid Live Server for this page).</div>
+                </div>
+            `;
+            return;
+        }
+
+        if (!ids.length) {
+            statusEl.textContent = 'No Shorts found.';
+            grid.innerHTML = '<div style="color:var(--text-secondary);">No videos found from the channel. Try Refresh feed.</div>';
+            return;
+        }
+
+        // Persist in local cache so the feed doesn't reload every app open.
+        try {
+            localStorage.setItem(CACHE_KEY, JSON.stringify({ tsMs: now, videoIds: ids }));
+        } catch (_) {}
+
+        const items = ids.map((id, idx) => ({
+            videoId: String(id),
+            title: `Simplilearn Short #${idx + 1}`,
+            authorName: 'SimplilearnOfficial',
+            authorUrl: 'https://www.youtube.com/@SimplilearnOfficial'
+        }));
+
+        render(items, { tsMs: now });
     } catch (e) {
         console.error('Quick learning load failed:', e);
         statusEl.textContent = 'Failed to load.';
@@ -3439,6 +3491,7 @@ function backupAndRestoreData() {
         </div>
         <div class="quick-learning-viewport" id="quickLearningOverlayViewport">
             <iframe id="quickLearningOverlayFrame" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+            <div id="quickLearningOverlayNotice" class="quick-learning-embed-notice" style="display:none;"></div>
         </div>
         <div class="quick-learning-modal-actions">
             <div class="quick-learning-nav">
