@@ -48,11 +48,66 @@ const QUICK_SHORTS_META_DOC = ['config', 'quickShortsMeta'];
 // Internal defaults (no in-app "Sources" configuration UI).
 // Update these handles if you want different channels.
 const DEFAULT_QUICK_SHORT_HANDLES = [
-    'fireship',
     'freecodecamp',
     'GoogleDevelopers',
-    'mitocw',
+    'MicrosoftLearn',
+    'GoogleCloudTech',
+    'awsdevelopers',
+    'fireship',
 ];
+
+function ooIsUpskillingClipTitle(title) {
+    const t = safeLower(title);
+    if (!t) return true; // if missing, don't block
+
+    // Hard blocks: interviews / hustle / business-idea content.
+    const blocked = [
+        'interview',
+        'mock interview',
+        'interview question',
+        'interview questions',
+        'resume',
+        'cv',
+        'salary',
+        'negotiat',
+        'hiring',
+        'recruit',
+        'hr ',
+        'business idea',
+        'business ideas',
+        'startup',
+        'side hustle',
+        'entrepreneur',
+        'marketing',
+        'sales',
+        'dropshipping',
+        'passive income',
+        'make money',
+        'rich',
+        'invest',
+        'trading',
+        'crypto',
+        'real estate',
+    ];
+    if (blocked.some((k) => t.includes(k))) return false;
+
+    // Positive signals: common employee upskilling topics.
+    const positive = [
+        'excel', 'power bi', 'powerbi', 'sql', 'python', 'javascript', 'typescript', 'react', 'node',
+        'aws', 'azure', 'gcp', 'google cloud', 'docker', 'kubernetes', 'git', 'github',
+        'cybersecurity', 'security', 'network', 'linux', 'windows',
+        'data', 'analytics', 'machine learning', 'ai', 'llm', 'prompt', 'automation',
+        'communication', 'leadership', 'management', 'productivity', 'time management',
+        'presentation', 'writing', 'email',
+    ];
+
+    // If it contains an obvious upskilling keyword, accept.
+    if (positive.some((k) => t.includes(k))) return true;
+
+    // Otherwise, be conservative: allow most technical clips, but reject obvious non-upskilling content.
+    // (Keeping this permissive avoids over-filtering.)
+    return true;
+}
 
 function safeArray(v) {
     return Array.isArray(v) ? v : [];
@@ -110,8 +165,8 @@ async function getQuickShorts(maxItems = 60) {
         const q = query(ref, orderBy('addedAtMs', 'desc'), limit(n));
         const snap = await getDocs(q);
         const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        // Store only embeddable entries (defensive)
-        return items.filter(x => x && x.videoId && x.embeddable !== false);
+        // Defensive filtering: only embeddable + upskilling-focused.
+        return items.filter(x => x && x.videoId && x.embeddable !== false && ooIsUpskillingClipTitle(x.title));
     } catch (error) {
         console.warn('getQuickShorts failed:', error);
         return [];
@@ -169,6 +224,9 @@ async function refreshQuickShortsFeed(options) {
 
             const info = await checkEmbeddable(id);
             if (!info || info.ok !== true) continue;
+
+            // Keep Quick learning focused on employee upskilling.
+            if (!ooIsUpskillingClipTitle(info.title)) continue;
 
             toWrite.push({
                 videoId: id,

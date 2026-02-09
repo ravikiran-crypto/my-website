@@ -2005,7 +2005,7 @@ body.light-theme .user-badge {
             <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom: 12px;">
                 <div>
                     <h2 style="color: var(--primary-blue); margin: 0;">Quick learning</h2>
-                    <div style="color:var(--text-secondary); font-size:12px; margin-top:4px;">A daily-updating feed of short-form learning clips. Browse like Courses (5 per row), then open a vertical viewer to swipe through.</div>
+                    <div style="color:var(--text-secondary); font-size:12px; margin-top:4px;">A daily-updating feed of short-form learning clips.</div>
                 </div>
                 <div id="quickLearningAdminBar" style="display:none; gap:10px; flex-wrap:wrap;">
                     <button class="btn-secondary" onclick="quickLearningAdminRefresh()">Update feed</button>
@@ -3087,23 +3087,25 @@ function setQuickLearningOverlayIndex(idx) {
     // Set a placeholder immediately, then validate embeddability best-effort.
     frame.src = `https://www.youtube.com/embed/${encodeURIComponent(vid)}?playsinline=1&rel=0&autoplay=1&mute=1`;
 
-    (async () => {
-        try {
-            const resp = await fetch(`/api/youtube/check?videoId=${encodeURIComponent(vid)}`);
+    // Don't rely on server-side embeddability checks here; they can be false-negative due to
+    // geo/rate-limit differences between the server and the user's browser. Only show a notice
+    // if the iframe fails to load at all.
+    try {
+        let loaded = false;
+        const onLoad = () => {
+            loaded = true;
+            try { frame.removeEventListener('load', onLoad); } catch (_) {}
+        };
+        frame.addEventListener('load', onLoad, { once: true });
+        window.setTimeout(() => {
             if (Number(window.__quickLearningOverlayToken || 0) !== token) return;
-            if (resp.status === 404) return;
-            const info = resp.ok ? await resp.json() : null;
-            if (!info || info.ok !== true) {
-                if (notice) {
-                    notice.textContent = 'This clip cannot be played inside the app right now. Try the next one.';
-                    notice.style.display = 'flex';
-                }
-                // Keep the frame as-is; YouTube will show its own message, but we provide a clear fallback.
+            if (loaded) return;
+            if (notice) {
+                notice.textContent = 'Having trouble loading this clip. Try the next one.';
+                notice.style.display = 'flex';
             }
-        } catch (_) {
-            // Ignore validation failures; embed may still work.
-        }
-    })();
+        }, 6000);
+    } catch (_) {}
 }
 
 function openQuickLearningOverlay(index) {

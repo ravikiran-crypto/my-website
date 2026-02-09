@@ -138,10 +138,12 @@ const QUICK_SHORTS_META_DOC_PATH = 'config/quickShortsMeta';
 // Internal defaults (no in-app "Sources" configuration UI).
 // Update these handles if you want different channels.
 const DEFAULT_QUICK_SHORT_HANDLES = [
-  'fireship',
   'freecodecamp',
   'GoogleDevelopers',
-  'mitocw',
+  'MicrosoftLearn',
+  'GoogleCloudTech',
+  'awsdevelopers',
+  'fireship',
 ];
 
 const UA_HEADERS = {
