@@ -279,8 +279,12 @@ app.get('/api/youtube/search', async (req, res) => {
 // Fetch Shorts video IDs from a YouTube channel Shorts page (handle-based)
 app.get('/api/youtube/channel-shorts', async (req, res) => {
   try {
-    const handle = String(req.query.handle || req.query.h || 'SimplilearnOfficial').trim().replace(/^@/, '');
+    const handle = String(req.query.handle || req.query.h || '').trim().replace(/^@/, '');
     const max = Math.max(1, Math.min(2000, Number(req.query.max || 1000) || 1000));
+
+    if (!handle) {
+      return res.status(400).json({ ok: false, reason: 'Missing handle', videoIds: [] });
+    }
 
     if (!/^[a-zA-Z0-9._-]{2,100}$/.test(handle)) {
       return res.status(400).json({ ok: false, reason: 'Invalid handle', videoIds: [] });

@@ -1426,7 +1426,7 @@ body.light-theme .user-badge {
                         <ul class="home-about-bullets">
                             <li><b style="color:var(--text-main);">AI guidance</b> via Hub Bot for explanations, summaries, practice plans, and debugging help.</li>
                             <li><b style="color:var(--text-main);">Progress you can trust</b> with checkpoint-style learning and cross-device continuity.</li>
-                            <li><b style="color:var(--text-main);">Quick learning</b> with tech-only Shorts you can swipe through and open on YouTube when needed.</li>
+                            <li><b style="color:var(--text-main);">Quick learning</b> with swipeable short-form clips you can continue any time.</li>
                             <li><b style="color:var(--text-main);">Team visibility</b> with shared courses, activity logs (admin), and consistent learning standards.</li>
                         </ul>
                     </div>
@@ -1436,7 +1436,7 @@ body.light-theme .user-badge {
                         <div class="home-about-pill"><span class="ui-ico-wrap"><svg class="ui-ico"><use href="#ico-refresh"></use></svg></span> Shared progress</div>
                         <div class="home-about-pill"><span class="ui-ico-wrap"><svg class="ui-ico"><use href="#ico-comment"></use></svg></span> Chat continuity</div>
                         <div class="home-about-pill"><span class="ui-ico-wrap"><svg class="ui-ico"><use href="#ico-bot"></use></svg></span> AI learning help</div>
-                        <div class="home-about-pill"><span class="ui-ico-wrap"><svg class="ui-ico"><use href="#ico-rocket"></use></svg></span> Tech Shorts feed</div>
+                        <div class="home-about-pill"><span class="ui-ico-wrap"><svg class="ui-ico"><use href="#ico-rocket"></use></svg></span> Quick clips feed</div>
                     </div>
                 </div>
 
@@ -1447,7 +1447,7 @@ body.light-theme .user-badge {
                         <div class="home-about-kicker">How it works</div>
                         <ul class="home-about-list">
                             <li>You get courses assigned by your Admin (or automatically from curated sources).</li>
-                            <li>Assignments prefer embeddable videos; if a video can’t be embedded, the Hub provides a safe fallback and “Watch on YouTube”.</li>
+                            <li>Assignments prefer embeddable videos; if a video can’t be embedded, the Hub provides a safe external fallback.</li>
                             <li>Your assigned course list is stored in shared storage so it remains consistent after refresh or on another device.</li>
                         </ul>
                         <div class="home-about-kicker">What you can do</div>
@@ -1500,16 +1500,16 @@ body.light-theme .user-badge {
 
                     <div class="home-about-card">
                         <h3><span class="ui-ico-wrap"><svg class="ui-ico"><use href="#ico-rocket"></use></svg></span> Quick learning</h3>
-                        <p>Shorts-style learning feed for fast tech concepts. Browse a grid (5 per row) and open a vertical viewer to swipe through.</p>
+                        <p>Short-form learning feed for fast tech concepts. Browse a grid (5 per row) and open a vertical viewer to swipe through.</p>
                         <div class="home-about-kicker">How it works</div>
                         <ul class="home-about-list">
-                            <li>By default, the feed uses your learning topics to pull tech-related Shorts-style videos from YouTube search.</li>
-                            <li>Open any card to view in a vertical “Shorts” player with Next/Prev navigation.</li>
+                            <li>The feed is curated and stored in shared storage so it stays available across refresh and devices.</li>
+                            <li>Open any card to view in a vertical player with Next/Prev navigation.</li>
                         </ul>
                         <div class="home-about-kicker">What you can do</div>
                         <ul class="home-about-list">
-                            <li>Search any topic and quickly skim multiple short videos.</li>
-                            <li>Switch videos like Shorts and open on YouTube when needed.</li>
+                            <li>Quickly skim multiple short clips and keep your momentum.</li>
+                            <li>Switch clips fast and continue learning with minimal friction.</li>
                         </ul>
                         <div class="home-about-actions">
                             <button class="btn-secondary" onclick="switchTab('quick-learning-view', null)">Go to Quick learning</button>
@@ -2005,24 +2005,18 @@ body.light-theme .user-badge {
             <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom: 12px;">
                 <div>
                     <h2 style="color: var(--primary-blue); margin: 0;">Quick learning</h2>
-                    <div style="color:var(--text-secondary); font-size:12px; margin-top:4px;">SimplilearnOfficial Shorts feed (cached locally). Browse like Courses (5 per row), then open a vertical viewer to swipe through.</div>
+                    <div style="color:var(--text-secondary); font-size:12px; margin-top:4px;">A daily-updating feed of short-form learning clips. Browse like Courses (5 per row), then open a vertical viewer to swipe through.</div>
                 </div>
-                <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                    <button class="btn-secondary" onclick="loadQuickLearning(true)">Refresh feed</button>
-                    <button class="btn-secondary" onclick="clearQuickLearningCache()">Clear cache</button>
+                <div id="quickLearningAdminBar" style="display:none; gap:10px; flex-wrap:wrap;">
+                    <button class="btn-secondary" onclick="quickLearningAdminRefresh()">Update feed</button>
+                    <button class="btn-secondary" onclick="quickLearningAdminConfigureSources()">Sources</button>
                 </div>
-            </div>
-
-            <div style="color:var(--text-secondary); font-size:12px; margin: 8px 0 14px; line-height:1.5;">
-                Source: <b style="color:var(--text-main);">https://www.youtube.com/@SimplilearnOfficial/shorts</b>
-                <span style="opacity:0.9;">•</span>
-                Tip: use <b style="color:var(--text-main);">Refresh feed</b> to update, or <b style="color:var(--text-main);">Clear cache</b> if you want a fresh reload.
             </div>
 
             <div id="quickLearningStatus" style="color:var(--text-secondary); font-size:12px; margin-bottom:10px;"></div>
 
             <div class="course-section" style="margin-top: 8px;">
-                <h3>Shorts for you</h3>
+                <h3>Clips for you</h3>
                 <div id="quickLearningGrid" class="type-grid">
                     <div style="color:var(--text-secondary);">Loading…</div>
                 </div>
@@ -2999,7 +2993,7 @@ window.onload = async () => {
         searchInput.addEventListener('input', (e) => loadCoursesView(e.target.value));
     }
 
-    // Quick learning no longer uses topic search; it loads the SimplilearnOfficial Shorts feed.
+    // Quick learning is a shared, database-backed feed.
 
     // Activity logs: live filter
     try {
@@ -3056,8 +3050,8 @@ function setQuickLearningOverlayIndex(idx) {
     const subEl = document.getElementById('quickLearningOverlaySub');
     const frame = document.getElementById('quickLearningOverlayFrame');
     const notice = document.getElementById('quickLearningOverlayNotice');
-    if (titleEl) titleEl.textContent = String(item.title || 'Quick learning');
-    if (subEl) subEl.textContent = String(item.authorName || item.authorUrl || '');
+    if (titleEl) titleEl.textContent = `Short #${i + 1}`;
+    if (subEl) subEl.textContent = '';
 
     const token = (window.__quickLearningOverlayToken = Number(window.__quickLearningOverlayToken || 0) + 1);
     const vid = String(item.videoId || '').trim();
@@ -3083,13 +3077,10 @@ function setQuickLearningOverlayIndex(idx) {
             const info = resp.ok ? await resp.json() : null;
             if (!info || info.ok !== true) {
                 if (notice) {
-                    notice.textContent = 'This Short cannot be embedded here. Use “Watch on YouTube”.';
+                    notice.textContent = 'This clip cannot be played inside the app right now. Try the next one.';
                     notice.style.display = 'flex';
                 }
                 // Keep the frame as-is; YouTube will show its own message, but we provide a clear fallback.
-            } else {
-                if (titleEl && info.title) titleEl.textContent = String(info.title);
-                if (subEl) subEl.textContent = String(info.authorName || info.authorUrl || item.authorName || item.authorUrl || '');
             }
         } catch (_) {
             // Ignore validation failures; embed may still work.
@@ -3118,12 +3109,39 @@ function quickLearningPrev() {
     setQuickLearningOverlayIndex(Math.max(0, i - 1));
 }
 
-function openQuickLearningOnYouTube() {
-    const items = Array.isArray(window.__quickLearningItems) ? window.__quickLearningItems : [];
-    const i = Number(window.__quickLearningIndex || 0);
-    const vid = String(items[i]?.videoId || '').trim();
-    if (!vid) return;
-    window.open(`https://www.youtube.com/shorts/${encodeURIComponent(vid)}`, '_blank', 'noopener');
+function ooIsAdmin() {
+    try { return String(localStorage.getItem('userRole') || '').toLowerCase() === 'admin'; } catch (_) { return false; }
+}
+
+async function quickLearningAdminRefresh() {
+    if (!ooIsAdmin()) return;
+    await loadQuickLearning(true);
+}
+
+async function quickLearningAdminConfigureSources() {
+    if (!ooIsAdmin()) return;
+    if (!window.getQuickShortSources || !window.setQuickShortSources) {
+        alert('Sources feature is unavailable.');
+        return;
+    }
+
+    const current = await window.getQuickShortSources();
+    const existing = Array.isArray(current?.handles) ? current.handles : [];
+    const input = prompt(
+        'Enter source handles (comma-separated). Example: ChannelHandle1, ChannelHandle2',
+        existing.join(', ')
+    );
+    if (input === null) return;
+    const next = String(input)
+        .split(',')
+        .map(s => String(s || '').trim())
+        .filter(Boolean);
+    const saved = await window.setQuickShortSources(next);
+    if (!saved?.ok) {
+        alert(saved?.reason || 'Failed to save sources');
+        return;
+    }
+    await loadQuickLearning(true);
 }
 
 // Keyboard + swipe navigation for the overlay
@@ -3213,134 +3231,67 @@ function ooPickQuickLearningTopics() {
     return picked.slice(0, 6);
 }
 
-function clearQuickLearningCache() {
-    try { localStorage.removeItem('oo_quick_learning_simplilearn_shorts_v1'); } catch (_) {}
-    try { localStorage.removeItem('oo_quick_learning_simplilearn_shorts_v1_meta'); } catch (_) {}
-    window.__quickLearningItems = [];
-    const statusEl = document.getElementById('quickLearningStatus');
-    const grid = document.getElementById('quickLearningGrid');
-    if (statusEl) statusEl.textContent = 'Cache cleared. Click “Refresh feed” to reload.';
-    if (grid) grid.innerHTML = '<div style="color:var(--text-secondary);">Cache cleared.</div>';
-}
-
 async function loadQuickLearning(forceRefresh) {
     const grid = document.getElementById('quickLearningGrid');
     const statusEl = document.getElementById('quickLearningStatus');
     if (!grid || !statusEl) return;
 
-    const CACHE_KEY = 'oo_quick_learning_simplilearn_shorts_v1';
-    const now = Date.now();
-    const ttlMs = 1000 * 60 * 60 * 12; // 12 hours
-    const force = !!forceRefresh;
+    const admin = ooIsAdmin();
+    const adminBar = document.getElementById('quickLearningAdminBar');
+    if (adminBar) adminBar.style.display = admin ? 'flex' : 'none';
 
-    const render = (items, meta) => {
-        const list = Array.isArray(items) ? items : [];
-        if (!list.length) {
-            statusEl.textContent = 'No Shorts found.';
-            grid.innerHTML = '<div style="color:var(--text-secondary);">No videos found.</div>';
+    const force = !!forceRefresh;
+    statusEl.textContent = 'Loading…';
+    grid.innerHTML = '<div style="color:var(--text-secondary);">Loading…</div>';
+
+    try {
+        if (admin && force && window.refreshQuickShortsFeed) {
+            statusEl.textContent = 'Updating feed…';
+            try { await window.refreshQuickShortsFeed({ maxNew: 40 }); } catch (_) {}
+        }
+
+        if (!window.getQuickShorts) {
+            statusEl.textContent = 'Storage is not ready.';
+            grid.innerHTML = '<div style="color:var(--text-secondary);">Quick learning storage is not available.</div>';
             return;
         }
 
-        const total = list.length;
-        const showCount = Math.min(60, total);
+        const items = await window.getQuickShorts(80);
+        const list = Array.isArray(items) ? items : [];
+        if (!list.length) {
+            statusEl.textContent = 'Feed is being prepared.';
+            grid.innerHTML = '<div style="color:var(--text-secondary);">No clips yet. Please check back later.</div>';
+            return;
+        }
+
+        const showCount = Math.min(60, list.length);
         const shown = list.slice(0, showCount);
-        const updated = meta && meta.tsMs ? new Date(meta.tsMs).toLocaleString() : '';
-        statusEl.textContent = `Showing ${showCount} of ${total} Shorts${updated ? ` • Cached: ${updated}` : ''}`;
+        statusEl.textContent = `Showing ${showCount} • Updated: ${new Date().toLocaleString()}`;
         grid.innerHTML = '';
 
         window.__quickLearningItems = list;
         shown.forEach((v, index) => {
+            const videoId = String(v?.videoId || '').trim();
+            if (!videoId) return;
+
+            const title = `Short #${index + 1}`;
             const card = document.createElement('div');
             card.className = 'course-card';
-            const title = String(v.title || '').trim() || `Simplilearn Short #${index + 1}`;
-            const author = String(v.authorName || '').trim() || 'SimplilearnOfficial';
             card.innerHTML = `
                 <div onclick="openQuickLearningOverlay(${index})">
-                    <img src="https://img.youtube.com/vi/${encodeURIComponent(v.videoId)}/hqdefault.jpg" alt="${escapeHtml(title)}" style="width: 100%; height: auto; border-radius:8px; margin-bottom: 10px; display: block;">
+                    <img src="https://img.youtube.com/vi/${encodeURIComponent(videoId)}/hqdefault.jpg" alt="${escapeHtml(title)}" style="width: 100%; height: auto; border-radius:8px; margin-bottom: 10px; display: block;">
                 </div>
-                <p style="margin:10px 0 5px 0; text-align:center; color:var(--text-main); font-weight:500;">${escapeHtml(title)}</p>
-                <small style="color:var(--text-secondary); text-align:center; display:block;">${escapeHtml(author)}</small>
+                <p style="margin:10px 0 5px 0; text-align:center; color:var(--text-main); font-weight:800;">${escapeHtml(title)}</p>
                 <div style="display:flex; justify-content:center; gap:10px; margin-top:12px; flex-wrap:wrap;">
                     <button class="btn-secondary" onclick="event.stopPropagation(); openQuickLearningOverlay(${index})">Open</button>
-                    <button class="btn-secondary" onclick="event.stopPropagation(); window.open('https://www.youtube.com/shorts/${encodeURIComponent(v.videoId)}','_blank','noopener')">YouTube</button>
                 </div>
             `;
             grid.appendChild(card);
         });
-    };
-
-    if (!force && Array.isArray(window.__quickLearningItems) && window.__quickLearningItems.length) {
-        // Already loaded in this session.
-        render(window.__quickLearningItems, null);
-        return;
-    }
-
-    // Try local cache first.
-    if (!force) {
-        try {
-            const cachedRaw = localStorage.getItem(CACHE_KEY);
-            const cached = cachedRaw ? JSON.parse(cachedRaw) : null;
-            const tsMs = Number(cached?.tsMs || 0);
-            const ids = Array.isArray(cached?.videoIds) ? cached.videoIds : [];
-            if (tsMs && (now - tsMs) < ttlMs && ids.length) {
-                const items = ids.map((id, idx) => ({
-                    videoId: String(id),
-                    title: `Simplilearn Short #${idx + 1}`,
-                    authorName: 'SimplilearnOfficial',
-                    authorUrl: 'https://www.youtube.com/@SimplilearnOfficial'
-                }));
-                render(items, { tsMs });
-                return;
-            }
-        } catch (_) {}
-    }
-
-    statusEl.textContent = 'Loading SimplilearnOfficial Shorts…';
-    grid.innerHTML = '<div style="color:var(--text-secondary);">Loading…</div>';
-
-    try {
-        let apiMissing = false;
-        const resp = await fetch(`/api/youtube/channel-shorts?handle=SimplilearnOfficial&max=1000`);
-        if (resp.status === 404) apiMissing = true;
-        const data = (!apiMissing && resp.ok) ? await resp.json() : { ok: false, videoIds: [] };
-        const ids = Array.isArray(data?.videoIds) ? data.videoIds : [];
-
-        if (apiMissing) {
-            statusEl.textContent = 'Quick learning API not found (404).';
-            grid.innerHTML = `
-                <div style="color:var(--text-secondary); line-height:1.6;">
-                    <div style="color:var(--text-main); font-weight:800; margin-bottom:6px;">Looks like the app is running without the backend.</div>
-                    <div>Quick learning needs the local server to provide <b>/api/youtube/channel-shorts</b> and <b>/api/youtube/check</b>.</div>
-                    <div style="margin-top:10px;">Start it with: <b>npm start</b> (or <b>npm run dev</b>)</div>
-                    <div>Then open: <b>http://localhost:3000/dashboard.html</b> (avoid Live Server for this page).</div>
-                </div>
-            `;
-            return;
-        }
-
-        if (!ids.length) {
-            statusEl.textContent = 'No Shorts found.';
-            grid.innerHTML = '<div style="color:var(--text-secondary);">No videos found from the channel. Try Refresh feed.</div>';
-            return;
-        }
-
-        // Persist in local cache so the feed doesn't reload every app open.
-        try {
-            localStorage.setItem(CACHE_KEY, JSON.stringify({ tsMs: now, videoIds: ids }));
-        } catch (_) {}
-
-        const items = ids.map((id, idx) => ({
-            videoId: String(id),
-            title: `Simplilearn Short #${idx + 1}`,
-            authorName: 'SimplilearnOfficial',
-            authorUrl: 'https://www.youtube.com/@SimplilearnOfficial'
-        }));
-
-        render(items, { tsMs: now });
     } catch (e) {
         console.error('Quick learning load failed:', e);
         statusEl.textContent = 'Failed to load.';
-        grid.innerHTML = '<div style="color:var(--text-secondary);">Failed to load videos. Please try again.</div>';
+        grid.innerHTML = '<div style="color:var(--text-secondary);">Failed to load clips. Please try again.</div>';
     }
 }
 
@@ -3498,9 +3449,7 @@ function backupAndRestoreData() {
                 <button class="btn-secondary" onclick="quickLearningPrev()">Prev</button>
                 <button class="btn-secondary" onclick="quickLearningNext()">Next</button>
             </div>
-            <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end;">
-                <button class="btn-secondary" onclick="openQuickLearningOnYouTube()">Watch on YouTube</button>
-            </div>
+            <div></div>
         </div>
     </div>
 </div>
@@ -3556,7 +3505,7 @@ function backupAndRestoreData() {
         </div>
 
         <div style="margin-bottom:20px;">
-            <label style="display:block; margin-bottom:5px; font-size:14px; color:var(--text-main);">YouTube Video ID</label>
+            <label style="display:block; margin-bottom:5px; font-size:14px; color:var(--text-main);">Video ID</label>
             <input type="text" id="newVideoId" placeholder="e.g., aircAruvnKk" style="width:100%; padding:10px; background:var(--bg-dark); border:1px solid var(--border-color); border-radius:6px; color:var(--text-main);">
         </div>
 
@@ -5210,7 +5159,7 @@ function loadYouTubeIFrameApiOnce() {
         const tag = document.createElement('script');
         tag.src = 'https://www.youtube.com/iframe_api';
         tag.async = true;
-        tag.onerror = () => reject(new Error('Failed loading YouTube API'));
+        tag.onerror = () => reject(new Error('Failed loading video player API'));
         document.head.appendChild(tag);
         const prev = window.onYouTubeIframeAPIReady;
         window.onYouTubeIframeAPIReady = () => {
@@ -5822,7 +5771,7 @@ async function showInitialResults(score) {
 
 async function getVideoSuggestion(level, score) {
     const container = document.getElementById('videoSuggestionContainer');
-    container.innerHTML = '<p style="color:var(--text-secondary); display:flex; align-items:center; gap:8px;"><span class="ui-ico-wrap" aria-hidden="true"><svg class="ui-ico"><use href="#ico-search"></use></svg></span>Searching YouTube for verified courses...</p>';
+    container.innerHTML = '<p style="color:var(--text-secondary); display:flex; align-items:center; gap:8px;"><span class="ui-ico-wrap" aria-hidden="true"><svg class="ui-ico"><use href="#ico-search"></use></svg></span>Searching for verified courses...</p>';
 
     console.log('Getting video suggestion for level:', level);
 
@@ -5855,16 +5804,16 @@ async function getVideoSuggestion(level, score) {
         ]
     };
 
-    // Directly fetch from YouTube using AI with Google Search grounding
+    // Directly fetch using AI with Google Search grounding
     function buildPrompt(extraConstraints = '') {
-        return `Use Google Search to find ONE REAL, PUBLICLY AVAILABLE, EMBEDDABLE YouTube tutorial video for a ${level} level learner.
+        return `Use Google Search to find ONE REAL, PUBLICLY AVAILABLE, EMBEDDABLE tutorial video for a ${level} level learner.
 
 CRITICAL REQUIREMENTS:
 1. Video MUST be from verified educational channels: freeCodeCamp, Traversy Media, Programming with Mosh, Academind, The Net Ninja, Web Dev Simplified, or Fireship
-2. Video MUST be PUBLIC and EMBEDDABLE (playable in YouTube embed iframe; not private, unlisted, age-restricted, region-blocked, or embed-disabled)
+2. Video MUST be PUBLIC and EMBEDDABLE (playable in an embed iframe; not private, unlisted, age-restricted, region-blocked, or embed-disabled)
 3. Video MUST be a FULL TUTORIAL (not a trailer, promo, or unavailable video)
-4. Verify the video ID is correct - test URL: https://www.youtube.com/watch?v={videoId}
-5. Extract ONLY the 11-character YouTube video ID (e.g., "dQw4w9WgXcQ")
+4. Verify the video ID is correct (watch URL format: https://<platform>/watch?v={videoId})
+5. Extract ONLY the 11-character video ID (e.g., "dQw4w9WgXcQ")
 6. Video should be for ${level === 'Beginner' ? 'beginners with no prior experience' : level === 'Intermediate' ? 'intermediate learners with basic knowledge' : 'advanced developers'}
 7. Topics: Web Development (HTML/CSS/JavaScript/React), Python, AI/ML, or general programming
 
@@ -5873,7 +5822,7 @@ ${extraConstraints}
 Return ONLY valid JSON (no markdown):
 {
   "videoId": "11_CHAR_VIDEO_ID",
-  "topic": "Exact video title from YouTube",
+    "topic": "Exact video title",
   "definition": "What students will learn (2-3 sentences)",
   "uses": "Real-world applications and skills gained"
 }
@@ -5886,7 +5835,7 @@ DO NOT return videos that show gray thumbnails or have embedding disabled.`;
         let selected = null;
 
         for (let attempt = 1; attempt <= 3; attempt++) {
-            container.innerHTML = `<p style="color:var(--text-secondary); display:flex; align-items:center; gap:8px;"><span class="ui-ico-wrap" aria-hidden="true"><svg class="ui-ico"><use href="#ico-search"></use></svg></span>Searching YouTube for verified courses... (attempt ${attempt}/3)</p>`;
+            container.innerHTML = `<p style="color:var(--text-secondary); display:flex; align-items:center; gap:8px;"><span class="ui-ico-wrap" aria-hidden="true"><svg class="ui-ico"><use href="#ico-search"></use></svg></span>Searching for verified courses... (attempt ${attempt}/3)</p>`;
 
             const extra = lastReject
                 ? `IMPORTANT: The previous candidate was rejected because: ${lastReject}. Pick a DIFFERENT video that is playable in embed.`
@@ -5958,13 +5907,13 @@ DO NOT return videos that show gray thumbnails or have embedding disabled.`;
         assignCourseToUser(selected, level);
         container.innerHTML = `
             <div style="background:rgba(76,175,80,0.1); padding:15px; border-radius:8px; border:1px solid #4CAF50;">
-                <p style="color:#4CAF50; font-weight:bold; margin-bottom:10px;">✓ YouTube Course Assigned!</p>
+                <p style="color:#4CAF50; font-weight:bold; margin-bottom:10px;">✓ Course Assigned!</p>
                 <p style="color:var(--text-main);">The course <strong>${selected.topic}</strong> has been assigned.</p>
                 <p style="color:var(--text-secondary); font-size:12px; margin-top:8px; display:flex; align-items:center; gap:6px;"><span class="ui-ico-wrap" aria-hidden="true"><svg class="ui-ico"><use href="#ico-pin"></use></svg></span>Scroll down to "My Assigned Courses" section to start learning</p>
             </div>
         `;
     } catch (error) {
-        console.error('Error fetching YouTube course:', error);
+        console.error('Error fetching course:', error);
         container.innerHTML = `
             <div style="background:rgba(248,81,73,0.1); padding:15px; border-radius:8px; border:1px solid #f85149;">
                 <p style="color:#f85149; font-weight:bold; margin-bottom:10px; display:flex; align-items:center; gap:8px;"><span class="ui-ico-wrap" aria-hidden="true"><svg class="ui-ico"><use href="#ico-warning"></use></svg></span>Error Fetching Course</p>
@@ -6703,10 +6652,8 @@ function renderHubBotMessages(targetId) {
 }
 
 // =====================
-// Hub Bot: crowd-triggered auto-add (SimplilearnOfficial only)
+// Hub Bot: crowd-triggered auto-add
 // =====================
-
-const OO_SIMPLILEARN_HANDLE_URL = 'https://www.youtube.com/@SimplilearnOfficial';
 
 function ooNormalizeUrl(u) {
     return String(u || '').trim().replace(/\/+$/, '').toLowerCase();
@@ -6731,20 +6678,18 @@ function ooTopicAlreadyPresent(courses, topicDisplay) {
     });
 }
 
-async function ooFindSimplilearnOfficialVideo(topicDisplay) {
-    const query = `SimplilearnOfficial ${String(topicDisplay || '').trim()}`.trim();
+async function ooFindEmbeddableVideo(topicDisplay) {
+    const query = String(topicDisplay || '').trim();
     const searchResp = await fetch(`/api/youtube/search?q=${encodeURIComponent(query)}&max=18`);
     const searchData = searchResp.ok ? await searchResp.json() : { ok: false, videoIds: [] };
     const ids = Array.isArray(searchData?.videoIds) ? searchData.videoIds : [];
 
-    const target = ooNormalizeUrl(OO_SIMPLILEARN_HANDLE_URL);
     for (const id of ids) {
         try {
             const checkResp = await fetch(`/api/youtube/check?videoId=${encodeURIComponent(id)}`);
             const info = checkResp.ok ? await checkResp.json() : null;
-            const authorUrl = ooNormalizeUrl(info?.authorUrl);
-            if (info?.ok && authorUrl && authorUrl === target) {
-                return { videoId: id, title: info?.title || topicDisplay || 'SimplilearnOfficial course', authorName: info?.authorName || 'SimplilearnOfficial', authorUrl: info?.authorUrl || OO_SIMPLILEARN_HANDLE_URL };
+            if (info?.ok) {
+                return { videoId: id, title: info?.title || topicDisplay || 'Verified course' };
             }
         } catch (_) {
             // ignore per-candidate failures
@@ -6766,7 +6711,7 @@ async function ooHubBotAutoAddCoursesForTopic({ topicKey, topicDisplay }) {
         return { ok: true, suppressed: true };
     }
 
-    const pick = await ooFindSimplilearnOfficialVideo(topicDisplay);
+    const pick = await ooFindEmbeddableVideo(topicDisplay);
     if (!pick) {
         return { ok: false, notFound: true };
     }
@@ -6788,13 +6733,13 @@ async function ooHubBotAutoAddCoursesForTopic({ topicKey, topicDisplay }) {
         if (already) continue;
         const course = {
             id,
-            name: `SimplilearnOfficial: ${String(topicDisplay || '').trim()}`,
+            name: `Hub Bot: ${String(topicDisplay || '').trim()}`,
             type,
             videoId: pick.videoId,
             uploadDate: nowDate,
             source: 'Hub Bot',
             addedBy: 'Hub Bot',
-            channelUrl: OO_SIMPLILEARN_HANDLE_URL,
+            channelUrl: '',
             topicKey: String(topicKey || ''),
         };
         if (window.addSharedCourse) {
@@ -6807,7 +6752,7 @@ async function ooHubBotAutoAddCoursesForTopic({ topicKey, topicDisplay }) {
     try {
         if (window.addSharedAnnouncement) {
             await window.addSharedAnnouncement({
-                message: `Hub Bot added a new course: ${String(topicDisplay || '').trim()} (SimplilearnOfficial)`,
+                message: `Hub Bot added a new course: ${String(topicDisplay || '').trim()}`,
                 date: new Date().toLocaleString(),
                 type: 'course'
             });
@@ -6832,7 +6777,7 @@ async function ooHubBotCrowdTriggerFlow(question, messagesId) {
     // Only notify when close to threshold or when threshold reached.
     if (rec.uniqueCount === 4) {
         const updated = getActiveHubBotMessages();
-        updated.push({ role: 'assistant', content: `Crowd tracker: 4/5 people have asked about "${rec.topicDisplay}". One more and I will auto-add a SimplilearnOfficial course into Beginner/Intermediate/Advanced.` });
+        updated.push({ role: 'assistant', content: `Crowd tracker: 4/5 people have asked about "${rec.topicDisplay}". One more and I will auto-add a verified course into Beginner/Intermediate/Advanced.` });
         setActiveHubBotMessages(updated);
         renderHubBotMessages(messagesId);
         return;
@@ -6841,7 +6786,7 @@ async function ooHubBotCrowdTriggerFlow(question, messagesId) {
     if (!rec.shouldRequest) return;
 
     const updated = getActiveHubBotMessages();
-    updated.push({ role: 'assistant', content: `Crowd tracker: 5/5 reached for "${rec.topicDisplay}". Trying to add a SimplilearnOfficial course now…` });
+    updated.push({ role: 'assistant', content: `Crowd tracker: 5/5 reached for "${rec.topicDisplay}". Trying to add a verified course now…` });
     setActiveHubBotMessages(updated);
     renderHubBotMessages(messagesId);
 
@@ -6850,11 +6795,11 @@ async function ooHubBotCrowdTriggerFlow(question, messagesId) {
     if (result?.suppressed) {
         finalHistory.push({ role: 'assistant', content: `No new course added for "${rec.topicDisplay}" because this topic already exists in the Courses library.` });
     } else if (result?.notFound) {
-        finalHistory.push({ role: 'assistant', content: `I hit the 5/5 threshold for "${rec.topicDisplay}", but couldn't find an embeddable video from SimplilearnOfficial right now.` });
+        finalHistory.push({ role: 'assistant', content: `I hit the 5/5 threshold for "${rec.topicDisplay}", but couldn't find an embeddable verified course right now.` });
     } else if (result?.claimed === false) {
         finalHistory.push({ role: 'assistant', content: `Another session already added the course for "${rec.topicDisplay}" (avoided duplicate).` });
     } else if (result?.claimed) {
-        finalHistory.push({ role: 'assistant', content: `Added: "${rec.topicDisplay}" (SimplilearnOfficial) into Beginner/Intermediate/Advanced. It will show as Source: Hub Bot in Course Mgmt.` });
+        finalHistory.push({ role: 'assistant', content: `Added: "${rec.topicDisplay}" into Beginner/Intermediate/Advanced. It will show as Source: Hub Bot in Course Mgmt.` });
     }
     setActiveHubBotMessages(finalHistory);
     renderHubBotMessages(messagesId);

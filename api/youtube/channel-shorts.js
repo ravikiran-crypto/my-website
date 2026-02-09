@@ -18,9 +18,14 @@ export default async function handler(req, res) {
   }
 
   try {
-    const handleRaw = String(req.query.handle || req.query.h || 'SimplilearnOfficial').trim();
+    const handleRaw = String(req.query.handle || req.query.h || '').trim();
     const handle = handleRaw.replace(/^@/, '');
     const max = Math.max(1, Math.min(2000, Number(req.query.max || 1000) || 1000));
+
+    if (!handle) {
+      res.status(400).json({ ok: false, reason: 'Missing handle', videoIds: [] });
+      return;
+    }
 
     if (!/^[a-zA-Z0-9._-]{2,100}$/.test(handle)) {
       res.status(400).json({ ok: false, reason: 'Invalid handle', videoIds: [] });

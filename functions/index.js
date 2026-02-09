@@ -1,5 +1,11 @@
 const functions = require('firebase-functions');
-const fetch = require('node-fetch');
+const admin = require('firebase-admin');
+
+// Node 18+ provides global fetch in Cloud Functions runtime.
+const fetch = global.fetch;
+
+admin.initializeApp();
+const db = admin.firestore();
 
 // Get Gemini API key from Firebase environment config
 // Set it using: firebase functions:config:set gemini.api_key="YOUR_API_KEY"
@@ -120,3 +126,172 @@ exports.geminiCustom = functions.https.onRequest(async (req, res) => {
     return res.status(500).json({ error: error.message });
   }
 });
+
+// =====================
+// Quick learning: scheduled feed refresh (Firestore-backed)
+// =====================
+
+const QUICK_SHORTS_COLLECTION = 'quickShorts';
+const QUICK_SHORTS_SOURCES_DOC_PATH = 'config/quickShortsSources';
+const QUICK_SHORTS_META_DOC_PATH = 'config/quickShortsMeta';
+
+const UA_HEADERS = {
+  'User-Agent':
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
+  'Accept-Language': 'en-US,en;q=0.9',
+};
+
+function normalizeHandle(raw) {
+  const s = String(raw || '').trim();
+  if (!s) return '';
+  return s.replace(/^@/, '').replace(/^https?:\/\//i, '').replace(/\s+/g, '');
+}
+
+async function fetchChannelShortIds(handle, max = 200) {
+  const h = normalizeHandle(handle);
+  if (!h) return [];
+
+  const url = `https://www.youtube.com/@${encodeURIComponent(h)}/shorts`;
+  const resp = await fetch(url, { method: 'GET', headers: UA_HEADERS });
+  if (!resp.ok) return [];
+  const html = await resp.text();
+
+  const out = new Set();
+  const patterns = [
+    /\/shorts\/([a-zA-Z0-9_-]{11})/g,
+    /\\\/shorts\\\/([a-zA-Z0-9_-]{11})/g,
+  ];
+
+  for (const re of patterns) {
+    let match;
+    while ((match = re.exec(html))) {
+      out.add(match[1]);
+      if (out.size >= max) break;
+    }
+    if (out.size >= max) break;
+  }
+
+  return [...out];
+}
+
+async function checkEmbeddable(videoId) {
+  const id = String(videoId || '').trim();
+  if (!/^[a-zA-Z0-9_-]{11}$/.test(id)) return { ok: false };
+
+  // oEmbed is lightweight and yields title.
+  let title = '';
+  try {
+    const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(
+      `https://www.youtube.com/watch?v=${id}`
+    )}&format=json`;
+    const oembedResp = await fetch(oembedUrl, { method: 'GET', headers: UA_HEADERS });
+    if (oembedResp.ok) {
+      const oembed = await oembedResp.json().catch(() => ({}));
+      title = oembed?.title || '';
+    }
+  } catch (_) {}
+
+  try {
+    const embedUrl = `https://www.youtube.com/embed/${id}`;
+    const embedResp = await fetch(embedUrl, { method: 'GET', headers: UA_HEADERS });
+    if (!embedResp.ok) return { ok: false, title };
+    const embedHtml = await embedResp.text();
+    const lower = embedHtml.toLowerCase();
+    const blockedPhrases = [
+      'video unavailable',
+      'playback on other websites has been disabled',
+      'this video is private',
+      'sign in to confirm your age',
+      'this video is not available',
+    ];
+    if (blockedPhrases.some((p) => lower.includes(p))) {
+      return { ok: false, title };
+    }
+    return { ok: true, title };
+  } catch (_) {
+    return { ok: false, title };
+  }
+}
+
+async function refreshQuickShortsFirestore({ maxNew = 40, maxPerSource = 200 } = {}) {
+  const srcSnap = await db.doc(QUICK_SHORTS_SOURCES_DOC_PATH).get();
+  const handles = Array.isArray(srcSnap.data()?.handles) ? srcSnap.data().handles : [];
+  const sources = handles.map(normalizeHandle).filter(Boolean);
+
+  const startedAtMs = Date.now();
+  const added = [];
+  const seen = new Set();
+
+  for (const handle of sources) {
+    if (added.length >= maxNew) break;
+    const ids = await fetchChannelShortIds(handle, maxPerSource);
+    for (const id of ids) {
+      if (added.length >= maxNew) break;
+      if (seen.has(id)) continue;
+      seen.add(id);
+
+      const docRef = db.collection(QUICK_SHORTS_COLLECTION).doc(id);
+      const exists = await docRef.get();
+      if (exists.exists) continue;
+
+      const check = await checkEmbeddable(id);
+      if (!check.ok) continue;
+
+      added.push({ id, handle, title: check.title || '' });
+    }
+  }
+
+  let committed = 0;
+  if (added.length) {
+    let batch = db.batch();
+    let batchCount = 0;
+    for (const item of added) {
+      const ref = db.collection(QUICK_SHORTS_COLLECTION).doc(item.id);
+      batch.set(ref, {
+        videoId: item.id,
+        title: item.title,
+        sourceHandle: item.handle,
+        addedAtMs: Date.now(),
+        addedBy: 'scheduler',
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      batchCount++;
+      if (batchCount >= 450) {
+        await batch.commit();
+        committed += batchCount;
+        batch = db.batch();
+        batchCount = 0;
+      }
+    }
+    if (batchCount) {
+      await batch.commit();
+      committed += batchCount;
+    }
+  }
+
+  await db.doc(QUICK_SHORTS_META_DOC_PATH).set(
+    {
+      updatedAtMs: Date.now(),
+      lastRunAtMs: Date.now(),
+      lastRunStartedAtMs: startedAtMs,
+      lastRunAddedCount: committed,
+      sourcesCount: sources.length,
+    },
+    { merge: true }
+  );
+
+  return { ok: true, committed, sources: sources.length };
+}
+
+// Runs daily; requires Cloud Scheduler.
+exports.refreshQuickLearningDaily = functions.pubsub
+  .schedule('every day 03:00')
+  .timeZone('UTC')
+  .onRun(async () => {
+    try {
+      await refreshQuickShortsFirestore({ maxNew: 40, maxPerSource: 200 });
+    } catch (error) {
+      console.error('refreshQuickLearningDaily failed:', error);
+    }
+    return null;
+  });
