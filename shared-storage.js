@@ -56,6 +56,47 @@ const DEFAULT_QUICK_SHORT_HANDLES = [
     'fireship',
 ];
 
+function deriveUpskillTopic(title) {
+    const t = safeLower(title);
+    if (!t) return '';
+
+    const rules = [
+        { topic: 'Excel', keys: ['excel', 'vlookup', 'pivot', 'pivot table', 'power query'] },
+        { topic: 'Power BI', keys: ['power bi', 'powerbi', 'dax'] },
+        { topic: 'SQL', keys: ['sql', 'postgres', 'mysql', 'sql server', 'query', 'joins'] },
+        { topic: 'Python', keys: ['python', 'pandas', 'numpy'] },
+        { topic: 'JavaScript', keys: ['javascript', 'js ', 'node', 'npm'] },
+        { topic: 'TypeScript', keys: ['typescript', 'ts '] },
+        { topic: 'React', keys: ['react', 'next.js', 'nextjs'] },
+        { topic: 'Cloud', keys: ['aws', 'azure', 'gcp', 'google cloud', 'cloud'] },
+        { topic: 'DevOps', keys: ['docker', 'kubernetes', 'k8s', 'ci/cd', 'cicd', 'devops'] },
+        { topic: 'Git', keys: ['git', 'github', 'pull request', 'merge'] },
+        { topic: 'Security', keys: ['security', 'cyber', 'owasp', 'vulnerability'] },
+        { topic: 'AI', keys: ['ai', 'machine learning', 'ml', 'llm', 'prompt', 'transformer'] },
+        { topic: 'Communication', keys: ['communication', 'presentation', 'writing', 'email'] },
+        { topic: 'Leadership', keys: ['leadership', 'management', 'team', 'stakeholder'] },
+    ];
+
+    for (const r of rules) {
+        if (r.keys.some((k) => t.includes(k))) return r.topic;
+    }
+    return '';
+}
+
+function uniqueHandles(list) {
+    const out = [];
+    const seen = new Set();
+    for (const raw of safeArray(list)) {
+        const h = normalizeHandle(raw);
+        if (!h) continue;
+        const key = safeLower(h);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(h);
+    }
+    return out;
+}
+
 function ooIsUpskillingClipTitle(title) {
     const t = safeLower(title);
     if (!t) return true; // if missing, don't block
@@ -162,11 +203,36 @@ async function getQuickShorts(maxItems = 60) {
     try {
         const n = Math.max(1, Math.min(200, Number(maxItems) || 60));
         const ref = collection(db, QUICK_SHORTS_COLLECTION);
-        const q = query(ref, orderBy('addedAtMs', 'desc'), limit(n));
+        const pull = Math.max(n, Math.min(200, n * 4));
+        const q = query(ref, orderBy('addedAtMs', 'desc'), limit(pull));
         const snap = await getDocs(q);
-        const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const itemsRaw = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
         // Defensive filtering: only embeddable + upskilling-focused.
-        return items.filter(x => x && x.videoId && x.embeddable !== false && ooIsUpskillingClipTitle(x.title));
+        const items = itemsRaw
+            .filter(x => x && x.videoId && x.embeddable !== false && ooIsUpskillingClipTitle(x.title))
+            .map(x => ({
+                ...x,
+                topic: safeTrim(x.topic) || deriveUpskillTopic(x.title) || '',
+            }));
+
+        // Keep recency ordering, but prevent any single channel from dominating.
+        const perSourceSoftCap = Math.max(3, Math.ceil(n * 0.35));
+        const perSource = new Map();
+        const out = [];
+        for (const it of items) {
+            const src = safeLower(it?.source || it?.sourceHandle || '');
+            const key = src || 'unknown';
+            let cap = perSourceSoftCap;
+            if (key.includes('simplilearn')) cap = Math.min(cap, Math.max(2, Math.ceil(n * 0.15)));
+            const count = perSource.get(key) || 0;
+            if (count >= cap) continue;
+            perSource.set(key, count + 1);
+            out.push(it);
+            if (out.length >= n) break;
+        }
+
+        return out;
     } catch (error) {
         console.warn('getQuickShorts failed:', error);
         return [];
@@ -182,9 +248,8 @@ async function refreshQuickShortsFeed(options) {
 
     const src = await getQuickShortSources();
     const configured = safeArray(src.handles);
-    const handles = (configured.length ? configured : DEFAULT_QUICK_SHORT_HANDLES)
-        .map(normalizeHandle)
-        .filter(Boolean);
+    // Union configured + defaults so older "Simplilearn-only" configs can't block diversification.
+    const handles = uniqueHandles([...configured, ...DEFAULT_QUICK_SHORT_HANDLES]);
     if (!handles.length) return { ok: false, added: 0, reason: 'No sources available' };
 
     const nowMs = Date.now();
@@ -200,19 +265,29 @@ async function refreshQuickShortsFeed(options) {
         }
     };
 
+    // Fetch candidate IDs per handle, then round-robin so we get diversity per refresh.
+    const idsByHandle = new Map();
     for (const handle of handles) {
-        if (toWrite.length >= maxNew) break;
-        let ids = [];
         try {
             const resp = await fetch(`/api/youtube/channel-shorts?handle=${encodeURIComponent(handle)}&max=${encodeURIComponent(maxPerSource)}`);
             const data = resp.ok ? await resp.json() : null;
-            ids = safeArray(data?.videoIds).map(safeTrim).filter(Boolean);
+            const ids = safeArray(data?.videoIds).map(safeTrim).filter(Boolean);
+            idsByHandle.set(handle, ids);
         } catch (_) {
-            ids = [];
+            idsByHandle.set(handle, []);
         }
+    }
 
-        for (const id of ids) {
+    let progressed = true;
+    while (toWrite.length < maxNew && progressed) {
+        progressed = false;
+        for (const handle of handles) {
             if (toWrite.length >= maxNew) break;
+            const list = idsByHandle.get(handle) || [];
+            if (!list.length) continue;
+            progressed = true;
+            const id = list.shift();
+            idsByHandle.set(handle, list);
             if (!/^[a-zA-Z0-9_-]{11}$/.test(id)) continue;
 
             // Skip if already stored
@@ -226,16 +301,18 @@ async function refreshQuickShortsFeed(options) {
             if (!info || info.ok !== true) continue;
 
             // Keep Quick learning focused on employee upskilling.
-            if (!ooIsUpskillingClipTitle(info.title)) continue;
+            const title = safeTrim(info.title);
+            if (!ooIsUpskillingClipTitle(title)) continue;
 
             toWrite.push({
                 videoId: id,
                 embeddable: true,
                 source: handle,
+                topic: deriveUpskillTopic(title) || '',
                 addedAt: serverTimestamp(),
                 addedAtMs: nowMs,
                 // Title is stored for auditing/search later, but UI can ignore it.
-                title: safeTrim(info.title),
+                title,
             });
         }
     }

@@ -146,6 +146,47 @@ const DEFAULT_QUICK_SHORT_HANDLES = [
   'fireship',
 ];
 
+function deriveUpskillTopic(title) {
+  const t = String(title || '').trim().toLowerCase();
+  if (!t) return '';
+
+  const rules = [
+    { topic: 'Excel', keys: ['excel', 'vlookup', 'pivot', 'pivot table', 'power query'] },
+    { topic: 'Power BI', keys: ['power bi', 'powerbi', 'dax'] },
+    { topic: 'SQL', keys: ['sql', 'postgres', 'mysql', 'sql server', 'query', 'joins'] },
+    { topic: 'Python', keys: ['python', 'pandas', 'numpy'] },
+    { topic: 'JavaScript', keys: ['javascript', ' js', 'node', 'npm'] },
+    { topic: 'TypeScript', keys: ['typescript', ' ts'] },
+    { topic: 'React', keys: ['react', 'next.js', 'nextjs'] },
+    { topic: 'Cloud', keys: ['aws', 'azure', 'gcp', 'google cloud', 'cloud'] },
+    { topic: 'DevOps', keys: ['docker', 'kubernetes', 'k8s', 'ci/cd', 'cicd', 'devops'] },
+    { topic: 'Git', keys: ['git', 'github', 'pull request', 'merge'] },
+    { topic: 'Security', keys: ['security', 'cyber', 'owasp', 'vulnerability'] },
+    { topic: 'AI', keys: ['ai', 'machine learning', 'ml', 'llm', 'prompt', 'transformer'] },
+    { topic: 'Communication', keys: ['communication', 'presentation', 'writing', 'email'] },
+    { topic: 'Leadership', keys: ['leadership', 'management', 'team', 'stakeholder'] },
+  ];
+
+  for (const r of rules) {
+    if (r.keys.some((k) => t.includes(k))) return r.topic;
+  }
+  return '';
+}
+
+function uniqueHandles(list) {
+  const out = [];
+  const seen = new Set();
+  for (const raw of Array.isArray(list) ? list : []) {
+    const h = normalizeHandle(raw);
+    if (!h) continue;
+    const key = h.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(h);
+  }
+  return out;
+}
+
 const UA_HEADERS = {
   'User-Agent':
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
@@ -227,19 +268,31 @@ async function checkEmbeddable(videoId) {
 async function refreshQuickShortsFirestore({ maxNew = 40, maxPerSource = 200 } = {}) {
   const srcSnap = await db.doc(QUICK_SHORTS_SOURCES_DOC_PATH).get();
   const handles = Array.isArray(srcSnap.data()?.handles) ? srcSnap.data().handles : [];
-  const sources = (handles.length ? handles : DEFAULT_QUICK_SHORT_HANDLES)
-    .map(normalizeHandle)
-    .filter(Boolean);
+  // Union configured + defaults so older single-source configs don't block diversification.
+  const sources = uniqueHandles([...(handles || []), ...DEFAULT_QUICK_SHORT_HANDLES]);
 
   const startedAtMs = Date.now();
   const added = [];
   const seen = new Set();
 
+  // Pre-fetch IDs per handle and then round-robin for diversity.
+  const idsByHandle = new Map();
   for (const handle of sources) {
-    if (added.length >= maxNew) break;
     const ids = await fetchChannelShortIds(handle, maxPerSource);
-    for (const id of ids) {
+    idsByHandle.set(handle, ids);
+  }
+
+  let progressed = true;
+  while (added.length < maxNew && progressed) {
+    progressed = false;
+    for (const handle of sources) {
       if (added.length >= maxNew) break;
+      const ids = idsByHandle.get(handle) || [];
+      if (!ids.length) continue;
+      progressed = true;
+      const id = ids.shift();
+      idsByHandle.set(handle, ids);
+      if (!id) continue;
       if (seen.has(id)) continue;
       seen.add(id);
 
@@ -263,6 +316,7 @@ async function refreshQuickShortsFirestore({ maxNew = 40, maxPerSource = 200 } =
       batch.set(ref, {
         videoId: item.id,
         title: item.title,
+        topic: deriveUpskillTopic(item.title) || '',
         sourceHandle: item.handle,
         addedAtMs: Date.now(),
         addedBy: 'scheduler',
