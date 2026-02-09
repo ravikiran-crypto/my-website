@@ -2009,7 +2009,6 @@ body.light-theme .user-badge {
                 </div>
                 <div id="quickLearningAdminBar" style="display:none; gap:10px; flex-wrap:wrap;">
                     <button class="btn-secondary" onclick="quickLearningAdminRefresh()">Update feed</button>
-                    <button class="btn-secondary" onclick="quickLearningAdminConfigureSources()">Sources</button>
                 </div>
             </div>
 
@@ -2667,12 +2666,16 @@ function initSidebarTooltips() {
             item.setAttribute('data-tooltip', text);
             // Never use native title tooltips (they show outside the sidebar and clash with our overlay tooltip).
             if (item.getAttribute('title')) item.removeAttribute('title');
+            item.querySelectorAll('[title]').forEach((el) => el.removeAttribute('title'));
         });
     } catch (_) {}
 }
 
 function enableSidebarHoverOverlayTooltips() {
     try {
+        if (window.__oo_sidebarHoverTooltipsEnabled) return;
+        window.__oo_sidebarHoverTooltipsEnabled = true;
+
         const sidebar = document.getElementById('sidebar');
         if (!sidebar) return;
 
@@ -2687,9 +2690,9 @@ function enableSidebarHoverOverlayTooltips() {
                 'opacity:0',
                 'pointer-events:none',
                 'z-index:999999',
-                'background:var(--card-bg)',
-                'border:1px solid var(--border-color)',
-                'color:var(--text-main)',
+                'background:rgba(30,31,32,0.98)',
+                'border:1px solid rgba(255,255,255,0.10)',
+                'color:#e3e3e3',
                 'padding:8px 10px',
                 'border-radius:10px',
                 'white-space:nowrap',
@@ -2730,31 +2733,34 @@ function enableSidebarHoverOverlayTooltips() {
             tip.style.opacity = '1';
         };
 
-        const withinSidebarBounds = (evt) => {
+        // Global pointer tracking prevents "stuck" tooltips and ensures labels only show
+        // when the pointer is actually over a sidebar icon.
+        const onMove = (e) => {
             try {
-                if (!evt || typeof evt.clientX !== 'number' || typeof evt.clientY !== 'number') return false;
-                const r = sidebar.getBoundingClientRect();
-                return evt.clientX >= r.left && evt.clientX <= r.right && evt.clientY >= r.top && evt.clientY <= r.bottom;
+                if (sidebar.classList.contains('expanded')) return hide();
+                if (!e || typeof e.clientX !== 'number' || typeof e.clientY !== 'number') return hide();
+                const el = document.elementFromPoint(e.clientX, e.clientY);
+                const item = el && el.closest ? el.closest('#sidebar .sidebar-item') : null;
+                if (!item) return hide();
+                showFor(item);
             } catch (_) {
-                return false;
+                hide();
             }
         };
 
-        sidebar.addEventListener('mouseenter', (e) => {
-            if (!withinSidebarBounds(e)) return hide();
-            const item = e.target && e.target.closest ? e.target.closest('.sidebar-item') : null;
-            if (item) showFor(item);
-        }, true);
-
-        sidebar.addEventListener('mousemove', (e) => {
-            if (!withinSidebarBounds(e)) return hide();
-            const item = e.target && e.target.closest ? e.target.closest('.sidebar-item') : null;
-            if (item) showFor(item);
-        }, true);
-
-        sidebar.addEventListener('mouseleave', () => hide(), true);
+        window.addEventListener('mousemove', onMove, true);
         window.addEventListener('scroll', () => hide(), true);
         window.addEventListener('resize', () => hide(), true);
+
+        // Defensive: continuously strip any native title tooltips inside the sidebar.
+        try {
+            const stripTitles = () => {
+                sidebar.querySelectorAll('[title]').forEach((el) => el.removeAttribute('title'));
+            };
+            stripTitles();
+            const mo = new MutationObserver(() => stripTitles());
+            mo.observe(sidebar, { subtree: true, attributes: true, attributeFilter: ['title'] });
+        } catch (_) {}
     } catch (_) {}
 }
 
@@ -3122,37 +3128,20 @@ function quickLearningPrev() {
 }
 
 function ooIsAdmin() {
-    try { return String(localStorage.getItem('userRole') || '').toLowerCase() === 'admin'; } catch (_) { return false; }
+    try {
+        const role = String(localStorage.getItem('userRole') || '').toLowerCase();
+        if (role === 'admin') return true;
+        const email = String(localStorage.getItem('userEmail') || '').toLowerCase();
+        if (email === 'ravikiran@oneorigin.us') return true;
+        if (typeof window !== 'undefined' && window.__oo_isAdmin === true) return true;
+        return false;
+    } catch (_) {
+        return false;
+    }
 }
 
 async function quickLearningAdminRefresh() {
     if (!ooIsAdmin()) return;
-    await loadQuickLearning(true);
-}
-
-async function quickLearningAdminConfigureSources() {
-    if (!ooIsAdmin()) return;
-    if (!window.getQuickShortSources || !window.setQuickShortSources) {
-        alert('Sources feature is unavailable.');
-        return;
-    }
-
-    const current = await window.getQuickShortSources();
-    const existing = Array.isArray(current?.handles) ? current.handles : [];
-    const input = prompt(
-        'Enter source handles (comma-separated). Example: ChannelHandle1, ChannelHandle2',
-        existing.join(', ')
-    );
-    if (input === null) return;
-    const next = String(input)
-        .split(',')
-        .map(s => String(s || '').trim())
-        .filter(Boolean);
-    const saved = await window.setQuickShortSources(next);
-    if (!saved?.ok) {
-        alert(saved?.reason || 'Failed to save sources');
-        return;
-    }
     await loadQuickLearning(true);
 }
 
@@ -3257,46 +3246,33 @@ async function loadQuickLearning(forceRefresh) {
     grid.innerHTML = '<div style="color:var(--text-secondary);">Loading…</div>';
 
     try {
-        // If admin requested refresh, run ingestion first.
-        if (admin && force && window.refreshQuickShortsFeed) {
-            statusEl.textContent = 'Updating feed…';
-            const r = await window.refreshQuickShortsFeed({ maxNew: 40 });
-            if (r && r.ok === false) {
-                if (r.reason === 'No sources configured') {
-                    statusEl.textContent = 'Admin action needed: configure sources.';
-                    grid.innerHTML = '<div style="color:var(--text-secondary); line-height:1.6;">No sources are configured for Quick learning yet.<br><b>Admin:</b> click <b>Sources</b> and add one or more channel handles, then click <b>Update feed</b>.</div>';
-                    return;
-                }
-                statusEl.textContent = `Update failed: ${String(r.reason || 'Unknown error')}`;
-            }
-        }
-
         if (!window.getQuickShorts) {
             statusEl.textContent = 'Storage is not ready.';
             grid.innerHTML = '<div style="color:var(--text-secondary);">Quick learning storage is not available.</div>';
             return;
         }
 
-        const items = await window.getQuickShorts(80);
-        const list = Array.isArray(items) ? items : [];
+        // Load from Firestore first; if empty and admin, auto-ingest.
+        let items = await window.getQuickShorts(80);
+        let list = Array.isArray(items) ? items : [];
+
+        // If admin requested refresh (or feed is empty), run ingestion then reload.
+        if (admin && window.refreshQuickShortsFeed && (force || !list.length)) {
+            statusEl.textContent = 'Updating feed…';
+            const r = await window.refreshQuickShortsFeed({ maxNew: 40 });
+            if (r && r.ok === false) {
+                statusEl.textContent = `Update failed: ${String(r.reason || 'Unknown error')}`;
+            }
+            items = await window.getQuickShorts(80);
+            list = Array.isArray(items) ? items : [];
+        }
+
         if (!list.length) {
             if (!admin) {
                 statusEl.textContent = 'Feed is being prepared.';
-                grid.innerHTML = '<div style="color:var(--text-secondary); line-height:1.6;">No clips yet. An admin needs to update the feed.</div>';
+                grid.innerHTML = '<div style="color:var(--text-secondary); line-height:1.6;">No clips yet. Please check back soon.</div>';
                 return;
             }
-
-            // Admin: if sources are missing, prompt.
-            if (window.getQuickShortSources) {
-                const src = await window.getQuickShortSources();
-                const handles = Array.isArray(src?.handles) ? src.handles : [];
-                if (!handles.length) {
-                    statusEl.textContent = 'Admin action needed: configure sources.';
-                    grid.innerHTML = '<div style="color:var(--text-secondary); line-height:1.6;">No sources are configured for Quick learning yet.<br><b>Admin:</b> click <b>Sources</b> and add one or more channel handles, then click <b>Update feed</b>.</div>';
-                    return;
-                }
-            }
-
             statusEl.textContent = 'Admin: update the feed to add clips.';
             grid.innerHTML = '<div style="color:var(--text-secondary); line-height:1.6;">No clips stored yet.<br><b>Admin:</b> click <b>Update feed</b> to ingest new embeddable clips into the database.</div>';
             return;

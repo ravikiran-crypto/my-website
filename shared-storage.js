@@ -45,6 +45,15 @@ const QUICK_SHORTS_COLLECTION = 'quickShorts';
 const QUICK_SHORTS_SOURCES_DOC = ['config', 'quickShortsSources'];
 const QUICK_SHORTS_META_DOC = ['config', 'quickShortsMeta'];
 
+// Internal defaults (no in-app "Sources" configuration UI).
+// Update these handles if you want different channels.
+const DEFAULT_QUICK_SHORT_HANDLES = [
+    'fireship',
+    'freecodecamp',
+    'GoogleDevelopers',
+    'mitocw',
+];
+
 function safeArray(v) {
     return Array.isArray(v) ? v : [];
 }
@@ -117,8 +126,11 @@ async function refreshQuickShortsFeed(options) {
     if (!isAdminFromLocal()) return { ok: false, added: 0, reason: 'Not authorized' };
 
     const src = await getQuickShortSources();
-    const handles = safeArray(src.handles);
-    if (!handles.length) return { ok: false, added: 0, reason: 'No sources configured' };
+    const configured = safeArray(src.handles);
+    const handles = (configured.length ? configured : DEFAULT_QUICK_SHORT_HANDLES)
+        .map(normalizeHandle)
+        .filter(Boolean);
+    if (!handles.length) return { ok: false, added: 0, reason: 'No sources available' };
 
     const nowMs = Date.now();
     const toWrite = [];
@@ -666,8 +678,6 @@ window.hubBotSuppressTopicCourseAddition = hubBotSuppressTopicCourseAddition;
 
 // Quick learning Shorts feed
 window.getQuickShorts = getQuickShorts;
-window.getQuickShortSources = getQuickShortSources;
-window.setQuickShortSources = setQuickShortSources;
 window.refreshQuickShortsFeed = refreshQuickShortsFeed;
 
 // =====================

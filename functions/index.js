@@ -135,6 +135,15 @@ const QUICK_SHORTS_COLLECTION = 'quickShorts';
 const QUICK_SHORTS_SOURCES_DOC_PATH = 'config/quickShortsSources';
 const QUICK_SHORTS_META_DOC_PATH = 'config/quickShortsMeta';
 
+// Internal defaults (no in-app "Sources" configuration UI).
+// Update these handles if you want different channels.
+const DEFAULT_QUICK_SHORT_HANDLES = [
+  'fireship',
+  'freecodecamp',
+  'GoogleDevelopers',
+  'mitocw',
+];
+
 const UA_HEADERS = {
   'User-Agent':
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
@@ -216,7 +225,9 @@ async function checkEmbeddable(videoId) {
 async function refreshQuickShortsFirestore({ maxNew = 40, maxPerSource = 200 } = {}) {
   const srcSnap = await db.doc(QUICK_SHORTS_SOURCES_DOC_PATH).get();
   const handles = Array.isArray(srcSnap.data()?.handles) ? srcSnap.data().handles : [];
-  const sources = handles.map(normalizeHandle).filter(Boolean);
+  const sources = (handles.length ? handles : DEFAULT_QUICK_SHORT_HANDLES)
+    .map(normalizeHandle)
+    .filter(Boolean);
 
   const startedAtMs = Date.now();
   const added = [];
