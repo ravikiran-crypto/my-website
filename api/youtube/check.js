@@ -52,6 +52,8 @@ export default async function handler(req, res) {
     }
     const oembed = await oembedResp.json().catch(() => ({}));
     const title = oembed?.title || '';
+    const authorName = oembed?.author_name || '';
+    const authorUrl = oembed?.author_url || '';
 
     const embedUrl = `https://www.youtube.com/embed/${videoId}`;
     const embedResp = await fetch(embedUrl, { method: 'GET', headers: ua });
@@ -96,6 +98,8 @@ export default async function handler(req, res) {
             status: status || 'UNKNOWN',
             embeddable: playableInEmbed !== false,
             title: player?.videoDetails?.title || title,
+            authorName: authorName || (player?.videoDetails?.author || ''),
+            authorUrl,
             reason: ok ? '' : (reason || 'Video not playable or not embeddable'),
           });
           return;
@@ -105,7 +109,7 @@ export default async function handler(req, res) {
       // ignore
     }
 
-    res.status(200).json({ ok: true, status: 'OK', embeddable: true, title, reason: '' });
+    res.status(200).json({ ok: true, status: 'OK', embeddable: true, title, authorName, authorUrl, reason: '' });
   } catch (error) {
     console.error('YouTube check error:', error);
     res.status(500).json({ ok: false, reason: error?.message || 'Unknown error' });

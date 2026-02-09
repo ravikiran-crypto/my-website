@@ -20,6 +20,7 @@ export default async function handler(req, res) {
   try {
     const query = String(req.query.query || req.query.q || '').trim();
     const max = Math.max(1, Math.min(30, Number(req.query.max || 15) || 15));
+    const onlyShorts = String(req.query.onlyShorts || req.query.shortsOnly || '').trim() === '1';
 
     if (!query) {
       res.status(400).json({ ok: false, reason: 'Missing query', videoIds: [] });
@@ -36,7 +37,12 @@ export default async function handler(req, res) {
       'Accept-Language': 'en-US,en;q=0.9',
     };
 
-    const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
+    // When onlyShorts=1 we apply the official YouTube search filter for Shorts.
+    // (This still isn't a public API; it's best-effort scraping.)
+    const shortsSp = 'EgIYAQ%3D%3D';
+    const searchUrl = onlyShorts
+      ? `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}&sp=${shortsSp}&hl=en&gl=US`
+      : `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}&hl=en&gl=US`;
     const resp = await fetch(searchUrl, { method: 'GET', headers });
 
     if (!resp.ok) {
@@ -47,18 +53,35 @@ export default async function handler(req, res) {
     const html = await resp.text();
     const ids = [];
     const seen = new Set();
-    const re = /watch\?v=([a-zA-Z0-9_-]{11})/g;
-    let m;
-    while ((m = re.exec(html)) !== null) {
-      const id = m[1];
+
+    // Prefer Shorts links when requested.
+    // Shorts URLs often appear in embedded JSON with escaped slashes (e.g. \/shorts\/VIDEOID)
+    const reShorts = /\\?\/shorts\\?\/([a-zA-Z0-9_-]{11})/g;
+    const reWatch = /watch\?v=([a-zA-Z0-9_-]{11})/g;
+
+    const push = (id) => {
+      if (!id) return;
       if (!seen.has(id)) {
         seen.add(id);
         ids.push(id);
+      }
+    };
+
+    let m;
+    if (onlyShorts) {
+      while ((m = reShorts.exec(html)) !== null) {
+        push(m[1]);
+        if (ids.length >= max) break;
+      }
+    } else {
+      // Normal search: watch links.
+      while ((m = reWatch.exec(html)) !== null) {
+        push(m[1]);
         if (ids.length >= max) break;
       }
     }
 
-    res.status(200).json({ ok: ids.length > 0, query, videoIds: ids });
+    res.status(200).json({ ok: ids.length > 0, query, onlyShorts, videoIds: ids });
   } catch (error) {
     console.error('YouTube search error:', error);
     res.status(500).json({ ok: false, reason: error.message, videoIds: [] });

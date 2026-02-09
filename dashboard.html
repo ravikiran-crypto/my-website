@@ -501,6 +501,27 @@
     max-width: 980px;
 }
 
+.home-about-subcopy {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 13px;
+    line-height: 1.55;
+    max-width: 980px;
+}
+
+.home-about-bullets {
+    margin: 6px 0 0 0;
+    padding-left: 18px;
+    color: var(--text-secondary);
+    font-size: 13px;
+    line-height: 1.55;
+    max-width: 980px;
+}
+
+.home-about-bullets li {
+    margin: 6px 0;
+}
+
 .home-about-highlights {
     display: flex;
     flex-wrap: wrap;
@@ -523,9 +544,17 @@
 
 .home-about-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 16px;
     margin-top: 14px;
+}
+
+@media (max-width: 1200px) {
+    .home-about-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 700px) {
+    .home-about-grid { grid-template-columns: 1fr; }
 }
 
 .home-about-card {
@@ -533,6 +562,63 @@
     border: 1px solid var(--border-color);
     border-radius: 12px;
     padding: 16px;
+    display: flex;
+    flex-direction: column;
+    min-height: 360px;
+    transition: transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Attractive color fills per tile (subtle gradient overlay, keeps text readable) */
+.home-about-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 20% 15%, rgba(255,255,255,0.10), rgba(0,0,0,0) 55%),
+                linear-gradient(135deg, rgba(66,133,244,0.10), rgba(0,0,0,0));
+    opacity: 1;
+    pointer-events: none;
+}
+.home-about-card > * { position: relative; z-index: 1; }
+
+.home-about-grid .home-about-card:nth-child(1)::before {
+    background: radial-gradient(circle at 18% 18%, rgba(88,166,255,0.22), rgba(0,0,0,0) 55%),
+                linear-gradient(135deg, rgba(88,166,255,0.14), rgba(124,58,237,0.08));
+}
+.home-about-grid .home-about-card:nth-child(2)::before {
+    background: radial-gradient(circle at 18% 18%, rgba(76,175,80,0.20), rgba(0,0,0,0) 55%),
+                linear-gradient(135deg, rgba(76,175,80,0.12), rgba(32,20,90,0.08));
+}
+.home-about-grid .home-about-card:nth-child(3)::before {
+    background: radial-gradient(circle at 18% 18%, rgba(255,124,229,0.18), rgba(0,0,0,0) 55%),
+                linear-gradient(135deg, rgba(255,124,229,0.10), rgba(108,75,255,0.10));
+}
+.home-about-grid .home-about-card:nth-child(4)::before {
+    background: radial-gradient(circle at 18% 18%, rgba(240,173,78,0.22), rgba(0,0,0,0) 55%),
+                linear-gradient(135deg, rgba(240,173,78,0.12), rgba(66,133,244,0.06));
+}
+.home-about-grid .home-about-card:nth-child(5)::before {
+    background: radial-gradient(circle at 18% 18%, rgba(248,81,73,0.18), rgba(0,0,0,0) 55%),
+                linear-gradient(135deg, rgba(248,81,73,0.10), rgba(124,58,237,0.08));
+}
+.home-about-grid .home-about-card:nth-child(6)::before {
+    background: radial-gradient(circle at 18% 18%, rgba(0,212,255,0.18), rgba(0,0,0,0) 55%),
+                linear-gradient(135deg, rgba(0,212,255,0.10), rgba(32,20,90,0.10));
+}
+.home-about-grid .home-about-card:nth-child(7)::before {
+    background: radial-gradient(circle at 18% 18%, rgba(170,255,0,0.16), rgba(0,0,0,0) 55%),
+                linear-gradient(135deg, rgba(170,255,0,0.08), rgba(66,133,244,0.08));
+}
+.home-about-grid .home-about-card:nth-child(8)::before {
+    background: radial-gradient(circle at 18% 18%, rgba(156,163,175,0.20), rgba(0,0,0,0) 55%),
+                linear-gradient(135deg, rgba(156,163,175,0.10), rgba(108,75,255,0.06));
+}
+
+.home-about-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 14px 30px rgba(0,0,0,0.22);
+    border-color: rgba(66,133,244,0.55);
 }
 
 .home-about-card h3 {
@@ -572,6 +658,17 @@
 .home-about-actions {
     display: flex;
     justify-content: flex-end;
+    margin-top: auto;
+    padding-top: 12px;
+}
+
+.home-card {
+    transition: transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease;
+}
+.home-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 14px 30px rgba(0,0,0,0.20);
+    border-color: rgba(66,133,244,0.45);
 }
 
 .news-item, .announcement-item {
@@ -735,6 +832,134 @@ body.light-theme .user-badge {
         .assessment-wrapper { background: var(--card-bg); border: 1px solid var(--border-color); padding: 30px; border-radius: 12px; max-width: 900px; margin: 0 auto; }
         .admin-table { width: 100%; border-collapse: collapse; margin-top: 20px; background: var(--card-bg); }
         .admin-table th, .admin-table td { text-align: left; padding: 15px; border-bottom: 1px solid var(--border-color); }
+
+        /* ====== Added: Quick learning (Shorts-style feed) ====== */
+        .quick-learning-feed {
+            max-width: 430px;
+            margin: 0 auto;
+            height: calc(100vh - var(--header-height) - 210px);
+            overflow-y: auto;
+            scroll-snap-type: y mandatory;
+            padding-right: 6px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+        .quick-learning-item {
+            scroll-snap-align: start;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            overflow: hidden;
+            box-shadow: 0 18px 36px rgba(0,0,0,0.25);
+        }
+        .quick-learning-video {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 9 / 16;
+            background: #000;
+        }
+        .quick-learning-video iframe {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            border: 0;
+        }
+        .quick-learning-meta { padding: 12px 14px; }
+        .quick-learning-title {
+            color: var(--text-main);
+            font-weight: 900;
+            font-size: 13px;
+            line-height: 1.3;
+            margin-bottom: 6px;
+        }
+        .quick-learning-sub {
+            color: var(--text-secondary);
+            font-size: 12px;
+            margin-bottom: 10px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .quick-learning-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-start;
+            flex-wrap: wrap;
+        }
+
+        .quick-learning-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.86);
+            z-index: 5200;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 18px;
+        }
+        .quick-learning-modal {
+            width: min(480px, 96vw);
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.55);
+        }
+        .quick-learning-modal-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 12px 14px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .quick-learning-modal-title {
+            display:flex;
+            flex-direction: column;
+            gap: 2px;
+            min-width: 0;
+        }
+        .quick-learning-modal-title b {
+            color: var(--text-main);
+            font-size: 13px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .quick-learning-modal-title span {
+            color: var(--text-secondary);
+            font-size: 12px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .quick-learning-viewport {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 9 / 16;
+            background: #000;
+        }
+        .quick-learning-viewport iframe {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            border: 0;
+        }
+        .quick-learning-modal-actions {
+            display:flex;
+            gap: 10px;
+            justify-content: space-between;
+            padding: 12px 14px;
+            border-top: 1px solid var(--border-color);
+            flex-wrap: wrap;
+        }
+        .quick-learning-nav {
+            display:flex;
+            gap: 10px;
+        }
         .video-player-container { background: var(--card-bg); padding: 20px; border-radius: 12px; border: 1px solid var(--border-color); position: relative; box-sizing: border-box; max-width: 1100px; margin: 0 auto; }
         .video-wrapper { position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 8px; }
         #playerContainer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0; }
@@ -1080,15 +1305,17 @@ body.light-theme .user-badge {
         .sidebar-nav .sidebar-item:nth-child(1) .ui-ico{--ico-fg:#58a6ff;--ico-bg:rgba(88,166,255,0.18);--ico-brd:rgba(88,166,255,0.30);} /* Home */
         .sidebar-nav .sidebar-item:nth-child(2) .ui-ico{--ico-fg:#a371f7;--ico-bg:rgba(163,113,247,0.16);--ico-brd:rgba(163,113,247,0.32);} /* Courses */
         .sidebar-nav .sidebar-item:nth-child(3) .ui-ico{--ico-fg:#f0ad4e;--ico-bg:rgba(240,173,78,0.16);--ico-brd:rgba(240,173,78,0.34);} /* Measure & Master */
-        .sidebar-nav .sidebar-item:nth-child(4) .ui-ico{--ico-fg:#4CAF50;--ico-bg:rgba(76,175,80,0.16);--ico-brd:rgba(76,175,80,0.32);} /* My Progress */
-        .sidebar-nav .sidebar-item:nth-child(5) .ui-ico{--ico-fg:#f7d774;--ico-bg:rgba(247,215,116,0.16);--ico-brd:rgba(247,215,116,0.34);} /* Leaderboard */
-        .sidebar-nav .sidebar-item:nth-child(6) .ui-ico{--ico-fg:#39c5bb;--ico-bg:rgba(57,197,187,0.16);--ico-brd:rgba(57,197,187,0.32);} /* Hub Bot */
-        .sidebar-nav .sidebar-item:nth-child(7) .ui-ico{--ico-fg:#ff7b72;--ico-bg:rgba(255,123,114,0.14);--ico-brd:rgba(255,123,114,0.30);} /* Showcase */
+        .sidebar-nav .sidebar-item:nth-child(4) .ui-ico{--ico-fg:#ff7b72;--ico-bg:rgba(255,123,114,0.14);--ico-brd:rgba(255,123,114,0.30);} /* Quick learning */
+        .sidebar-nav .sidebar-item:nth-child(5) .ui-ico{--ico-fg:#4CAF50;--ico-bg:rgba(76,175,80,0.16);--ico-brd:rgba(76,175,80,0.32);} /* My Progress */
+        .sidebar-nav .sidebar-item:nth-child(6) .ui-ico{--ico-fg:#f7d774;--ico-bg:rgba(247,215,116,0.16);--ico-brd:rgba(247,215,116,0.34);} /* Leaderboard */
+        .sidebar-nav .sidebar-item:nth-child(7) .ui-ico{--ico-fg:#39c5bb;--ico-bg:rgba(57,197,187,0.16);--ico-brd:rgba(57,197,187,0.32);} /* Hub Bot */
+        .sidebar-nav .sidebar-item:nth-child(8) .ui-ico{--ico-fg:#ff7b72;--ico-bg:rgba(255,123,114,0.14);--ico-brd:rgba(255,123,114,0.30);} /* Showcase */
 
         .sidebar-footer .sidebar-item:nth-child(1) .ui-ico{--ico-fg:#a371f7;--ico-bg:rgba(163,113,247,0.16);--ico-brd:rgba(163,113,247,0.32);} /* Course Mgmt */
         .sidebar-footer .sidebar-item:nth-child(2) .ui-ico{--ico-fg:#39c5bb;--ico-bg:rgba(57,197,187,0.16);--ico-brd:rgba(57,197,187,0.32);} /* Role Mgmt */
-        .sidebar-footer .sidebar-item:nth-child(3) .ui-ico{--ico-fg:rgba(255,255,255,0.80);--ico-bg:rgba(255,255,255,0.08);--ico-brd:rgba(255,255,255,0.14);} /* Settings */
-        body.light-theme .sidebar-footer .sidebar-item:nth-child(3) .ui-ico{--ico-fg:var(--text-secondary);--ico-bg:rgba(0,0,0,0.03);--ico-brd:var(--border-color);} 
+        .sidebar-footer .sidebar-item:nth-child(3) .ui-ico{--ico-fg:#f7d774;--ico-bg:rgba(247,215,116,0.16);--ico-brd:rgba(247,215,116,0.34);} /* Activity Logs */
+        .sidebar-footer .sidebar-item:nth-child(4) .ui-ico{--ico-fg:rgba(255,255,255,0.80);--ico-bg:rgba(255,255,255,0.08);--ico-brd:rgba(255,255,255,0.14);} /* Settings */
+        body.light-theme .sidebar-footer .sidebar-item:nth-child(4) .ui-ico{--ico-fg:var(--text-secondary);--ico-bg:rgba(0,0,0,0.03);--ico-brd:var(--border-color);} 
 
         /* Make icons a bit larger in nav for readability */
         .sidebar .ui-ico{width:1.1em;height:1.1em;padding:0.20em;}
@@ -1157,6 +1384,7 @@ body.light-theme .user-badge {
             <div class="sidebar-item active" onclick="switchTab('home-view', this)"><span class="ui-ico-wrap"><svg class="ui-ico"><use href="#ico-home"></use></svg></span> <span class="sidebar-text">Home</span></div>
             <div class="sidebar-item" onclick="switchTab('courses-view', this)"><span class="ui-ico-wrap"><svg class="ui-ico"><use href="#ico-book"></use></svg></span> <span class="sidebar-text">Courses</span></div>
             <div class="sidebar-item" onclick="switchTab('measure-master-view', this)"><span class="ui-ico-wrap"><svg class="ui-ico"><use href="#ico-bar"></use></svg></span> <span class="sidebar-text">Measure & Master</span></div>
+            <div class="sidebar-item" onclick="switchTab('quick-learning-view', this)"><span class="ui-ico-wrap"><svg class="ui-ico"><use href="#ico-rocket"></use></svg></span> <span class="sidebar-text">Quick learning</span></div>
             <div class="sidebar-item" onclick="switchTab('my-progress-view', this)"><span class="ui-ico-wrap"><svg class="ui-ico"><use href="#ico-line"></use></svg></span> <span class="sidebar-text">My Progress</span></div>
             <div class="sidebar-item" onclick="switchTab('leaderboard-view', this)"><span class="ui-ico-wrap"><svg class="ui-ico"><use href="#ico-trophy"></use></svg></span> <span class="sidebar-text">Leaderboard</span></div>
             <div class="sidebar-item" onclick="switchTab('hub-bot-view', this)"><span class="ui-ico-wrap"><svg class="ui-ico"><use href="#ico-bot"></use></svg></span> <span class="sidebar-text">Hub Bot</span></div>
@@ -1166,6 +1394,7 @@ body.light-theme .user-badge {
         <div class="sidebar-footer">
             <div class="sidebar-item" id="courseMgmtSidebarItem" onclick="switchTab('course-mgmt-view', this)"><span class="ui-ico-wrap"><svg class="ui-ico"><use href="#ico-book"></use></svg></span> <span class="sidebar-text">Course Mgmt</span></div>
             <div class="sidebar-item" id="roleMgmtSidebarItem" onclick="switchTab('role-mgmt-view', this)"><span class="ui-ico-wrap"><svg class="ui-ico"><use href="#ico-users"></use></svg></span> <span class="sidebar-text">Role Mgmt</span></div>
+            <div class="sidebar-item" id="activityLogsSidebarItem" onclick="switchTab('activity-logs-view', this)"><span class="ui-ico-wrap"><svg class="ui-ico"><use href="#ico-history"></use></svg></span> <span class="sidebar-text">Activity Logs</span></div>
             <div class="sidebar-item" onclick="switchTab('settings-view', this)"><span class="ui-ico-wrap"><svg class="ui-ico"><use href="#ico-gear"></use></svg></span> <span class="sidebar-text">Settings</span></div>
         </div>
     </aside>
@@ -1178,13 +1407,22 @@ body.light-theme .user-badge {
                 <div class="home-about-hero">
                     <div class="home-about-head">
                         <h2 class="home-about-title">About the Hub</h2>
-                        <p class="home-about-subtitle">A single place to learn, track progress, and get help — designed to keep your growth consistent and measurable. Courses are assigned and validated so they stay playable (with safe fallbacks when embeds fail), your learning data stays consistent across devices using shared storage, and Hub Bot can continue conversations with saved chat history so you can pick up where you left off.</p>
+                        <p class="home-about-subtitle">OneOrigin Hub is an AI-powered learning hub built for modern teams — learn faster with curated courses, measure mastery with checkpoints, and get instant help from Hub Bot. Everything is designed to keep your progress consistent, trackable, and easy to continue across devices.</p>
+                        <p class="home-about-subcopy">Think of it as your personal “learning operating system”: it combines structured learning paths, micro-learning Shorts, and an AI assistant that helps you troubleshoot, summarize, and plan what to learn next. Whether you have 5 minutes or 50, the Hub keeps your momentum.</p>
+                        <ul class="home-about-bullets">
+                            <li><b style="color:var(--text-main);">AI guidance</b> via Hub Bot for explanations, summaries, practice plans, and debugging help.</li>
+                            <li><b style="color:var(--text-main);">Progress you can trust</b> with checkpoint-style learning and cross-device continuity.</li>
+                            <li><b style="color:var(--text-main);">Quick learning</b> with tech-only Shorts you can swipe through and open on YouTube when needed.</li>
+                            <li><b style="color:var(--text-main);">Team visibility</b> with shared courses, activity logs (admin), and consistent learning standards.</li>
+                        </ul>
                     </div>
 
                     <div class="home-about-highlights">
                         <div class="home-about-pill"><span class="ui-ico-wrap"><svg class="ui-ico"><use href="#ico-check"></use></svg></span> Playable tutorials</div>
                         <div class="home-about-pill"><span class="ui-ico-wrap"><svg class="ui-ico"><use href="#ico-refresh"></use></svg></span> Shared progress</div>
                         <div class="home-about-pill"><span class="ui-ico-wrap"><svg class="ui-ico"><use href="#ico-comment"></use></svg></span> Chat continuity</div>
+                        <div class="home-about-pill"><span class="ui-ico-wrap"><svg class="ui-ico"><use href="#ico-bot"></use></svg></span> AI learning help</div>
+                        <div class="home-about-pill"><span class="ui-ico-wrap"><svg class="ui-ico"><use href="#ico-rocket"></use></svg></span> Tech Shorts feed</div>
                     </div>
                 </div>
 
@@ -1243,6 +1481,96 @@ body.light-theme .user-badge {
                         </ul>
                         <div class="home-about-actions">
                             <button class="btn-secondary" onclick="switchTab('hub-bot-view', null)">Go to Hub Bot</button>
+                        </div>
+                    </div>
+
+                    <div class="home-about-card">
+                        <h3><span class="ui-ico-wrap"><svg class="ui-ico"><use href="#ico-rocket"></use></svg></span> Quick learning</h3>
+                        <p>Shorts-style learning feed for fast tech concepts. Browse a grid (5 per row) and open a vertical viewer to swipe through.</p>
+                        <div class="home-about-kicker">How it works</div>
+                        <ul class="home-about-list">
+                            <li>By default, the feed uses your learning topics to pull tech-related Shorts-style videos from YouTube search.</li>
+                            <li>Open any card to view in a vertical “Shorts” player with Next/Prev navigation.</li>
+                        </ul>
+                        <div class="home-about-kicker">What you can do</div>
+                        <ul class="home-about-list">
+                            <li>Search any topic and quickly skim multiple short videos.</li>
+                            <li>Switch videos like Shorts and open on YouTube when needed.</li>
+                        </ul>
+                        <div class="home-about-actions">
+                            <button class="btn-secondary" onclick="switchTab('quick-learning-view', null)">Go to Quick learning</button>
+                        </div>
+                    </div>
+
+                    <div class="home-about-card">
+                        <h3><span class="ui-ico-wrap"><svg class="ui-ico"><use href="#ico-line"></use></svg></span> My Progress</h3>
+                        <p>See your course progress, assessment outcomes, and recent activity in one place.</p>
+                        <div class="home-about-kicker">How it works</div>
+                        <ul class="home-about-list">
+                            <li>Progress and scores are tracked per course and summarized into a quick table.</li>
+                            <li>Passed courses contribute to your points.</li>
+                        </ul>
+                        <div class="home-about-kicker">What you can do</div>
+                        <ul class="home-about-list">
+                            <li>Resume learning and retake assessments when needed.</li>
+                            <li>Track what you completed and what’s next.</li>
+                        </ul>
+                        <div class="home-about-actions">
+                            <button class="btn-secondary" onclick="switchTab('my-progress-view', null)">Go to My Progress</button>
+                        </div>
+                    </div>
+
+                    <div class="home-about-card">
+                        <h3><span class="ui-ico-wrap"><svg class="ui-ico"><use href="#ico-trophy"></use></svg></span> Leaderboard</h3>
+                        <p>Friendly competition to stay consistent — points update when you pass assessments.</p>
+                        <div class="home-about-kicker">How it works</div>
+                        <ul class="home-about-list">
+                            <li>Points are added when a course is marked as Passed.</li>
+                            <li>Higher levels award more points.</li>
+                        </ul>
+                        <div class="home-about-kicker">What you can do</div>
+                        <ul class="home-about-list">
+                            <li>Compare progress and stay motivated to finish courses.</li>
+                            <li>Use it as a weekly consistency tracker.</li>
+                        </ul>
+                        <div class="home-about-actions">
+                            <button class="btn-secondary" onclick="switchTab('leaderboard-view', null)">Go to Leaderboard</button>
+                        </div>
+                    </div>
+
+                    <div class="home-about-card">
+                        <h3><span class="ui-ico-wrap"><svg class="ui-ico"><use href="#ico-puzzle"></use></svg></span> Showcase Forum</h3>
+                        <p>Share project ideas and demos, browse others’ work, and organize feedback.</p>
+                        <div class="home-about-kicker">How it works</div>
+                        <ul class="home-about-list">
+                            <li>Browse and submit projects inside the hub.</li>
+                            <li>Updates sync so everyone sees new entries.</li>
+                        </ul>
+                        <div class="home-about-kicker">What you can do</div>
+                        <ul class="home-about-list">
+                            <li>Post your project and collect feedback.</li>
+                            <li>Explore what others are building.</li>
+                        </ul>
+                        <div class="home-about-actions">
+                            <button class="btn-secondary" onclick="switchTab('showcase-view', null)">Go to Showcase</button>
+                        </div>
+                    </div>
+
+                    <div class="home-about-card">
+                        <h3><span class="ui-ico-wrap"><svg class="ui-ico"><use href="#ico-comment"></use></svg></span> TalkSpace</h3>
+                        <p>Quick communication space for discussions and updates — without leaving the hub.</p>
+                        <div class="home-about-kicker">How it works</div>
+                        <ul class="home-about-list">
+                            <li>TalkSpace is embedded so it opens instantly.</li>
+                            <li>Unread badges show when new messages arrive.</li>
+                        </ul>
+                        <div class="home-about-kicker">What you can do</div>
+                        <ul class="home-about-list">
+                            <li>Ask questions, coordinate, and share quick updates.</li>
+                            <li>Keep learning conversations in one place.</li>
+                        </ul>
+                        <div class="home-about-actions">
+                            <button class="btn-secondary" onclick="switchTab('talkspace-view', null)">Go to TalkSpace</button>
                         </div>
                     </div>
                 </div>
@@ -1597,6 +1925,7 @@ body.light-theme .user-badge {
                         <th>Course Type</th>
                         <th>Video ID</th>
                         <th>Upload date</th>
+                        <th>Source</th>
                         <th>Delete</th>
                     </tr>
                 </thead>
@@ -1654,6 +1983,31 @@ body.light-theme .user-badge {
                 <h3 style="color:#4CAF50; margin-bottom:20px;">✓ Passed Courses (Available Anytime)</h3>
                 <div id="passedCoursesGrid" style="display:grid; grid-template-columns:repeat(2, 1fr); gap:20px;">
                     <!-- Passed courses will be rendered here -->
+                </div>
+            </div>
+        </section>
+
+        <section id="quick-learning-view" style="display: none;">
+            <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom: 12px;">
+                <div>
+                    <h2 style="color: var(--primary-blue); margin: 0;">Quick learning</h2>
+                    <div style="color:var(--text-secondary); font-size:12px; margin-top:4px;">Tech-related Shorts-style videos from YouTube search. Browse like Courses (5 per row), then open a vertical viewer to swipe through.</div>
+                </div>
+                <button class="btn-secondary" onclick="loadQuickLearning()">Refresh</button>
+            </div>
+
+            <div style="display:flex; gap:10px; flex-wrap:wrap; margin: 10px 0 14px;">
+                <input id="quickLearningSearch" type="search" placeholder="Search a topic (e.g., Transformer, SQL, Python)…"
+                    style="flex:1; min-width: 240px; padding: 12px 14px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--card-bg); color: var(--text-main);">
+                <button class="btn-secondary" onclick="loadQuickLearning(document.getElementById('quickLearningSearch')?.value || '')">Search</button>
+            </div>
+
+            <div id="quickLearningStatus" style="color:var(--text-secondary); font-size:12px; margin-bottom:10px;"></div>
+
+            <div class="course-section" style="margin-top: 8px;">
+                <h3>Shorts for you</h3>
+                <div id="quickLearningGrid" class="type-grid">
+                    <div style="color:var(--text-secondary);">Loading…</div>
                 </div>
             </div>
         </section>
@@ -1718,6 +2072,35 @@ body.light-theme .user-badge {
                     </tbody>
                 </table>
             </div>
+        </section>
+
+        <section id="activity-logs-view" style="display:none;">
+            <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom: 14px;">
+                <div>
+                    <h2 style="color: var(--primary-blue); margin: 0;">Activity Logs</h2>
+                    <div style="color:var(--text-secondary); font-size:12px; margin-top:4px;">Admin-only audit trail of actions in the hub.</div>
+                </div>
+                <button class="btn-secondary" onclick="loadActivityLogs()">Refresh</button>
+            </div>
+
+            <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom: 10px;">
+                <input id="activityLogsFilter" type="search" placeholder="Filter (email, action, keyword)…"
+                    style="flex:1; min-width: 260px; padding: 12px 14px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--card-bg); color: var(--text-main);">
+            </div>
+
+            <table class="admin-table" style="margin-top: 0;">
+                <thead>
+                    <tr>
+                        <th style="width:190px;">Timestamp</th>
+                        <th style="width:230px;">Who</th>
+                        <th style="width:180px;">Action</th>
+                        <th>Summary</th>
+                    </tr>
+                </thead>
+                <tbody id="activityLogsTableBody">
+                    <tr><td colspan="4" style="color:var(--text-secondary);">Loading…</td></tr>
+                </tbody>
+            </table>
         </section>
 
         <section id="settings-view" style="display: none;">
@@ -2253,6 +2636,10 @@ function switchTab(viewId, element) {
         loadMyProgress();
     } else if (viewId === 'leaderboard-view') {
         loadLeaderboard();
+    } else if (viewId === 'quick-learning-view') {
+        loadQuickLearning(document.getElementById('quickLearningSearch')?.value || '');
+    } else if (viewId === 'activity-logs-view') {
+        loadActivityLogs();
     } else if (viewId === 'showcase-view') {
         if (window.showcaseForum && typeof window.showcaseForum.onOpen === 'function') {
             window.showcaseForum.onOpen();
@@ -2362,7 +2749,7 @@ function getPreferredInitialViewId() {
 }
 
 function isAdminOnlyView(viewId) {
-    return viewId === 'course-mgmt-view' || viewId === 'role-mgmt-view';
+    return viewId === 'course-mgmt-view' || viewId === 'role-mgmt-view' || viewId === 'activity-logs-view';
 }
 
 function restorePreferredInitialView() {
@@ -2594,6 +2981,29 @@ window.onload = async () => {
     if (searchInput) {
         searchInput.addEventListener('input', (e) => loadCoursesView(e.target.value));
     }
+
+    // Quick learning: Enter-to-search
+    try {
+        const ql = document.getElementById('quickLearningSearch');
+        if (ql && !ql.__enterHooked) {
+            ql.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    loadQuickLearning(ql.value || '');
+                }
+            });
+            ql.__enterHooked = true;
+        }
+    } catch (_) {}
+
+    // Activity logs: live filter
+    try {
+        const f = document.getElementById('activityLogsFilter');
+        if (f && !f.__filterHooked) {
+            f.addEventListener('input', () => renderActivityLogsFromCache());
+            f.__filterHooked = true;
+        }
+    } catch (_) {}
     loadAssignedCourses();
     
     // Load user and role data
@@ -2609,6 +3019,363 @@ window.onload = async () => {
         switchTab('home-view', null);
     }
 };
+
+// =====================
+// Quick learning (Shorts-style)
+// =====================
+
+window.__quickLearningItems = window.__quickLearningItems || [];
+window.__quickLearningIndex = Number(window.__quickLearningIndex || 0);
+
+function quickLearningBackdropClick(event) {
+    if (event && event.target && event.target.id === 'quickLearningOverlay') {
+        closeQuickLearningOverlay();
+    }
+}
+
+function closeQuickLearningOverlay() {
+    const overlay = document.getElementById('quickLearningOverlay');
+    if (overlay) overlay.style.display = 'none';
+    const frame = document.getElementById('quickLearningOverlayFrame');
+    if (frame) frame.src = 'about:blank';
+}
+
+function setQuickLearningOverlayIndex(idx) {
+    const items = Array.isArray(window.__quickLearningItems) ? window.__quickLearningItems : [];
+    if (!items.length) return;
+    const i = Math.max(0, Math.min(items.length - 1, Number(idx) || 0));
+    window.__quickLearningIndex = i;
+    const item = items[i] || {};
+
+    const titleEl = document.getElementById('quickLearningOverlayTitle');
+    const subEl = document.getElementById('quickLearningOverlaySub');
+    const frame = document.getElementById('quickLearningOverlayFrame');
+    if (titleEl) titleEl.textContent = String(item.title || 'Quick learning');
+    if (subEl) subEl.textContent = String(item.authorName || item.authorUrl || '');
+
+    // Autoplay is best-effort; browsers may require user gesture.
+    if (frame) {
+        const vid = String(item.videoId || '').trim();
+        frame.src = vid
+            ? `https://www.youtube.com/embed/${encodeURIComponent(vid)}?playsinline=1&rel=0&autoplay=1&mute=1`
+            : 'about:blank';
+    }
+}
+
+function openQuickLearningOverlay(index) {
+    const overlay = document.getElementById('quickLearningOverlay');
+    if (!overlay) return;
+    overlay.style.display = 'flex';
+    setQuickLearningOverlayIndex(index);
+}
+
+function quickLearningNext() {
+    const items = Array.isArray(window.__quickLearningItems) ? window.__quickLearningItems : [];
+    if (!items.length) return;
+    const i = Number(window.__quickLearningIndex || 0);
+    setQuickLearningOverlayIndex(Math.min(items.length - 1, i + 1));
+}
+
+function quickLearningPrev() {
+    const items = Array.isArray(window.__quickLearningItems) ? window.__quickLearningItems : [];
+    if (!items.length) return;
+    const i = Number(window.__quickLearningIndex || 0);
+    setQuickLearningOverlayIndex(Math.max(0, i - 1));
+}
+
+function openQuickLearningOnYouTube() {
+    const items = Array.isArray(window.__quickLearningItems) ? window.__quickLearningItems : [];
+    const i = Number(window.__quickLearningIndex || 0);
+    const vid = String(items[i]?.videoId || '').trim();
+    if (!vid) return;
+    window.open(`https://www.youtube.com/watch?v=${encodeURIComponent(vid)}`, '_blank', 'noopener');
+}
+
+// Keyboard + swipe navigation for the overlay
+(function initQuickLearningOverlayNav() {
+    try {
+        document.addEventListener('keydown', (e) => {
+            const overlay = document.getElementById('quickLearningOverlay');
+            if (!overlay || overlay.style.display !== 'flex') return;
+            if (e.key === 'ArrowDown' || e.key === 'PageDown') {
+                e.preventDefault();
+                quickLearningNext();
+            } else if (e.key === 'ArrowUp' || e.key === 'PageUp') {
+                e.preventDefault();
+                quickLearningPrev();
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                closeQuickLearningOverlay();
+            }
+        }, { passive: false });
+
+        // Use document-level delegation so this works even if the overlay element
+        // doesn't exist yet at script evaluation time.
+        let startY = null;
+        document.addEventListener('touchstart', (e) => {
+            const overlay = document.getElementById('quickLearningOverlay');
+            if (!overlay || overlay.style.display !== 'flex') return;
+            const within = e?.target && overlay.contains ? overlay.contains(e.target) : false;
+            if (!within) return;
+            const y = e?.touches?.[0]?.clientY;
+            startY = typeof y === 'number' ? y : null;
+        }, { passive: true });
+        document.addEventListener('touchend', (e) => {
+            const overlay = document.getElementById('quickLearningOverlay');
+            if (!overlay || overlay.style.display !== 'flex') return;
+            if (startY === null) return;
+            const endY = e?.changedTouches?.[0]?.clientY;
+            if (typeof endY !== 'number') return;
+            const delta = endY - startY;
+            const threshold = 40;
+            if (delta <= -threshold) quickLearningNext();
+            else if (delta >= threshold) quickLearningPrev();
+            startY = null;
+        }, { passive: true });
+    } catch (_) {}
+})();
+
+function ooPickQuickLearningTopics() {
+    const topics = [];
+    try {
+        const assigned = JSON.parse(localStorage.getItem('assignedCourses') || '[]');
+        if (Array.isArray(assigned)) {
+            for (const a of assigned) {
+                const t = String(a?.topic || '').trim();
+                if (t) topics.push(t);
+            }
+        }
+    } catch (_) {}
+
+    // Fallback: derive from course names
+    if (topics.length < 2) {
+        try {
+            const courses = JSON.parse(localStorage.getItem('courses') || '[]');
+            const names = Array.isArray(courses) ? courses.map(c => String(c?.name || '').trim()).filter(Boolean) : [];
+            topics.push(...names);
+        } catch (_) {}
+    }
+
+    const stop = new Set([
+        'the','and','for','with','from','this','that','you','your','into','about','what','when','where','how',
+        'course','courses','tutorial','tutorials','beginner','intermediate','advanced','full','complete','guide',
+        'learn','learning','official','video','videos','short','shorts','episode','part','in','on','of','to','a','an'
+    ]);
+
+    const counts = new Map();
+    for (const raw of topics) {
+        const words = String(raw || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(Boolean);
+        for (const w of words) {
+            if (w.length < 3) continue;
+            if (stop.has(w)) continue;
+            counts.set(w, (counts.get(w) || 0) + 1);
+        }
+    }
+
+    const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([w]) => w);
+    const defaults = ['ai','python','javascript','sql','react','node','cloud','docker','kubernetes','llm','transformer'];
+    const picked = [...new Set([...ranked.slice(0, 6), ...defaults])];
+    return picked.slice(0, 6);
+}
+
+async function loadQuickLearning(query) {
+    const grid = document.getElementById('quickLearningGrid');
+    const statusEl = document.getElementById('quickLearningStatus');
+    if (!grid || !statusEl) return;
+
+    const q = String(query || '').trim();
+    const queries = q ? [q] : ooPickQuickLearningTopics();
+    statusEl.textContent = q
+        ? `Searching Shorts for: ${q}`
+        : `For you: ${queries.slice(0, 6).join(', ')}`;
+    grid.innerHTML = '<div style="color:var(--text-secondary);">Loading…</div>';
+
+    async function check(videoId) {
+        try {
+            const resp = await fetch(`/api/youtube/check?videoId=${encodeURIComponent(videoId)}`);
+            if (!resp.ok) return { ok: false, reason: `HTTP ${resp.status}` };
+            return await resp.json();
+        } catch (e) {
+            return { ok: false, reason: e?.message || 'Network error' };
+        }
+    }
+
+    try {
+        const allIds = [];
+        const seen = new Set();
+        let apiMissing = false;
+        for (const topic of queries.slice(0, 6)) {
+            const search = `${String(topic).trim()} tech shorts`;
+            const resp = await fetch(`/api/youtube/search?q=${encodeURIComponent(search)}&max=20&onlyShorts=1`);
+            if (resp.status === 404) {
+                apiMissing = true;
+                break;
+            }
+            const data = resp.ok ? await resp.json() : { ok: false, videoIds: [] };
+            const ids = Array.isArray(data?.videoIds) ? data.videoIds : [];
+            for (const id of ids) {
+                if (!seen.has(id)) {
+                    seen.add(id);
+                    allIds.push(id);
+                }
+                if (allIds.length >= 60) break;
+            }
+            if (allIds.length >= 60) break;
+        }
+
+        if (apiMissing) {
+            statusEl.textContent = 'Quick learning API not found (404).';
+            grid.innerHTML = `
+                <div style="color:var(--text-secondary); line-height:1.6;">
+                    <div style="color:var(--text-main); font-weight:800; margin-bottom:6px;">Looks like the app is running without the backend.</div>
+                    <div>Quick learning needs the local server to provide <b>/api/youtube/search</b> and <b>/api/youtube/check</b>.</div>
+                    <div style="margin-top:10px;">Start it with: <b>npm start</b> (or <b>npm run dev</b>)</div>
+                    <div>Then open: <b>http://localhost:3000/dashboard.html</b> (avoid Live Server for this page).</div>
+                </div>
+            `;
+            return;
+        }
+
+        if (!allIds.length) {
+            statusEl.textContent = 'No results found.';
+            grid.innerHTML = '<div style="color:var(--text-secondary);">No videos found. Try a different search.</div>';
+            return;
+        }
+
+        const items = [];
+        for (const id of allIds) {
+            if (items.length >= 25) break;
+            const info = await check(id);
+            if (info && info.ok) {
+                items.push({
+                    videoId: id,
+                    title: String(info.title || '').trim(),
+                    authorName: String(info.authorName || '').trim(),
+                    authorUrl: String(info.authorUrl || '').trim(),
+                });
+            }
+        }
+
+        if (!items.length) {
+            statusEl.textContent = 'Results found, but none were embeddable.';
+            grid.innerHTML = '<div style="color:var(--text-secondary);">No embeddable videos found for this search.</div>';
+            return;
+        }
+
+        window.__quickLearningItems = items;
+        statusEl.textContent = `Showing ${items.length} videos`;
+        grid.innerHTML = '';
+
+        items.forEach((v, index) => {
+            const card = document.createElement('div');
+            card.className = 'course-card';
+            const title = String(v.title || '').trim() || 'Tech Short';
+            const author = String(v.authorName || '').trim() || 'YouTube';
+
+            card.innerHTML = `
+                <div onclick="openQuickLearningOverlay(${index})">
+                    <img src="https://img.youtube.com/vi/${encodeURIComponent(v.videoId)}/hqdefault.jpg" alt="${escapeHtml(title)}" style="width: 100%; height: auto; border-radius:8px; margin-bottom: 10px; display: block;">
+                </div>
+                <p style="margin:10px 0 5px 0; text-align:center; color:var(--text-main); font-weight:500;">${escapeHtml(title)}</p>
+                <small style="color:var(--text-secondary); text-align:center; display:block;">${escapeHtml(author)}</small>
+                <div style="display:flex; justify-content:center; gap:10px; margin-top:12px; flex-wrap:wrap;">
+                    <button class="btn-secondary" onclick="event.stopPropagation(); openQuickLearningOverlay(${index})">Open</button>
+                    <button class="btn-secondary" onclick="event.stopPropagation(); window.open('https://www.youtube.com/watch?v=${encodeURIComponent(v.videoId)}','_blank','noopener')">YouTube</button>
+                </div>
+            `;
+            grid.appendChild(card);
+        });
+    } catch (e) {
+        console.error('Quick learning load failed:', e);
+        statusEl.textContent = 'Failed to load.';
+        grid.innerHTML = '<div style="color:var(--text-secondary);">Failed to load videos. Please try again.</div>';
+    }
+}
+
+// =====================
+// Activity Logs (admin)
+// =====================
+
+window.__activityLogsCache = window.__activityLogsCache || [];
+
+function renderActivityLogsFromCache() {
+    const logs = Array.isArray(window.__activityLogsCache) ? window.__activityLogsCache : [];
+    const filterValue = (document.getElementById('activityLogsFilter')?.value || '').trim().toLowerCase();
+    const filtered = !filterValue
+        ? logs
+        : logs.filter(l => {
+            const blob = [
+                l?.actorEmail,
+                l?.actorName,
+                l?.actorRole,
+                l?.action,
+                l?.summary,
+                l?.entityType,
+                l?.entityId,
+                l?.source,
+                JSON.stringify(l?.details || {}),
+            ].join(' ').toLowerCase();
+            return blob.includes(filterValue);
+        });
+
+    const tbody = document.getElementById('activityLogsTableBody');
+    if (!tbody) return;
+    if (!filtered.length) {
+        tbody.innerHTML = '<tr><td colspan="4" style="color:var(--text-secondary);">No activity yet.</td></tr>';
+        return;
+    }
+
+    const formatWhen = (log) => {
+        const ms = Number(log?.tsMs || 0);
+        if (ms) return new Date(ms).toLocaleString();
+        const iso = String(log?.tsIso || '').trim();
+        if (iso) {
+            const d = new Date(iso);
+            if (!Number.isNaN(d.getTime())) return d.toLocaleString();
+        }
+        return '-';
+    };
+
+    tbody.innerHTML = filtered.map(l => {
+        const who = [l?.actorName, l?.actorEmail].filter(Boolean).join(' · ') || (l?.actorEmail || '-');
+        const action = l?.action || '-';
+        const summary = l?.summary || '';
+        const entity = [l?.entityType, l?.entityId].filter(Boolean).join(': ');
+        const source = l?.source ? `Source: ${l.source}` : '';
+        const sub = [entity, source].filter(Boolean).join(' · ');
+        return `
+            <tr>
+                <td style="white-space:nowrap; color:var(--text-secondary);">${escapeHtml(formatWhen(l))}</td>
+                <td>${escapeHtml(who)}</td>
+                <td><span style="color:var(--primary-blue); font-weight:900;">${escapeHtml(action)}</span></td>
+                <td>
+                    <div style="color:var(--text-main); font-weight:700;">${escapeHtml(summary)}</div>
+                    ${sub ? `<div style="color:var(--text-secondary); font-size:12px; margin-top:4px;">${escapeHtml(sub)}</div>` : ''}
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+async function loadActivityLogs() {
+    const tbody = document.getElementById('activityLogsTableBody');
+    if (!tbody) return;
+
+    if (!isAdminSession()) {
+        tbody.innerHTML = '<tr><td colspan="4" style="color:var(--text-secondary);">Admins only.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = '<tr><td colspan="4" style="color:var(--text-secondary);">Loading…</td></tr>';
+    try {
+        const logs = window.getActivityLogs ? await window.getActivityLogs(200) : [];
+        window.__activityLogsCache = Array.isArray(logs) ? logs : [];
+        renderActivityLogsFromCache();
+    } catch (e) {
+        console.error('Failed loading activity logs:', e);
+        tbody.innerHTML = '<tr><td colspan="4" style="color:var(--text-secondary);">Failed to load logs.</td></tr>';
+    }
+}
 
 // Backup data to sessionStorage and restore if localStorage is cleared
 function backupAndRestoreData() {
@@ -2656,6 +3423,31 @@ function backupAndRestoreData() {
                 <button id="coursePlayerAssessmentBtn" class="btn-secondary" onclick="startCatalogAssessmentFromPlayer()" disabled>Take Assessment</button>
             </div>
             <div id="coursePlayerAssessmentHint" style="margin-top:8px; font-size:12px; color:var(--text-secondary);">Finish watching the full video to unlock the assessment.</div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick learning (Shorts-style) overlay -->
+<div id="quickLearningOverlay" class="quick-learning-overlay" onclick="quickLearningBackdropClick(event)">
+    <div class="quick-learning-modal">
+        <div class="quick-learning-modal-head">
+            <div class="quick-learning-modal-title">
+                <b id="quickLearningOverlayTitle">Quick learning</b>
+                <span id="quickLearningOverlaySub">—</span>
+            </div>
+            <button class="course-player-close" onclick="closeQuickLearningOverlay()">✕</button>
+        </div>
+        <div class="quick-learning-viewport" id="quickLearningOverlayViewport">
+            <iframe id="quickLearningOverlayFrame" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+        </div>
+        <div class="quick-learning-modal-actions">
+            <div class="quick-learning-nav">
+                <button class="btn-secondary" onclick="quickLearningPrev()">Prev</button>
+                <button class="btn-secondary" onclick="quickLearningNext()">Next</button>
+            </div>
+            <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end;">
+                <button class="btn-secondary" onclick="openQuickLearningOnYouTube()">Watch on YouTube</button>
+            </div>
         </div>
     </div>
 </div>
@@ -2763,7 +3555,7 @@ async function saveNewCourse() {
 
     const uploadDate = new Date().toLocaleDateString();
     const id = Date.now();
-    const newCourse = { id, name, type, videoId, uploadDate };
+    const newCourse = { id, name, type, videoId, uploadDate, source: 'Admin' };
     
     // Save to shared API storage so ALL users can see it
     await addSharedCourse(newCourse);
@@ -2843,8 +3635,10 @@ async function loadCourses() {
         row.insertCell(2).innerText = course.type || '-';
         row.insertCell(3).innerText = course.videoId || '-';
         row.insertCell(4).innerText = course.uploadDate || '-';
-        
-        const deleteCell = row.insertCell(5);
+
+        row.insertCell(5).innerText = course.source || course.addedBy || 'Admin';
+
+        const deleteCell = row.insertCell(6);
         deleteCell.innerHTML = `<button style="background:#f85149; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;" 
             onclick="deleteCourse('${deleteKey}')">Delete</button>`;
     });
@@ -4641,7 +5435,7 @@ async function loadCoursesView(searchTerm = '') {
             </div>
             <p style="margin:10px 0 5px 0; text-align:center; color:var(--text-main); font-weight:500;">${course.name}</p>
             <small style="color:var(--text-secondary); text-align:center; display:block;">Uploaded: ${course.uploadDate}</small>
-            <small style="color:var(--text-secondary); text-align:center; display:block;">Uploaded by: Admin</small>
+            <small style="color:var(--text-secondary); text-align:center; display:block;">Uploaded by: ${String(course.source || course.addedBy || 'Admin')}</small>
             <div style="display:flex; justify-content:center; gap:10px; margin-top:12px;">
                 <button class="btn-secondary" onclick="event.stopPropagation(); openCoursePlayer('${course.videoId}', '${safeName}', '${safeType}')">Open</button>
                 <button class="btn-secondary" onclick="event.stopPropagation(); startCatalogAssessment('${course.videoId}', '${safeName}', '${safeType}')">Assessment</button>
@@ -4695,6 +5489,12 @@ function checkAdminStatus() {
         courseMgmtItem.style.display = isAdmin ? 'block' : 'none';
     }
 
+    // Activity Logs Sidebar - Admin only
+    const activityLogsItem = document.getElementById('activityLogsSidebarItem');
+    if (activityLogsItem) {
+        activityLogsItem.style.display = isAdmin ? 'block' : 'none';
+    }
+
     // Clear All Courses button - Admin only
     const clearAllCoursesBtn = document.getElementById('clearAllCoursesBtn');
     if (clearAllCoursesBtn) {
@@ -4713,7 +5513,7 @@ function checkAdminStatus() {
         const currentView = document.querySelector('section[style*="display: block"], section[style*="display:block"]');
         if (currentView) {
             const viewId = currentView.id;
-            if (viewId === 'admin-view' || viewId === 'role-mgmt-view' || viewId === 'course-mgmt-view') {
+            if (viewId === 'admin-view' || viewId === 'role-mgmt-view' || viewId === 'course-mgmt-view' || viewId === 'activity-logs-view') {
                 switchTab('home-view', null);
             }
         }
@@ -5849,6 +6649,164 @@ function renderHubBotMessages(targetId) {
     container.scrollTop = container.scrollHeight;
 }
 
+// =====================
+// Hub Bot: crowd-triggered auto-add (SimplilearnOfficial only)
+// =====================
+
+const OO_SIMPLILEARN_HANDLE_URL = 'https://www.youtube.com/@SimplilearnOfficial';
+
+function ooNormalizeUrl(u) {
+    return String(u || '').trim().replace(/\/+$/, '').toLowerCase();
+}
+
+function ooNormalizeForMatch(text) {
+    return String(text || '')
+        .toLowerCase()
+        .replace(/[\u2019']/g, '')
+        .replace(/[^a-z0-9\s-]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function ooTopicAlreadyPresent(courses, topicDisplay) {
+    const topicNorm = ooNormalizeForMatch(topicDisplay);
+    if (!topicNorm) return false;
+    const list = Array.isArray(courses) ? courses : [];
+    return list.some(c => {
+        const nameNorm = ooNormalizeForMatch(c?.name);
+        return Boolean(nameNorm && (nameNorm.includes(topicNorm) || topicNorm.includes(nameNorm)));
+    });
+}
+
+async function ooFindSimplilearnOfficialVideo(topicDisplay) {
+    const query = `SimplilearnOfficial ${String(topicDisplay || '').trim()}`.trim();
+    const searchResp = await fetch(`/api/youtube/search?q=${encodeURIComponent(query)}&max=18`);
+    const searchData = searchResp.ok ? await searchResp.json() : { ok: false, videoIds: [] };
+    const ids = Array.isArray(searchData?.videoIds) ? searchData.videoIds : [];
+
+    const target = ooNormalizeUrl(OO_SIMPLILEARN_HANDLE_URL);
+    for (const id of ids) {
+        try {
+            const checkResp = await fetch(`/api/youtube/check?videoId=${encodeURIComponent(id)}`);
+            const info = checkResp.ok ? await checkResp.json() : null;
+            const authorUrl = ooNormalizeUrl(info?.authorUrl);
+            if (info?.ok && authorUrl && authorUrl === target) {
+                return { videoId: id, title: info?.title || topicDisplay || 'SimplilearnOfficial course', authorName: info?.authorName || 'SimplilearnOfficial', authorUrl: info?.authorUrl || OO_SIMPLILEARN_HANDLE_URL };
+            }
+        } catch (_) {
+            // ignore per-candidate failures
+        }
+    }
+    return null;
+}
+
+async function ooHubBotAutoAddCoursesForTopic({ topicKey, topicDisplay }) {
+    const actorEmail = (localStorage.getItem('userEmail') || '').trim();
+
+    const courses = window.syncSharedCourses ? await window.syncSharedCourses() : (JSON.parse(localStorage.getItem('courses') || '[]'));
+    if (ooTopicAlreadyPresent(courses, topicDisplay)) {
+        try {
+            if (window.hubBotSuppressTopicCourseAddition) {
+                await window.hubBotSuppressTopicCourseAddition({ topicKey, reason: 'Topic already present in courses' });
+            }
+        } catch (_) {}
+        return { ok: true, suppressed: true };
+    }
+
+    const pick = await ooFindSimplilearnOfficialVideo(topicDisplay);
+    if (!pick) {
+        return { ok: false, notFound: true };
+    }
+
+    const claim = window.hubBotClaimTopicCourseAddition
+        ? await window.hubBotClaimTopicCourseAddition({ topicKey, actorEmail, videoId: pick.videoId, videoTitle: pick.title })
+        : { ok: false, claimed: false };
+
+    if (!claim?.ok || !claim?.claimed) {
+        return { ok: true, claimed: false, videoId: pick.videoId, title: pick.title };
+    }
+
+    const types = ['beginner', 'intermediate', 'advanced'];
+    const nowDate = new Date().toLocaleDateString();
+    const addedIds = [];
+    for (const type of types) {
+        const id = `hubbot-${String(topicKey)}-${type}-${pick.videoId}`;
+        const already = Array.isArray(courses) && courses.some(c => String(c?.id || '').trim() === id);
+        if (already) continue;
+        const course = {
+            id,
+            name: `SimplilearnOfficial: ${String(topicDisplay || '').trim()}`,
+            type,
+            videoId: pick.videoId,
+            uploadDate: nowDate,
+            source: 'Hub Bot',
+            addedBy: 'Hub Bot',
+            channelUrl: OO_SIMPLILEARN_HANDLE_URL,
+            topicKey: String(topicKey || ''),
+        };
+        if (window.addSharedCourse) {
+            await window.addSharedCourse(course);
+            addedIds.push(id);
+        }
+    }
+
+    // Announcement (best-effort, single message)
+    try {
+        if (window.addSharedAnnouncement) {
+            await window.addSharedAnnouncement({
+                message: `Hub Bot added a new course: ${String(topicDisplay || '').trim()} (SimplilearnOfficial)`,
+                date: new Date().toLocaleString(),
+                type: 'course'
+            });
+        }
+    } catch (_) {}
+
+    // Refresh UI (best-effort)
+    try { await loadCourses(); } catch (_) {}
+    try { await loadCoursesView(); } catch (_) {}
+    try { if (typeof updateAnnouncements === 'function') await updateAnnouncements(); } catch (_) {}
+
+    return { ok: true, claimed: true, addedIds, videoId: pick.videoId, title: pick.title };
+}
+
+async function ooHubBotCrowdTriggerFlow(question, messagesId) {
+    if (!window.hubBotRecordTopicQuestion) return;
+
+    const actorEmail = (localStorage.getItem('userEmail') || '').trim();
+    const rec = await window.hubBotRecordTopicQuestion({ question, actorEmail });
+    if (!rec?.ok) return;
+
+    // Only notify when close to threshold or when threshold reached.
+    if (rec.uniqueCount === 4) {
+        const updated = getActiveHubBotMessages();
+        updated.push({ role: 'assistant', content: `Crowd tracker: 4/5 people have asked about "${rec.topicDisplay}". One more and I will auto-add a SimplilearnOfficial course into Beginner/Intermediate/Advanced.` });
+        setActiveHubBotMessages(updated);
+        renderHubBotMessages(messagesId);
+        return;
+    }
+
+    if (!rec.shouldRequest) return;
+
+    const updated = getActiveHubBotMessages();
+    updated.push({ role: 'assistant', content: `Crowd tracker: 5/5 reached for "${rec.topicDisplay}". Trying to add a SimplilearnOfficial course now…` });
+    setActiveHubBotMessages(updated);
+    renderHubBotMessages(messagesId);
+
+    const result = await ooHubBotAutoAddCoursesForTopic({ topicKey: rec.topicKey, topicDisplay: rec.topicDisplay });
+    const finalHistory = getActiveHubBotMessages();
+    if (result?.suppressed) {
+        finalHistory.push({ role: 'assistant', content: `No new course added for "${rec.topicDisplay}" because this topic already exists in the Courses library.` });
+    } else if (result?.notFound) {
+        finalHistory.push({ role: 'assistant', content: `I hit the 5/5 threshold for "${rec.topicDisplay}", but couldn't find an embeddable video from SimplilearnOfficial right now.` });
+    } else if (result?.claimed === false) {
+        finalHistory.push({ role: 'assistant', content: `Another session already added the course for "${rec.topicDisplay}" (avoided duplicate).` });
+    } else if (result?.claimed) {
+        finalHistory.push({ role: 'assistant', content: `Added: "${rec.topicDisplay}" (SimplilearnOfficial) into Beginner/Intermediate/Advanced. It will show as Source: Hub Bot in Course Mgmt.` });
+    }
+    setActiveHubBotMessages(finalHistory);
+    renderHubBotMessages(messagesId);
+}
+
 async function sendHubBotMessage(source) {
     const inputId = source === 'page' ? 'hubBotPageInput' : 'hubBotInput';
     const messagesId = source === 'page' ? 'hubBotPageMessages' : 'hubBotMessages';
@@ -5894,6 +6852,13 @@ async function sendHubBotMessage(source) {
         updated.push({ role: 'assistant', content: answer });
         setActiveHubBotMessages(updated);
         renderHubBotMessages(messagesId);
+
+        // After answering, update crowd-topic counters and possibly auto-add courses.
+        try {
+            ooHubBotCrowdTriggerFlow(question, messagesId);
+        } catch (e) {
+            console.warn('Hub Bot crowd trigger flow failed:', e);
+        }
     } catch (err) {
         console.error('Hub Bot error:', err);
         const updated = getActiveHubBotMessages();

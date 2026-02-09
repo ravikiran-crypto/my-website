@@ -1,7 +1,23 @@
 // Shared Course Storage - Firebase Firestore for real multi-user sync
 import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-auth.js";
-import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-firestore.js";
+import {
+    getFirestore,
+    collection,
+    doc,
+    setDoc,
+    getDoc,
+    getDocs,
+    deleteDoc,
+    updateDoc,
+    addDoc,
+    query,
+    where,
+    orderBy,
+    limit,
+    runTransaction,
+    serverTimestamp,
+} from "https://www.gstatic.com/firebasejs/10.0.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDnfIJQxO6mi2_NEGqXRGH5EAxeaNcb7qc",
@@ -19,6 +35,218 @@ getAuth(app);
 const db = getFirestore(app);
 
 console.log('Firestore initialized successfully');
+
+// =====================
+// Activity Logs
+// =====================
+
+const ACTIVITY_LOGS_COLLECTION = 'activityLogs';
+
+function safeTrim(v) {
+    return String(v || '').trim();
+}
+
+function safeLower(v) {
+    return safeTrim(v).toLowerCase();
+}
+
+function getActorFromLocalStorage() {
+    try {
+        const actorEmail = safeTrim(localStorage.getItem('userEmail'));
+        const actorName = safeTrim(localStorage.getItem('userName'));
+        const actorRole = safeLower(localStorage.getItem('userRole'));
+        return { actorEmail, actorName, actorRole };
+    } catch (_) {
+        return { actorEmail: '', actorName: '', actorRole: '' };
+    }
+}
+
+async function logActivity(event) {
+    try {
+        const { actorEmail, actorName, actorRole } = getActorFromLocalStorage();
+        const nowMs = Date.now();
+        const payload = {
+            ts: serverTimestamp(),
+            tsMs: nowMs,
+            tsIso: new Date(nowMs).toISOString(),
+            actorEmail: safeTrim(event?.actorEmail) || actorEmail,
+            actorName: safeTrim(event?.actorName) || actorName,
+            actorRole: safeLower(event?.actorRole) || actorRole,
+            action: safeTrim(event?.action),
+            summary: safeTrim(event?.summary),
+            entityType: safeTrim(event?.entityType),
+            entityId: safeTrim(event?.entityId),
+            details: event?.details && typeof event.details === 'object' ? event.details : {},
+            source: safeTrim(event?.source),
+        };
+
+        // Don't write empty events.
+        if (!payload.action && !payload.summary) return { ok: false, skipped: true };
+
+        const ref = collection(db, ACTIVITY_LOGS_COLLECTION);
+        const docRef = await addDoc(ref, payload);
+        return { ok: true, id: docRef.id };
+    } catch (error) {
+        console.warn('Activity log write failed:', error);
+        return { ok: false, error: error?.message || String(error) };
+    }
+}
+
+async function getActivityLogs(maxItems = 200) {
+    try {
+        const n = Math.max(1, Math.min(500, Number(maxItems) || 200));
+        const ref = collection(db, ACTIVITY_LOGS_COLLECTION);
+        const q = query(ref, orderBy('tsMs', 'desc'), limit(n));
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    } catch (error) {
+        console.error('Error getting activity logs:', error);
+        return [];
+    }
+}
+
+// =====================
+// Hub Bot topic counter
+// =====================
+
+const HUB_BOT_TOPICS_COLLECTION = 'hubBotTopics';
+
+function normalizeTopicKey(topic) {
+    const raw = safeLower(topic)
+        .replace(/[\u2019']/g, '')
+        .replace(/[^a-z0-9\s-]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    if (!raw) return '';
+    return raw.replace(/\s+/g, '-').slice(0, 80);
+}
+
+function extractTopicFromQuestion(question) {
+    const q = safeTrim(question);
+    if (!q) return '';
+    const lower = q.toLowerCase();
+
+    const patterns = [
+        /\bwhat\s+is\s+([^?!.]+)/i,
+        /\bwhat\s+are\s+([^?!.]+)/i,
+        /\bexplain\s+([^?!.]+)/i,
+        /\bdefine\s+([^?!.]+)/i,
+        /\btell\s+me\s+about\s+([^?!.]+)/i,
+        /\bmeaning\s+of\s+([^?!.]+)/i,
+    ];
+
+    for (const re of patterns) {
+        const m = q.match(re);
+        if (m && m[1]) {
+            return String(m[1]).trim().replace(/\s+in\s+ai\b.*$/i, '').trim();
+        }
+    }
+
+    // Fallback: use a short normalized slice.
+    const fallback = lower.replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+    const words = fallback.split(' ').filter(Boolean).slice(0, 6);
+    return words.join(' ');
+}
+
+async function hubBotRecordTopicQuestion({ question, actorEmail }) {
+    const actor = safeLower(actorEmail) || safeLower(getActorFromLocalStorage().actorEmail);
+    const topicDisplay = extractTopicFromQuestion(question) || safeTrim(question);
+    const topicKey = normalizeTopicKey(topicDisplay);
+    if (!topicKey) return { ok: false, reason: 'No topic', topicKey: '', topicDisplay: '', uniqueCount: 0 };
+
+    const ref = doc(db, HUB_BOT_TOPICS_COLLECTION, topicKey);
+    const nowMs = Date.now();
+
+    try {
+        const result = await runTransaction(db, async (tx) => {
+            const snap = await tx.get(ref);
+            const data = snap.exists() ? (snap.data() || {}) : {};
+            const askedBy = Array.isArray(data.askedByEmails) ? data.askedByEmails.map(safeLower).filter(Boolean) : [];
+            const hasActor = actor ? askedBy.includes(actor) : false;
+            const nextAskedBy = (actor && !hasActor) ? [...askedBy, actor] : askedBy;
+            const uniqueCount = nextAskedBy.length;
+            const totalCount = Number(data.totalCount || 0) + 1;
+
+            const threshold = 5;
+            const courseAddRequested = Boolean(data.courseAddRequested);
+            const coursesAddedAtMs = Number(data.coursesAddedAtMs || 0);
+
+            const shouldRequest = uniqueCount >= threshold && !courseAddRequested && !coursesAddedAtMs;
+
+            tx.set(ref, {
+                topicKey,
+                topicDisplay,
+                askedByEmails: nextAskedBy,
+                uniqueCount,
+                totalCount,
+                threshold,
+                lastQuestion: safeTrim(question),
+                lastAskedBy: actor,
+                lastAskedAt: serverTimestamp(),
+                lastAskedAtMs: nowMs,
+                courseAddRequested: courseAddRequested || shouldRequest,
+                updatedAtMs: nowMs,
+                createdAtMs: Number(data.createdAtMs || 0) || nowMs,
+            }, { merge: true });
+
+            return { uniqueCount, totalCount, shouldRequest, alreadyAdded: Boolean(coursesAddedAtMs) };
+        });
+
+        return { ok: true, topicKey, topicDisplay, uniqueCount: result.uniqueCount, totalCount: result.totalCount, shouldRequest: result.shouldRequest, alreadyAdded: result.alreadyAdded };
+    } catch (error) {
+        console.error('hubBotRecordTopicQuestion failed:', error);
+        return { ok: false, topicKey, topicDisplay, uniqueCount: 0, reason: error?.message || String(error) };
+    }
+}
+
+async function hubBotClaimTopicCourseAddition({ topicKey, actorEmail, videoId, videoTitle }) {
+    const actor = safeLower(actorEmail) || safeLower(getActorFromLocalStorage().actorEmail);
+    const ref = doc(db, HUB_BOT_TOPICS_COLLECTION, safeTrim(topicKey));
+    const nowMs = Date.now();
+
+    if (!safeTrim(topicKey) || !safeTrim(videoId)) return { ok: false, claimed: false, reason: 'Missing topicKey/videoId' };
+
+    try {
+        const result = await runTransaction(db, async (tx) => {
+            const snap = await tx.get(ref);
+            const data = snap.exists() ? (snap.data() || {}) : {};
+            const already = Number(data.coursesAddedAtMs || 0);
+            if (already) return { claimed: false };
+            tx.set(ref, {
+                coursesAddedAt: serverTimestamp(),
+                coursesAddedAtMs: nowMs,
+                courseVideoId: safeTrim(videoId),
+                courseVideoTitle: safeTrim(videoTitle),
+                courseAddedBy: actor,
+                courseAddRequested: true,
+            }, { merge: true });
+            return { claimed: true };
+        });
+        return { ok: true, claimed: Boolean(result.claimed) };
+    } catch (error) {
+        console.error('hubBotClaimTopicCourseAddition failed:', error);
+        return { ok: false, claimed: false, reason: error?.message || String(error) };
+    }
+}
+
+async function hubBotSuppressTopicCourseAddition({ topicKey, reason }) {
+    const key = safeTrim(topicKey);
+    if (!key) return { ok: false, reason: 'Missing topicKey' };
+    try {
+        const ref = doc(db, HUB_BOT_TOPICS_COLLECTION, key);
+        await setDoc(ref, {
+            courseAddSuppressed: true,
+            courseAddSuppressedAt: serverTimestamp(),
+            courseAddSuppressedAtMs: Date.now(),
+            courseAddSuppressedReason: safeTrim(reason),
+            courseAddRequested: true,
+        }, { merge: true });
+        return { ok: true };
+    } catch (error) {
+        console.error('hubBotSuppressTopicCourseAddition failed:', error);
+        return { ok: false, reason: error?.message || String(error) };
+    }
+}
 
 function normalizeCourse(rawCourse, fallbackIndex = 0) {
     const course = rawCourse && typeof rawCourse === 'object' ? rawCourse : {};
@@ -78,6 +306,27 @@ async function addSharedCourse(course) {
         const courseRef = doc(db, 'courses', normalized.id.toString());
         await setDoc(courseRef, normalized);
         console.log('Course added successfully to Firestore');
+
+        // Activity log (best-effort)
+        try {
+            await logActivity({
+                action: 'course.add',
+                summary: `Course added: ${normalized.name} (${normalized.type})`,
+                entityType: 'course',
+                entityId: String(normalized.id),
+                source: safeTrim(normalized.source) || 'ui',
+                details: {
+                    name: normalized.name,
+                    type: normalized.type,
+                    videoId: normalized.videoId,
+                    uploadDate: normalized.uploadDate,
+                    source: normalized.source || '',
+                    addedBy: normalized.addedBy || '',
+                    channelUrl: normalized.channelUrl || '',
+                }
+            });
+        } catch (_) {}
+
         return localCourses;
     } catch (error) {
         console.error('Error adding course to Firestore:', error);
@@ -111,6 +360,19 @@ async function deleteSharedCourse(courseId) {
         }
 
         console.log('Deleted from Firestore (direct and legacy match)');
+
+        // Activity log (best-effort)
+        try {
+            await logActivity({
+                action: 'course.delete',
+                summary: `Course deleted: ${key}`,
+                entityType: 'course',
+                entityId: key,
+                source: 'ui',
+                details: { key }
+            });
+        } catch (_) {}
+
         // Also update localStorage
         const courses = await getSharedCourses();
         localStorage.setItem('courses', JSON.stringify(courses));
@@ -160,6 +422,19 @@ async function deleteAllSharedCourses() {
         console.log('All courses deleted from Firestore');
 
         localStorage.setItem('courses', '[]');
+
+        // Activity log (best-effort)
+        try {
+            await logActivity({
+                action: 'course.deleteAll',
+                summary: 'All courses cleared',
+                entityType: 'course',
+                entityId: '*',
+                source: 'ui',
+                details: {}
+            });
+        } catch (_) {}
+
         return [];
     } catch (error) {
         console.error('Error clearing all courses from Firestore:', error);
@@ -190,6 +465,19 @@ async function addSharedAnnouncement(announcement) {
         const announcementId = Date.now().toString();
         const announcementRef = doc(db, 'announcements', announcementId);
         await setDoc(announcementRef, announcement);
+
+        // Activity log (best-effort)
+        try {
+            await logActivity({
+                action: 'announcement.add',
+                summary: 'Announcement added',
+                entityType: 'announcement',
+                entityId: announcementId,
+                source: 'ui',
+                details: { announcement }
+            });
+        } catch (_) {}
+
         return await getSharedAnnouncements();
     } catch (error) {
         console.error('Error adding announcement to Firestore:', error);
@@ -208,6 +496,15 @@ window.syncSharedCourses = syncSharedCourses;
 window.deleteAllSharedCourses = deleteAllSharedCourses;
 window.getSharedAnnouncements = getSharedAnnouncements;
 window.addSharedAnnouncement = addSharedAnnouncement;
+
+// Activity logs
+window.logActivity = logActivity;
+window.getActivityLogs = getActivityLogs;
+
+// Hub Bot topic counter + claim
+window.hubBotRecordTopicQuestion = hubBotRecordTopicQuestion;
+window.hubBotClaimTopicCourseAddition = hubBotClaimTopicCourseAddition;
+window.hubBotSuppressTopicCourseAddition = hubBotSuppressTopicCourseAddition;
 
 // =====================
 // Shared Users (Role Mgmt)

@@ -146,6 +146,8 @@ app.get('/api/youtube/check', async (req, res) => {
     }
     const oembed = await oembedResp.json().catch(() => ({}));
     const title = oembed?.title || '';
+    const authorName = oembed?.author_name || '';
+    const authorUrl = oembed?.author_url || '';
 
     // 2) Check embed page for common "unavailable" signals
     const embedUrl = `https://www.youtube.com/embed/${videoId}`;
@@ -165,7 +167,7 @@ app.get('/api/youtube/check', async (req, res) => {
     ];
     const blocked = blockedPhrases.some(p => lower.includes(p));
     if (blocked) {
-      return res.status(200).json({ ok: false, title, reason: 'Video unavailable or embedding disabled' });
+      return res.status(200).json({ ok: false, title, authorName, authorUrl, reason: 'Video unavailable or embedding disabled' });
     }
 
     // 3) Fallback to playerResponse parse for extra certainty (best-effort)
@@ -189,6 +191,8 @@ app.get('/api/youtube/check', async (req, res) => {
             status: status || 'UNKNOWN',
             embeddable: playableInEmbed !== false,
             title: player?.videoDetails?.title || title,
+            authorName: authorName || (player?.videoDetails?.author || ''),
+            authorUrl,
             reason: ok ? '' : (reason || 'Video not playable or not embeddable'),
           });
         }
@@ -198,7 +202,7 @@ app.get('/api/youtube/check', async (req, res) => {
     }
 
     // If we got here, embed page looked OK and oEmbed succeeded
-    return res.status(200).json({ ok: true, status: 'OK', embeddable: true, title, reason: '' });
+    return res.status(200).json({ ok: true, status: 'OK', embeddable: true, title, authorName, authorUrl, reason: '' });
   } catch (error) {
     console.error('YouTube check error:', error);
     res.status(500).json({ ok: false, reason: error.message });
@@ -210,6 +214,7 @@ app.get('/api/youtube/search', async (req, res) => {
   try {
     const query = String(req.query.query || req.query.q || '').trim();
     const max = Math.max(1, Math.min(30, Number(req.query.max || 15) || 15));
+    const onlyShorts = String(req.query.onlyShorts || req.query.shortsOnly || '').trim() === '1';
 
     if (!query) {
       return res.status(400).json({ ok: false, reason: 'Missing query' });
@@ -223,27 +228,48 @@ app.get('/api/youtube/search', async (req, res) => {
       'Accept-Language': 'en-US,en;q=0.9',
     };
 
-    const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
+    // When onlyShorts=1 we apply the official YouTube search filter for Shorts.
+    // (This still isn't a public API; it's best-effort scraping.)
+    const shortsSp = 'EgIYAQ%3D%3D';
+    const searchUrl = onlyShorts
+      ? `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}&sp=${shortsSp}&hl=en&gl=US`
+      : `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}&hl=en&gl=US`;
     const resp = await fetch(searchUrl, { method: 'GET', headers: ua });
     if (!resp.ok) {
       return res.status(200).json({ ok: false, query, reason: `HTTP ${resp.status}`, videoIds: [] });
     }
 
     const html = await resp.text();
+
     const ids = [];
     const seen = new Set();
-    const re = /watch\?v=([a-zA-Z0-9_-]{11})/g;
-    let m;
-    while ((m = re.exec(html)) !== null) {
-      const id = m[1];
+
+    // Shorts URLs often appear in embedded JSON with escaped slashes (e.g. \/shorts\/VIDEOID)
+    const reShorts = /\\?\/shorts\\?\/([a-zA-Z0-9_-]{11})/g;
+    const reWatch = /watch\?v=([a-zA-Z0-9_-]{11})/g;
+
+    const push = (id) => {
+      if (!id) return;
       if (!seen.has(id)) {
         seen.add(id);
         ids.push(id);
+      }
+    };
+
+    let m;
+    if (onlyShorts) {
+      while ((m = reShorts.exec(html)) !== null) {
+        push(m[1]);
+        if (ids.length >= max) break;
+      }
+    } else {
+      while ((m = reWatch.exec(html)) !== null) {
+        push(m[1]);
         if (ids.length >= max) break;
       }
     }
 
-    return res.status(200).json({ ok: ids.length > 0, query, videoIds: ids });
+    return res.status(200).json({ ok: ids.length > 0, query, onlyShorts, videoIds: ids });
   } catch (error) {
     console.error('YouTube search error:', error);
     res.status(500).json({ ok: false, reason: error.message, videoIds: [] });
