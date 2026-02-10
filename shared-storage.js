@@ -54,6 +54,8 @@ const DEFAULT_QUICK_SHORT_HANDLES = [
     'GoogleCloudTech',
     'awsdevelopers',
     'fireship',
+    // Automation / workflows
+    'n8n',
 ];
 
 function deriveUpskillTopic(title) {
@@ -65,14 +67,16 @@ function deriveUpskillTopic(title) {
         { topic: 'Power BI', keys: ['power bi', 'powerbi', 'dax'] },
         { topic: 'SQL', keys: ['sql', 'postgres', 'mysql', 'sql server', 'query', 'joins'] },
         { topic: 'Python', keys: ['python', 'pandas', 'numpy'] },
+        { topic: 'Web', keys: ['html', 'css', 'web development'] },
         { topic: 'JavaScript', keys: ['javascript', 'js ', 'node', 'npm'] },
         { topic: 'TypeScript', keys: ['typescript', 'ts '] },
         { topic: 'React', keys: ['react', 'next.js', 'nextjs'] },
+        { topic: 'Automation', keys: ['n8n', 'workflow automation', 'automation workflow'] },
         { topic: 'Cloud', keys: ['aws', 'azure', 'gcp', 'google cloud', 'cloud'] },
         { topic: 'DevOps', keys: ['docker', 'kubernetes', 'k8s', 'ci/cd', 'cicd', 'devops'] },
         { topic: 'Git', keys: ['git', 'github', 'pull request', 'merge'] },
         { topic: 'Security', keys: ['security', 'cyber', 'owasp', 'vulnerability'] },
-        { topic: 'AI', keys: ['ai', 'machine learning', 'ml', 'llm', 'prompt', 'transformer'] },
+        { topic: 'AI', keys: ['ai', 'machine learning', 'ml', 'llm', 'prompt', 'prompt engineering', 'transformer', 'transformers', 'neural network', 'deep learning', 'genai', 'generative ai', 'agentic', 'claude'] },
         { topic: 'Communication', keys: ['communication', 'presentation', 'writing', 'email'] },
         { topic: 'Leadership', keys: ['leadership', 'management', 'team', 'stakeholder'] },
     ];
@@ -132,22 +136,27 @@ function ooIsUpskillingClipTitle(title) {
     ];
     if (blocked.some((k) => t.includes(k))) return false;
 
-    // Positive signals: common employee upskilling topics.
-    const positive = [
-        'excel', 'power bi', 'powerbi', 'sql', 'python', 'javascript', 'typescript', 'react', 'node',
-        'aws', 'azure', 'gcp', 'google cloud', 'docker', 'kubernetes', 'git', 'github',
-        'cybersecurity', 'security', 'network', 'linux', 'windows',
-        'data', 'analytics', 'machine learning', 'ai', 'llm', 'prompt', 'automation',
-        'communication', 'leadership', 'management', 'productivity', 'time management',
-        'presentation', 'writing', 'email',
+    // Required topics for Quick learning (per product requirement).
+    const required = [
+        'llm', 'large language model',
+        'agentic', 'agent', 'agents',
+        'prompt engineering', 'prompt',
+        'genai', 'generative ai',
+        'transformer', 'transformers',
+        'neural network', 'neural networks', 'deep learning',
+        'machine learning', 'ml',
+        'python',
+        'react',
+        'html',
+        'n8n',
+        'claude code', 'claude',
     ];
 
-    // If it contains an obvious upskilling keyword, accept.
-    if (positive.some((k) => t.includes(k))) return true;
-
-    // Otherwise, be conservative: allow most technical clips, but reject obvious non-upskilling content.
-    // (Keeping this permissive avoids over-filtering.)
-    return true;
+    // Reject "AI"-only noise.
+    const weakOnly = ['ai', 'a.i.'];
+    if (required.some((k) => t.includes(k))) return true;
+    if (weakOnly.some((k) => t.includes(k))) return false;
+    return false;
 }
 
 function safeArray(v) {

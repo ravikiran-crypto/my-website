@@ -7,6 +7,8 @@ import {
   setDoc,
   getDocs,
   updateDoc,
+  deleteDoc,
+  writeBatch,
   query,
   where,
   onSnapshot,
@@ -17,6 +19,7 @@ import {
   ref as storageRef,
   uploadBytesResumable,
   getDownloadURL,
+  deleteObject,
 } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-storage.js";
 
 const firebaseConfig = {
@@ -367,6 +370,68 @@ export async function uploadShowcaseDemoVideo({ file, projectId, makerId }) {
   return { downloadUrl, storagePath: path };
 }
 
+async function deleteByQuery(q) {
+  try {
+    const snap = await getDocs(q);
+    const docs = snap.docs || [];
+    const chunkSize = 450;
+    for (let i = 0; i < docs.length; i += chunkSize) {
+      const batch = writeBatch(db);
+      const chunk = docs.slice(i, i + chunkSize);
+      for (const d of chunk) batch.delete(d.ref);
+      await batch.commit();
+    }
+    return docs.length;
+  } catch (e) {
+    console.warn("deleteByQuery failed", e);
+    return 0;
+  }
+}
+
+export async function deleteShowcaseProject(projectId, opts = {}) {
+  const id = String(projectId || "").trim();
+  if (!id) throw new Error("Missing projectId");
+
+  const options = {
+    deleteComments: opts.deleteComments !== false,
+    deleteSuggestions: opts.deleteSuggestions !== false,
+    deleteDemoVideo: opts.deleteDemoVideo !== false,
+  };
+
+  // Local-first: update UI immediately
+  const localProjects = getLocalProjects();
+  const localProject = localProjects.find((p) => p.id === id) || null;
+  setLocalProjects(localProjects.filter((p) => p.id !== id));
+  setLocalComments(getLocalComments().filter((c) => c.projectId !== id));
+
+  // Best-effort storage cleanup
+  if (options.deleteDemoVideo) {
+    const path = String(localProject?.demoVideoStoragePath || "").trim();
+    if (path) {
+      try {
+        await deleteObject(storageRef(storage, path));
+      } catch (e) {
+        console.warn("deleteShowcaseProject: demo video delete failed", e);
+      }
+    }
+  }
+
+  // Firestore cleanup (best-effort)
+  try {
+    if (options.deleteComments) {
+      await deleteByQuery(query(collection(db, "showcaseComments"), where("projectId", "==", id)));
+    }
+    if (options.deleteSuggestions) {
+      await deleteByQuery(query(collection(db, "showcaseSuggestions"), where("projectId", "==", id)));
+    }
+    await deleteDoc(doc(db, "showcaseProjects", id));
+  } catch (error) {
+    console.error("deleteShowcaseProject Firestore failed; local already updated", error);
+  }
+
+  return { id };
+}
+
 // Expose convenience globals (matches existing workspace style)
 window.getShowcaseProjects = getShowcaseProjects;
 window.addShowcaseProject = addShowcaseProject;
@@ -378,3 +443,4 @@ window.listenToShowcaseComments = listenToShowcaseComments;
 window.uploadShowcaseDemoVideo = uploadShowcaseDemoVideo;
 window.addShowcaseSuggestion = addShowcaseSuggestion;
 window.listenToShowcaseSuggestionsForUser = listenToShowcaseSuggestionsForUser;
+window.deleteShowcaseProject = deleteShowcaseProject;

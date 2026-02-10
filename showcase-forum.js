@@ -9,6 +9,7 @@ import {
   uploadShowcaseDemoVideo,
   addShowcaseSuggestion,
   listenToShowcaseSuggestionsForUser,
+  deleteShowcaseProject,
 } from "./showcase-storage.js";
 
 function toast(type, title, message) {
@@ -115,6 +116,18 @@ function getCurrentUser() {
   };
 }
 
+function isAdminUser() {
+  try {
+    const role = String(localStorage.getItem("userRole") || "").trim().toLowerCase();
+    if (role === "admin" || role === "administrator") return true;
+    const email = String(localStorage.getItem("userEmail") || "").trim().toLowerCase();
+    if (email && email === "ravikiran@oneorigin.us") return true;
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 function computeTrendingScore(p) {
   const up = Number(p.upvotes) || 0;
   const cc = Number(p.commentsCount) || 0;
@@ -209,6 +222,7 @@ const els = {
 
 const state = {
   user: getCurrentUser(),
+  isAdmin: isAdminUser(),
   projects: [],
   comments: [],
   activeProjectId: null,
@@ -223,6 +237,55 @@ const state = {
   unsubProjects: null,
   unsubComments: null,
 };
+
+async function confirmDeleteProject(project) {
+  const title = "Delete project?";
+  const message = `This will permanently delete “${project?.name || "this project"}” and its comments/suggestions.`;
+
+  if (window.appUI && typeof window.appUI.confirm === "function") {
+    return Boolean(
+      await window.appUI.confirm({
+        title,
+        message,
+        okText: "Delete",
+        cancelText: "Cancel",
+        type: "warning",
+      }),
+    );
+  }
+
+  // eslint-disable-next-line no-alert
+  return window.confirm(`${title}\n\n${message}`);
+}
+
+async function handleDeleteProject(projectId) {
+  if (!state.isAdmin) {
+    toast("error", "Admins only", "Only admins can delete submitted projects.");
+    return;
+  }
+  const project = state.projects.find((p) => p.id === projectId);
+  if (!project) {
+    toast("error", "Not found", "That project could not be found.");
+    return;
+  }
+
+  const ok = await confirmDeleteProject(project);
+  if (!ok) return;
+
+  try {
+    await deleteShowcaseProject(projectId);
+    state.projects = state.projects.filter((p) => p.id !== projectId);
+    if (state.activeProjectId === projectId) {
+      state.activeProjectId = null;
+      showMode("home");
+    }
+    renderHome();
+    toast("success", "Deleted", "The project was deleted.");
+  } catch (e) {
+    console.error(e);
+    toast("error", "Delete failed", "Could not delete this project right now.");
+  }
+}
 
 function getMainScroller() {
   return document.querySelector(".main-content") || document.scrollingElement || document.documentElement;
@@ -318,8 +381,18 @@ function renderHome() {
           <span>Comments ${Number(p.commentsCount) || 0}</span>
           <span>Suggestions ${Number(p.suggestionsCount) || 0}</span>
         </div>
+        ${state.isAdmin ? `<button type="button" class="sc-icon-btn sc-danger" data-del="${escapeHtml(p.id)}" title="Delete project">🗑</button>` : ""}
       </div>
     `;
+
+    const del = card.querySelector("button[data-del]");
+    if (del) {
+      del.addEventListener("click", async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        await handleDeleteProject(p.id);
+      });
+    }
 
     card.addEventListener("click", () => {
       void openProject(p.id);
@@ -385,8 +458,12 @@ async function openProject(projectId) {
     ? `<button type="button" class="ghost" data-watch-demo="1" style="padding:8px 12px;">▶ Watch demo</button>`
     : "";
 
+  const delBtn = state.isAdmin
+    ? `<button type="button" class="ghost" data-delete-project="1" style="padding:8px 12px; border:1px solid rgba(248,81,73,0.35); background: rgba(248,81,73,0.12);">🗑 Delete</button>`
+    : "";
+
   const linksHtml = links.length ? links.join(" <span style='opacity:0.6'>•</span> ") : "<span style='opacity:0.7'>No links provided.</span>";
-  els.pLinks.innerHTML = `${linksHtml}${watchBtn ? ` <span style='opacity:0.6'>•</span> ${watchBtn}` : ""}`;
+  els.pLinks.innerHTML = `${linksHtml}${watchBtn ? ` <span style='opacity:0.6'>•</span> ${watchBtn}` : ""}${delBtn ? ` <span style='opacity:0.6'>•</span> ${delBtn}` : ""}`;
 
   const watch = els.pLinks.querySelector("button[data-watch-demo]");
   if (watch) {
@@ -396,6 +473,15 @@ async function openProject(projectId) {
       } else {
         window.open(p.demoVideoUrl, "_blank", "noopener,noreferrer");
       }
+    });
+  }
+
+  const del = els.pLinks.querySelector("button[data-delete-project]");
+  if (del) {
+    del.addEventListener("click", async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      await handleDeleteProject(projectId);
     });
   }
 
@@ -973,8 +1059,21 @@ async function initOnce() {
 }
 
 function onOpen() {
+  // Role can be updated async; re-evaluate whenever tab opens.
+  state.user = getCurrentUser();
+  state.isAdmin = isAdminUser();
   // Ensure module state is ready when tab opened
   void initOnce();
+
+  // If already initialized, refresh UI so admin controls show/hide instantly.
+  try {
+    if (state.initialized) {
+      if (state.mode === "home") renderHome();
+      else if (state.mode === "project" && state.activeProjectId) void openProject(state.activeProjectId);
+    }
+  } catch {
+    // ignore
+  }
 }
 
 // expose to dashboard switchTab

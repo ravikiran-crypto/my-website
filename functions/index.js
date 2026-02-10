@@ -144,7 +144,89 @@ const DEFAULT_QUICK_SHORT_HANDLES = [
   'GoogleCloudTech',
   'awsdevelopers',
   'fireship',
+  // Automation / workflows
+  'n8n',
 ];
+
+// Default topic queries to keep the feed aligned to the hub focus.
+// Used by the daily scheduler in addition to channel handles.
+const DEFAULT_QUICK_SHORT_QUERIES = [
+  'llm',
+  'agentic ai',
+  'prompt engineering',
+  'genai',
+  'transformers neural network',
+  'claude code',
+  'n8n automation',
+  'react',
+  'html',
+  'python machine learning',
+];
+
+function safeLower(v) {
+  return String(v || '').trim().toLowerCase();
+}
+
+function ooIsDesiredQuickLearningTitle(title) {
+  const t = safeLower(title);
+  if (!t) return true; // if missing, don't block
+
+  // Hard blocks: keep the feed technical.
+  const blocked = [
+    'interview',
+    'mock interview',
+    'resume',
+    'cv',
+    'salary',
+    'negotiat',
+    'hiring',
+    'recruit',
+    'business idea',
+    'startup',
+    'side hustle',
+    'entrepreneur',
+    'marketing',
+    'sales',
+    'dropshipping',
+    'passive income',
+    'make money',
+    'crypto',
+    'real estate',
+  ];
+  if (blocked.some((k) => t.includes(k))) return false;
+
+  // Allowed topics (user requirement).
+  const allowed = [
+    'llm',
+    'large language model',
+    'agentic',
+    'agent',
+    'agents',
+    'prompt engineering',
+    'prompt',
+    'genai',
+    'generative ai',
+    'transformer',
+    'transformers',
+    'neural network',
+    'neural networks',
+    'deep learning',
+    'machine learning',
+    'ml',
+    'python',
+    'react',
+    'html',
+    'n8n',
+    'claude code',
+    'claude',
+  ];
+
+  // Prevent "AI"-only noise from getting through.
+  const weakOnly = ['ai', 'a.i.'];
+  if (allowed.some((k) => t.includes(k))) return true;
+  if (weakOnly.some((k) => t.includes(k))) return false;
+  return false;
+}
 
 function deriveUpskillTopic(title) {
   const t = String(title || '').trim().toLowerCase();
@@ -155,14 +237,34 @@ function deriveUpskillTopic(title) {
     { topic: 'Power BI', keys: ['power bi', 'powerbi', 'dax'] },
     { topic: 'SQL', keys: ['sql', 'postgres', 'mysql', 'sql server', 'query', 'joins'] },
     { topic: 'Python', keys: ['python', 'pandas', 'numpy'] },
+    { topic: 'Web', keys: ['html', 'css', 'web development'] },
     { topic: 'JavaScript', keys: ['javascript', ' js', 'node', 'npm'] },
     { topic: 'TypeScript', keys: ['typescript', ' ts'] },
     { topic: 'React', keys: ['react', 'next.js', 'nextjs'] },
+    { topic: 'Automation', keys: ['n8n', 'workflow automation', 'automation workflow'] },
     { topic: 'Cloud', keys: ['aws', 'azure', 'gcp', 'google cloud', 'cloud'] },
     { topic: 'DevOps', keys: ['docker', 'kubernetes', 'k8s', 'ci/cd', 'cicd', 'devops'] },
     { topic: 'Git', keys: ['git', 'github', 'pull request', 'merge'] },
     { topic: 'Security', keys: ['security', 'cyber', 'owasp', 'vulnerability'] },
-    { topic: 'AI', keys: ['ai', 'machine learning', 'ml', 'llm', 'prompt', 'transformer'] },
+    {
+      topic: 'AI',
+      keys: [
+        'ai',
+        'machine learning',
+        'ml',
+        'llm',
+        'prompt',
+        'prompt engineering',
+        'transformer',
+        'transformers',
+        'neural network',
+        'deep learning',
+        'genai',
+        'generative ai',
+        'agentic',
+        'claude',
+      ],
+    },
     { topic: 'Communication', keys: ['communication', 'presentation', 'writing', 'email'] },
     { topic: 'Leadership', keys: ['leadership', 'management', 'team', 'stakeholder'] },
   ];
@@ -226,6 +328,38 @@ async function fetchChannelShortIds(handle, max = 200) {
   return [...out];
 }
 
+async function fetchSearchShortIds(queryText, max = 60) {
+  const queryTextTrim = String(queryText || '').trim();
+  if (!queryTextTrim) return [];
+
+  // Official Shorts filter parameter (best-effort scraping)
+  const shortsSp = 'EgIYAQ%3D%3D';
+  const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(
+    queryTextTrim
+  )}&sp=${shortsSp}&hl=en&gl=US`;
+
+  const resp = await fetch(searchUrl, { method: 'GET', headers: UA_HEADERS });
+  if (!resp.ok) return [];
+  const html = await resp.text();
+
+  const out = new Set();
+  const patterns = [
+    /\/shorts\/([a-zA-Z0-9_-]{11})/g,
+    /\\\/shorts\\\/([a-zA-Z0-9_-]{11})/g,
+  ];
+
+  for (const re of patterns) {
+    let match;
+    while ((match = re.exec(html))) {
+      out.add(match[1]);
+      if (out.size >= max) break;
+    }
+    if (out.size >= max) break;
+  }
+
+  return [...out];
+}
+
 async function checkEmbeddable(videoId) {
   const id = String(videoId || '').trim();
   if (!/^[a-zA-Z0-9_-]{11}$/.test(id)) return { ok: false };
@@ -268,8 +402,16 @@ async function checkEmbeddable(videoId) {
 async function refreshQuickShortsFirestore({ maxNew = 40, maxPerSource = 200 } = {}) {
   const srcSnap = await db.doc(QUICK_SHORTS_SOURCES_DOC_PATH).get();
   const handles = Array.isArray(srcSnap.data()?.handles) ? srcSnap.data().handles : [];
+  const queries = Array.isArray(srcSnap.data()?.queries) ? srcSnap.data().queries : [];
   // Union configured + defaults so older single-source configs don't block diversification.
   const sources = uniqueHandles([...(handles || []), ...DEFAULT_QUICK_SHORT_HANDLES]);
+  const searchQueries = Array.from(
+    new Set(
+      [...(Array.isArray(queries) ? queries : []), ...DEFAULT_QUICK_SHORT_QUERIES]
+        .map((q) => String(q || '').trim())
+        .filter(Boolean)
+    )
+  ).slice(0, 12);
 
   const startedAtMs = Date.now();
   const added = [];
@@ -280,6 +422,12 @@ async function refreshQuickShortsFirestore({ maxNew = 40, maxPerSource = 200 } =
   for (const handle of sources) {
     const ids = await fetchChannelShortIds(handle, maxPerSource);
     idsByHandle.set(handle, ids);
+  }
+
+  const idsByQuery = new Map();
+  for (const q of searchQueries) {
+    const ids = await fetchSearchShortIds(q, Math.min(120, maxPerSource));
+    idsByQuery.set(q, ids);
   }
 
   let progressed = true;
@@ -303,7 +451,31 @@ async function refreshQuickShortsFirestore({ maxNew = 40, maxPerSource = 200 } =
       const check = await checkEmbeddable(id);
       if (!check.ok) continue;
 
+      if (!ooIsDesiredQuickLearningTitle(check.title || '')) continue;
+
       added.push({ id, handle, title: check.title || '' });
+    }
+
+    for (const q of searchQueries) {
+      if (added.length >= maxNew) break;
+      const ids = idsByQuery.get(q) || [];
+      if (!ids.length) continue;
+      progressed = true;
+      const id = ids.shift();
+      idsByQuery.set(q, ids);
+      if (!id) continue;
+      if (seen.has(id)) continue;
+      seen.add(id);
+
+      const docRef = db.collection(QUICK_SHORTS_COLLECTION).doc(id);
+      const exists = await docRef.get();
+      if (exists.exists) continue;
+
+      const check = await checkEmbeddable(id);
+      if (!check.ok) continue;
+      if (!ooIsDesiredQuickLearningTitle(check.title || '')) continue;
+
+      added.push({ id, handle: `q:${q}`, title: check.title || '' });
     }
   }
 
@@ -320,6 +492,7 @@ async function refreshQuickShortsFirestore({ maxNew = 40, maxPerSource = 200 } =
         sourceHandle: item.handle,
         addedAtMs: Date.now(),
         addedBy: 'scheduler',
+        embeddable: true,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
       batchCount++;
@@ -343,6 +516,7 @@ async function refreshQuickShortsFirestore({ maxNew = 40, maxPerSource = 200 } =
       lastRunStartedAtMs: startedAtMs,
       lastRunAddedCount: committed,
       sourcesCount: sources.length,
+      queriesCount: searchQueries.length,
     },
     { merge: true }
   );
@@ -352,8 +526,8 @@ async function refreshQuickShortsFirestore({ maxNew = 40, maxPerSource = 200 } =
 
 // Runs daily; requires Cloud Scheduler.
 exports.refreshQuickLearningDaily = functions.pubsub
-  .schedule('every day 03:00')
-  .timeZone('UTC')
+  .schedule('0 6 * * *')
+  .timeZone('Asia/Kolkata')
   .onRun(async () => {
     try {
       await refreshQuickShortsFirestore({ maxNew: 40, maxPerSource: 200 });
