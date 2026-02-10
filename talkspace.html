@@ -806,7 +806,8 @@
 
       const me = String(safeEmail() || "").trim().toLowerCase();
       const owner = String(msg?.userEmail || "").trim().toLowerCase();
-      const isMine = me && owner && me === owner;
+      const isHubAlert = String(msg?.senderType || "").trim().toLowerCase() === "hub-alert" || msg?.system === true;
+      const isMine = !isHubAlert && me && owner && me === owner;
 
       const isEditing = state.editing?.messageId && String(state.editing.messageId) === String(docId);
       const edited = !!(msg?.editedAt || msg?.edited === true);
@@ -820,7 +821,8 @@
         ? `<button class="ts-views-btn" type="button" data-action="views" title="Viewed by">Seen by ${viewers.length}</button>`
         : "";
 
-      const color = userColorSeed(msg?.userEmail);
+      const seedEmail = isHubAlert ? "hub-alert@oneorigin.us" : (msg?.userEmail || "");
+      const color = userColorSeed(seedEmail);
       const avatar = `<div class="ts-avatar" style="--av:${color}">${escapeHtml(initials(msg?.userName))}</div>`;
 
       const canEdit = !deleted && isMine;

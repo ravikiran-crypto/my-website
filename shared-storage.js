@@ -58,6 +58,69 @@ const DEFAULT_QUICK_SHORT_HANDLES = [
     'n8n',
 ];
 
+// =====================
+// TalkSpace (system alerts)
+// =====================
+
+function normalizeAlertKeyPart(v) {
+    const s = safeLower(v);
+    if (!s) return 'unknown';
+    // Firestore doc ids cannot contain '/', keep it simple and stable.
+    return s.replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 80) || 'unknown';
+}
+
+function ooFormatCourseLabel(name) {
+    const t = safeTrim(name);
+    if (!t) return 'course';
+    return t.toLowerCase().includes('course') ? t : `${t} course`;
+}
+
+async function postAssessmentPassedHubAlert(options) {
+    const opts = options && typeof options === 'object' ? options : {};
+    const spaceId = safeTrim(opts.spaceId) || 'main';
+    const courseVideoId = safeTrim(opts.courseVideoId);
+    const courseName = safeTrim(opts.courseName);
+
+    const learnerEmail = safeLower(opts.learnerEmail) || safeLower(localStorage.getItem('userEmail'));
+    const learnerName = safeTrim(opts.learnerName) || safeTrim(localStorage.getItem('userName')) || (learnerEmail ? learnerEmail.split('@')[0] : 'User');
+
+    const courseLabel = ooFormatCourseLabel(courseName);
+    const text = `🎉 ${learnerName} has successfully completed and passed the ${courseLabel}.`;
+
+    // Idempotent alert key: one alert per learner+course.
+    const key = `hubalert_pass_${normalizeAlertKeyPart(learnerEmail)}_${normalizeAlertKeyPart(courseVideoId || courseName)}`;
+
+    try {
+        const msgRef = doc(db, 'talkspaceSpaces', spaceId, 'messages', key);
+        const existing = await getDoc(msgRef);
+        if (existing.exists()) return { ok: true, skipped: true };
+
+        await setDoc(msgRef, {
+            text,
+            attachments: [],
+            // Keep userEmail as the learner's email so unread/ownership logic works naturally.
+            userEmail: learnerEmail || '',
+            userName: 'Hub Alert',
+            senderType: 'hub-alert',
+            system: true,
+            meta: {
+                kind: 'assessment_passed',
+                learnerEmail: learnerEmail || '',
+                learnerName,
+                courseVideoId: courseVideoId || '',
+                courseName: courseName || '',
+            },
+            createdAt: serverTimestamp(),
+            reactions: {},
+        }, { merge: false });
+
+        return { ok: true, skipped: false };
+    } catch (error) {
+        console.warn('postAssessmentPassedHubAlert failed:', error);
+        return { ok: false, reason: error?.message || String(error) };
+    }
+}
+
 function deriveUpskillTopic(title) {
     const t = safeLower(title);
     if (!t) return '';
@@ -823,6 +886,7 @@ window.hubBotSuppressTopicCourseAddition = hubBotSuppressTopicCourseAddition;
 // Quick learning Shorts feed
 window.getQuickShorts = getQuickShorts;
 window.refreshQuickShortsFeed = refreshQuickShortsFeed;
+window.postAssessmentPassedHubAlert = postAssessmentPassedHubAlert;
 
 // =====================
 // Shared Users (Role Mgmt)

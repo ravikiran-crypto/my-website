@@ -4402,6 +4402,7 @@ async function catalogAssessmentSubmit() {
     // Increment attempts
     const existingMap = await getAllProgressMap();
     const existing = existingMap[String(meta?.videoId || '').trim()] || {};
+    const wasPassed = !!(existing?.completedAt || existing?.assessment?.passed);
     const attempts = (existing?.assessment?.attempts || existing?.attempts || 0) + 1;
     progressPatch.assessment.attempts = attempts;
 
@@ -4410,6 +4411,19 @@ async function catalogAssessmentSubmit() {
     // Update leaderboard only when passed
     if (passed) {
         await updateMyLeaderboardPoints();
+
+        // Hub Alert in TalkSpace (best-effort) when course is newly passed
+        if (!wasPassed) {
+            try {
+                Promise.resolve(window.postAssessmentPassedHubAlert && window.postAssessmentPassedHubAlert({
+                    spaceId: 'main',
+                    courseVideoId: String(meta?.videoId || '').trim(),
+                    courseName: String(meta?.title || '').trim(),
+                    learnerName: localStorage.getItem('userName') || '',
+                    learnerEmail: localStorage.getItem('userEmail') || '',
+                })).catch(() => {});
+            } catch (_) {}
+        }
     }
 
     const body = document.getElementById('courseAssessmentBody');
@@ -6341,6 +6355,7 @@ async function showVideoAssessmentResults(score) {
     const courses = JSON.parse(localStorage.getItem('assignedCourses') || '[]');
     const course = courses.find(c => c.id === currentVideoAssessmentCourse.id);
     if (course) {
+        const wasPassed = !!course.passed;
         course.lastScore = scorePercentage;
         course.attemptedDate = new Date().toLocaleDateString();
         course.attemptCount = (course.attemptCount || 0) + 1;
@@ -6372,6 +6387,21 @@ async function showVideoAssessmentResults(score) {
         }
         
         loadAssignedCourses();
+
+        // Hub Alert in TalkSpace (best-effort) when course is newly passed
+        if (passed && !wasPassed) {
+            try {
+                const vid = String(currentVideoAssessmentCourse?.videoId || '').trim();
+                const nm = String(currentVideoAssessmentCourse?.topic || '').trim();
+                Promise.resolve(window.postAssessmentPassedHubAlert && window.postAssessmentPassedHubAlert({
+                    spaceId: 'main',
+                    courseVideoId: vid,
+                    courseName: nm,
+                    learnerName: localStorage.getItem('userName') || '',
+                    learnerEmail: localStorage.getItem('userEmail') || '',
+                })).catch(() => {});
+            } catch (_) {}
+        }
     }
 
     // Persist into shared progress so Admin can view it (and for leaderboard)
